@@ -21,6 +21,8 @@ Este spec cobre **apenas o painel Executivo** — o primeiro dos 5 a ser constru
 | Logo | Extraída do site (`camparimadvogados.com.br/wp-content/uploads/2024/02/logo1.png`) — brasão dourado + "CAMPARIM ADVOGADOS", embutida como asset do app |
 | Navegação entre painéis | Abas estilo "divisória de fichário" no topo (não barra lateral) |
 | Escopo desta spec | Só o painel Executivo; os outros 4 ficam como abas inativas |
+| Dados históricos de Contratos/Pagamentos | Controle hoje é informal (memória/WhatsApp/papel) — **não há migração**; o CRM passa a ser o registro oficial a partir do momento em que a digitação começar |
+| Digitação manual de Contratos/Pagamentos/Propostas | Reduzida por automação: o n8n cria rascunhos nos momentos previsíveis (proposta aceita → contrato; contrato assinado → parcelas), a pessoa só confirma/completa — ver seção "Criação assistida de registros" |
 
 ## Arquitetura
 
@@ -58,6 +60,10 @@ Consulta ao `GET /api/v1/Metadata` do EspoCRM (via workflow diagnóstico descart
 | `CCasoJuridico` (custom) | `status`, `riskLevel`, `currentPhase`, `legalArea`, `court`, `caseNumber`, `claimValue`, `nextDeadlineAt`, `lastMovementAt`, `client`/`responsibleLawyer` (links) | `status`: `Ativo, Suspenso, Encerrado - Êxito, Encerrado - Sem Êxito` · `riskLevel`: `Baixo, Médio, Alto` |
 
 Todos os campos monetários são do tipo `currency` do EspoCRM (moeda única BRL neste CRM) — mirror usa a coluna `*_amount` já convertida, sem tratar multi-moeda.
+
+**Confirmado também via `GET /api/v1/Settings` (`tabList`):** os 4 módulos custom já aparecem na barra lateral do EspoCRM hoje (`CCasoJuridico`, `CProposta`, `CContrato`, `CPagamento` estão na lista de abas ativas, junto de `Lead`/`Meeting`) — não é preciso nenhuma configuração de Entity Manager para começar a usar; a digitação manual já é possível na tela normal do CRM.
+
+**Dois campos novos a criar em `CContrato`** (via Admin → Entity Manager, antes da Task de automação): `numeroParcelas` (inteiro, default 1) e `diaVencimentoPrimeiraParcela` (data, opcional — se vazio, assume `signedAt + 30 dias`). Sem eles, a criação assistida de parcelas (abaixo) não sabe em quantas vezes dividir o pagamento.
 
 ## Modelo de dados (Supabase, novo schema `crm_sync`)
 
@@ -203,6 +209,26 @@ alter table crm_sync.sync_failures enable row level security;
 
 **Indicador de dados desatualizados no app:** o Next.js lê `max(modified_at)` das 6 tabelas e, se o mais antigo passar de 15 minutos (3x o intervalo de sync), mostra um aviso discreto no topo do painel ("dados podem estar desatualizados") em vez de fingir que está tudo em dia.
 
+## Criação assistida de registros (reduz digitação manual)
+
+O escritório confirmou que hoje o controle de contratos/pagamentos é informal (memória, WhatsApp, papel) — o CRM vai ser o primeiro lugar organizado pra isso, e digitar cada contrato e cada parcela do zero seria trabalho novo real. Em vez disso, um segundo workflow n8n cria **rascunhos automáticos** nos pontos em que os dados já são previsíveis a partir do que já existe no CRM; a pessoa só confirma ou completa, nunca deixa de revisar antes de algo virar "oficial".
+
+Novo workflow **`Painel Executivo — Criação Assistida de Registros`**, `Schedule Trigger` a cada 5 minutos (mesmo ciclo do sync), duas regras independentes:
+
+**Regra 1 — Proposta aceita → rascunho de Contrato**
+- Gatilho: `CProposta.status = 'Aceita'` E ainda não existe nenhum `CContrato` com `proposal = <id da proposta>`.
+- Ação: `POST /api/v1/CContrato` com `status: 'Pendente'`, `amount` = valor da proposta, `lead`/`client` copiados da proposta, `proposal` = id da proposta, `source: 'Automação — proposta aceita'`.
+- O que fica manual: mudar `status` para `'Assinado'` e preencher `signedAt` quando o contrato for de fato assinado — isso é um evento jurídico/humano, não pode ser automático.
+
+**Regra 2 — Contrato assinado → rascunhos de Pagamento (parcelas)**
+- Gatilho: `CContrato.status` muda para `'Assinado'` E ainda não existe nenhum `CPagamento` com `contract = <id do contrato>`.
+- Ação: lê `numeroParcelas` (N) e `diaVencimentoPrimeiraParcela` do contrato (default: 1 parcela, vencimento `signedAt + 30 dias`); cria N registros `CPagamento` com `status: 'Pendente'`, `contract` = id do contrato, `client` copiado, `installmentNumber: i`, `totalInstallments: N`, `dueDate` espaçado em +1 mês por parcela a partir da primeira, `amount` = valor total ÷ N (a última parcela absorve o resto do arredondamento de centavos, pra soma bater exatamente com o valor do contrato).
+- O que fica manual: mudar `status` de cada parcela para `'Pago'` (e preencher `paidAt`) quando o pagamento realmente entrar.
+
+**Controle de duplicidade:** ambas as regras rodam sobre uma janela de "ainda não tem registro filho vinculado" — não precisa de tabela de controle extra, a própria ausência do vínculo (`proposal`/`contract`) é a condição de idempotência. Rodar o ciclo de novo sobre uma proposta que já gerou contrato não cria um segundo.
+
+**Por que isso não vira 100% automático:** assinatura de contrato e confirmação de recebimento de pagamento são, por natureza, eventos que só uma pessoa pode atestar — a automação cobre a parte mecânica (copiar valores, calcular parcelas), não substitui a confirmação humana do que realmente aconteceu.
+
 ## Métricas do painel Executivo (mapeamento exato)
 
 Todas com filtro de período (`Hoje / 7 dias / 30 dias / Mês atual / Personalizado`) aplicado sobre a coluna indicada entre parênteses.
@@ -267,12 +293,16 @@ Todas com filtro de período (`Hoje / 7 dias / 30 dias / Mês atual / Personaliz
 - **Indicador de dados desatualizados:** pausar o workflow de sync, confirmar que o aviso aparece após 15 minutos.
 - **Visual:** comparar lado a lado com o mockup aprovado (cores, tipografia, comportamento das abas, responsividade em tela estreita).
 - **Login:** sessão expira/exige senha novamente após logout ou expiração do cookie.
+- **Criação assistida — proposta → contrato:** marcar uma Proposta de teste como `Aceita`, esperar um ciclo (5 min), confirmar que o Contrato rascunho aparece com os valores certos e não se duplica no ciclo seguinte.
+- **Criação assistida — contrato → parcelas:** marcar um Contrato de teste como `Assinado` com `numeroParcelas = 3`, confirmar que nascem exatamente 3 `CPagamento` com datas espaçadas por mês e soma dos valores igual ao total do contrato (incluindo o ajuste de centavos na última parcela); repetir com `numeroParcelas` vazio para confirmar o default de 1 parcela.
 
 ## Riscos e limitações
 
 - **Enums em português com acentuação** (`Êxito`, `Médio`) — exigem cuidado de encoding UTF-8 consistente entre EspoCRM → n8n → Postgres → Next.js; testar explicitamente com um registro de cada valor.
 - **`Alertas executivos` mistura duas fontes heterogêneas** (prazo de caso vs. atraso de pagamento) — a spec fixa as regras de severidade acima; qualquer terceira fonte futura (ex: renovação de contrato) exige revisão desta seção, não extrapolação.
 - **Isolamento do sub-projeto 1:** o workflow de sync e o schema `crm_sync` são inteiramente novos e independentes dos workflows/schema `mayara` já em produção — nenhuma mudança neste sub-projeto toca a Mayara ou o fluxo Ponte→Mayara.
+- **Criação assistida não substitui julgamento humano:** os rascunhos automáticos usam valores da proposta/contrato original; se o valor final assinado for diferente do proposto, a pessoa precisa corrigir o rascunho antes de confirmar — a automação economiza digitação, não decide valores.
+- **Sem os dois campos novos em `CContrato`** (`numeroParcelas`, `diaVencimentoPrimeiraParcela`), a Regra 2 sempre cai no default de 1 parcela — funcional, mas não resolve o caso comum de contrato parcelado até que os campos existam.
 
 ## Fora de escopo (nesta spec)
 
@@ -281,3 +311,5 @@ Todas com filtro de período (`Hoje / 7 dias / 30 dias / Mês atual / Personaliz
 - Filtro "Personalizado" de período com date-picker completo (a task de implementação pode simplificar para os 4 presets fixos e adiar o custom).
 - Exportação de dados, notificações por e-mail/WhatsApp de alertas.
 - Portal do cliente (sub-projeto 3, pausado por decisão do usuário).
+- Migração de dados históricos de contratos/pagamentos (controle anterior era informal — não há de onde importar).
+- Edição de rascunhos criados pela automação diretamente no painel Executivo — isso continua sendo feito no EspoCRM (o painel é só leitura, conforme já indicado no rodapé do mockup).
