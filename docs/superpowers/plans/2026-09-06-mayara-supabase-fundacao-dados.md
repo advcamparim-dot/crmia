@@ -653,21 +653,21 @@ n8n_update_partial_workflow({ id: "<id do worker>", operations: [{ type: "activa
 - Consumes: todas as tasks anteriores.
 - Produces: confirmação de que nada regrediu, relatório atualizado.
 
-- [ ] **Passo 1: Re-rodar os testes já aprovados**
+- [x] **Passo 1: Re-rodar os testes já aprovados**
 Reexecutar T14, T25, T26, T27, T21, T15–T20, T28–T30 e Cenários A–E (sessionIds novos, ex. sufixo `-pg-final`) contra o draft já migrado, comparando com os resultados já documentados no relatório — confirmar que nenhum comportamento conversacional regrediu com a troca de armazenamento.
 
-- [ ] **Passo 2: Confirmar achado C2 fechado**
+- [x] **Passo 2: Confirmar achado C2 fechado**
 Repetir o teste do achado C2 original (fluxo completo de agendamento) e confirmar no relatório que agora **sempre** persiste no CRM (ou cai de forma visível na fila/`crm_retry_failed`, nunca silenciosamente).
 
-- [ ] **Passo 3: Limpeza**
+- [x] **Passo 3: Limpeza**
 - Apagar eventos reais de teste criados no Google Calendar durante as Tasks 6–10.
 - Conferir Leads/Meetings de teste no EspoCRM (e-mails `*.teste.invalid` / `*.mayara@teste.invalid`) e remover.
 - Limpar linhas de teste em `mayara.session_state`, `mayara.bridge_responses`, `mayara.crm_retry_failed` (sessionKeys `PG-MIGRATION-*`).
 
-- [ ] **Passo 4: Atualizar o relatório**
+- [x] **Passo 4: Atualizar o relatório**
 Adicionar seção "Fundação de dados em Supabase — concluída" no `RELATORIO_MAYARA_V2_TESTES_PENDENTES.md`, com data, resumo do que mudou, e status final dos achados C1/C2/C3 (C2 agora resolvido de forma estrutural, não só por regra de prompt).
 
-- [ ] **Passo 5: Commit**
+- [x] **Passo 5: Commit**
 ```bash
 git add RELATORIO_MAYARA_V2_TESTES_PENDENTES.md
 git commit -m "docs: registra conclusão da fundação de dados em Supabase para a Mayara"
