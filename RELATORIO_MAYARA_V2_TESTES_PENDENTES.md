@@ -188,10 +188,26 @@ Todos os testes já aprovados foram re-executados contra o draft já migrado (se
 
 ### O que ainda falta
 
-1. ~~Corrigir o 403 do EspoCRM~~ — ✅ **Feito** (ver seção acima). Causa raiz era permissão de atribuição, não de criação; corrigida no sub-workflow, confirmada com teste real de ponta a ponta.
-2. **Ajuste de prompt único**, cobrindo: T25 (teatralidade leve) e o achado T30 (estatística inventada). Não implementado — aguardando aprovação.
+1. ~~Corrigir o 403 do EspoCRM~~ — ✅ **Feito**. Causa raiz era permissão de atribuição, não de criação; corrigida no sub-workflow, confirmada com teste real de ponta a ponta.
+2. ~~Ajuste de prompt (T25 + T30)~~ — ✅ **Feito** (ver seção seguinte).
 3. **Limpeza manual no EspoCRM** dos 2 Leads + 1 Meeting de teste listados acima (não consigo apagar via API).
-4. Só depois do item 2: aprovação explícita para trocar a Ponte de produção pra apontar pro draft.
+4. Aprovação explícita para trocar a Ponte de produção pra apontar pro draft — único item que ainda depende só de você.
+
+---
+
+## Ajuste de prompt — T25 e T30 corrigidos (2026-09-07)
+
+Duas edições cirúrgicas no prompt do AI Agent (`patchNodeField`, sem reescrever o resto):
+
+1. **T25 (teatralidade):** a regra "EMPATIA SEM TEATRALIDADE" bania só 3 frases exatas. A Mayara encontrava paráfrases ("Eu te entendo.", "Eu entendo que isso está te consumindo.") que driblavam a letra da regra mantendo o problema (empatia genérica sobre sentimento, não sobre fato). Reforçado para banir o **padrão**, não só as frases originais, com mais exemplos e instrução explícita pra reconhecer o fato concreto que a pessoa disse.
+2. **T30 (estatística inventada):** a proibição de "inventar números, estatísticas, casos ou depoimentos" já existia, mas focada em resultados de caso. Estendida explicitamente pra cobrir credenciais/histórico do Dr. Santo (anos de experiência, quantidade de casos, taxa de sucesso, formação) — a Mayara tinha inventado "mais de 15 anos" de experiência, dado que não está em lugar nenhum do prompt aprovado.
+
+**Confirmado com reteste real:**
+- T25: nova resposta reconhece o fato ("essa situação que tá tirando seu sono") sem nenhuma frase de empatia genérica.
+- T30: rodado o fluxo completo de 6 mensagens de novo — nenhuma estatística ou credencial inventada na resposta final.
+- Regressão pontual (Cenário B, prioridade jurídica): resposta idêntica à já aprovada, confirmando que a edição não afetou o resto do prompt.
+
+Com isso, todos os achados de comportamento conversacional deste ciclo de testes (C1, C2, C3, T05/T30, T25) estão fechados. Único item pendente de decisão sua: aprovar a troca da Ponte de produção pro draft.
 
 ### Limpeza pendente desta rodada de verificação
 
