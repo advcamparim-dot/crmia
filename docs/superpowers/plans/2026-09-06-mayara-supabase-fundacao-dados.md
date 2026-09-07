@@ -307,7 +307,7 @@ Esperado: uma linha em cada tabela, com `estado`/`fatosJson`/`output` condizente
 - Consumes: nó `AI Agent` existente.
 - Produces: novo nó `Extrair Consulta Criada` com saída `{ consultaCriada: boolean, eventoCalendarioId?: string, horarioInicio?: string, horarioFim?: string }` — consumido pela Task 8.
 
-- [ ] **Passo 1: Ligar a opção no AI Agent**
+- [x] **Passo 1: Ligar a opção no AI Agent**
 ```javascript
 n8n_update_partial_workflow({
   id: "KLdDHFsr1gJhnHkF",
@@ -321,7 +321,7 @@ n8n_update_partial_workflow({
 })
 ```
 
-- [ ] **Passo 2: Rodar um teste de agendamento e inspecionar a forma real de `intermediateSteps`**
+- [x] **Passo 2: Rodar um teste de agendamento e inspecionar a forma real de `intermediateSteps`**
 ```javascript
 n8n_test_workflow({
   workflowId: "9dMnpX51XMG57O1l",
@@ -337,7 +337,7 @@ n8n_test_workflow({
 ```
 Depois, `n8n_executions({action: "get", id: <id da 2a execução>, mode: "full"})` no nó `AI Agent` — anotar a forma exata do campo `intermediateSteps` (nome da tool, formato do `action`/`observation`) pra usar no Passo 3.
 
-- [ ] **Passo 3: Criar o nó de extração**
+- [x] **Passo 3: Criar o nó de extração**
 Node `Code` (JavaScript), inserido logo depois de `AI Agent`:
 ```javascript
 const steps = $input.first().json.intermediateSteps || [];
@@ -362,7 +362,7 @@ return [{
 ```
 (Ajustar `s.action?.tool` e o parse de `calStep.observation` conforme a forma real observada no Passo 2 — LangChain no n8n normalmente expõe `{action: {tool, toolInput}, observation}` por step, mas confirmar contra o dado real antes de finalizar.)
 
-- [ ] **Passo 4: Adicionar a conexão**
+- [x] **Passo 4: Adicionar a conexão**
 ```javascript
 n8n_update_partial_workflow({
   id: "KLdDHFsr1gJhnHkF",
@@ -376,10 +376,10 @@ n8n_update_partial_workflow({
 ```
 (Nó `Extrair Consulta Criada` precisa ter sido criado antes via `addNode` — incluir esse `addNode` no mesmo lote de operações.)
 
-- [ ] **Passo 5: Validar e verificar**
+- [x] **Passo 5: Validar e verificar**
 `validate_workflow` (0 erros) + `n8n_get_workflow` confirmando a conexão `AI Agent → Extrair Consulta Criada`.
 
-- [ ] **Passo 6: Testar**
+- [x] **Passo 6: Testar**
 Rodar de novo o par de mensagens do Passo 2 (sessão nova, ex. `PG-MIGRATION-T2b`) e usar `n8n_executions` pra confirmar que `Extrair Consulta Criada` retornou `consultaCriada: true` com `eventoCalendarioId` real preenchido.
 
 ---
@@ -672,6 +672,13 @@ Adicionar seção "Fundação de dados em Supabase — concluída" no `RELATORIO
 git add RELATORIO_MAYARA_V2_TESTES_PENDENTES.md
 git commit -m "docs: registra conclusão da fundação de dados em Supabase para a Mayara"
 ```
+
+---
+
+## Eventos reais de teste pendentes de limpeza (Task 10, Passo 3)
+
+- `hgodijk913tpi3o8qurji56u4o` — sexta-feira 11/09/2026 14h-15h, "Verificacao Extracao" (Task 6)
+- `tcr1vllu0b2okh1723ordjfokg` — sexta-feira 11/09/2026 10h-11h, "Teste Extracao" (Task 6)
 
 ---
 
