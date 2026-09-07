@@ -22,6 +22,13 @@
 - Nenhuma migração de dados históricos (confirmado com o usuário: controle anterior era informal).
 - Cada task termina com o app/workflow em estado testável — não deixar nada "quebrado" entre tasks.
 
+## Progresso e achados de execução
+
+- **Task 2 concluída** — schema `crm_sync` aplicado (8 tabelas, RLS deny-all confirmado via advisors), migração commitada.
+- **Task 3 concluída** — workflow `Painel Executivo — Sync CRM→Supabase` (id `PH73hjj7zIABuZ74`) criado, ativo, primeiro ciclo confirmado: 2 leads + 1 meeting sincronizados, 0 falhas. Achado: `Meeting.leads` é `linkMultiple` (não link simples) — `lead_id` em `crm_sync.meetings` fica sempre nulo (nenhuma métrica da spec usa essa coluna, então não é um problema).
+- **Task 4 em andamento** — workflow `Painel Executivo — Criação Assistida de Registros` (id `1wDrXlOUL7sw2tYT`) criado e ativo com a Regra 1 (proposta aceita → contrato rascunho). **Bloqueado por achado novo:** o usuário `n8n-integration` tem `"No create access."` em `CProposta`/`CContrato`/`CPagamento` (permissão de Criação, não de atribuição — diferente do 403 resolvido no sub-projeto 1). Pedido ao usuário: em **Administração → Funções**, no papel desse usuário, marcar "Yes" em Create pra esses 3 módulos — mesma visita ao Admin já pedida na Task 1.
+- **Task 1 e a correção de ACL acima** ficaram a cargo do usuário; retomo a Task 4 assim que confirmado.
+
 ---
 
 ### Task 1: EspoCRM — novos campos em `CContrato`
