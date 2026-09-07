@@ -499,10 +499,10 @@ Esperado: mensagem com `sessionKey: "PG-MIGRATION-T7-ok"` presente. Limpar depoi
 - Consumes: `Extrair Consulta Criada` (Task 6), sub-workflow da Task 7.
 - Produces: draft com persistência de CRM 100% determinística; achado C2 do relatório fechado.
 
-- [ ] **Passo 1: Adicionar o IF de ramificação**
+- [x] **Passo 1: Adicionar o IF de ramificação**
 Node IF logo após `Extrair Consulta Criada`: condição `{{ $json.consultaCriada === true }}`.
 
-- [ ] **Passo 2: Adicionar o nó Execute Workflow (branch verdadeiro)**
+- [x] **Passo 2: Adicionar o nó Execute Workflow (branch verdadeiro)**
 ```javascript
 {
   name: "Persistir Consulta no CRM",
@@ -527,10 +527,10 @@ Node IF logo após `Extrair Consulta Criada`: condição `{{ $json.consultaCriad
 }
 ```
 
-- [ ] **Passo 3: Conectar IF → Execute Workflow (branch true) e IF → segue direto (branch false)**
+- [x] **Passo 3: Conectar IF → Execute Workflow (branch true) e IF → segue direto (branch false)**
 Branch falso conecta direto em `Call 'Logging IA - Mayara (Fail-Open)'2` (o próximo passo que já existia antes desta mudança), igual ao branch verdadeiro depois de terminar o Execute Workflow.
 
-- [ ] **Passo 4: Remover os 4 nós de CRM antigos do AI Agent**
+- [x] **Passo 4: Remover os 4 nós de CRM antigos do AI Agent**
 ```javascript
 n8n_update_partial_workflow({
   id: "KLdDHFsr1gJhnHkF",
@@ -543,7 +543,7 @@ n8n_update_partial_workflow({
 })
 ```
 
-- [ ] **Passo 5: Atualizar o system prompt do AI Agent**
+- [x] **Passo 5: Atualizar o system prompt do AI Agent**
 Remover a seção inteira `VOCÊ TEM ACESSO REAL AO CRM (EspoCRM)` e `REGISTRO DE CONSULTA NO CRM É OBRIGATÓRIO...` (ficou obsoleta — o agente não tem mais essas ferramentas). Substituir por uma nota curta:
 ```
 REGISTRO NO CRM
@@ -551,10 +551,10 @@ Você não precisa fazer nada manualmente pra registrar a consulta no CRM — is
 ```
 Usar `patchNodeField` no campo `parameters.options.systemMessage` pra essa edição cirúrgica, em vez de reescrever o prompt inteiro.
 
-- [ ] **Passo 6: Validar e verificar**
+- [x] **Passo 6: Validar e verificar**
 `validate_workflow` (0 erros, sem referência aos 4 nós removidos) + `n8n_get_workflow` confirmando: AI Agent só tem 3 tools (`Salvar Estado da Conversa`, `Verificar Disponibilidade na Agenda`, `Create an event in Google Calendar`); novo bloco IF → Execute Workflow conectado corretamente.
 
-- [ ] **Passo 7: Teste de ponta a ponta (fluxo feliz determinístico)**
+- [x] **Passo 7: Teste de ponta a ponta (fluxo feliz determinístico)**
 ```javascript
 n8n_test_workflow({
   workflowId: "9dMnpX51XMG57O1l",
@@ -685,6 +685,7 @@ git commit -m "docs: registra conclusão da fundação de dados em Supabase para
 
 - `hgodijk913tpi3o8qurji56u4o` — sexta-feira 11/09/2026 14h-15h, "Verificacao Extracao" (Task 6)
 - `tcr1vllu0b2okh1723ordjfokg` — sexta-feira 11/09/2026 10h-11h, "Teste Extracao" (Task 6)
+- `brcllu86c60jrk44lfrjmurp9g` — quinta-feira 10/09/2026 10h-11h, "Roberto Final" (Task 8)
 
 ---
 
