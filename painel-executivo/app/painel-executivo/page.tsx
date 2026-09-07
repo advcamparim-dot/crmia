@@ -8,9 +8,55 @@ import {
   getFinanceiro,
   getJuridico,
   getAlertas,
-  getLastSyncedAt
+  getLastSyncedAt,
+  type Resumo,
+  type Comercial,
+  type FunilEstagio,
+  type Financeiro,
+  type Juridico,
+  type Alerta
 } from '@/lib/metrics';
 import './styles.css';
+
+const RESUMO_FALLBACK: Resumo = {
+  receitaContratada: 0,
+  receitaRecebida: 0,
+  leadsNovos: 0,
+  contratosAssinados: 0,
+  taxaConversao: 0
+};
+
+const COMERCIAL_FALLBACK: Comercial = {
+  leadsQualificados: 0,
+  consultasMarcadas: 0,
+  consultasRealizadas: 0,
+  propostasEnviadas: 0,
+  ticketMedio: 0
+};
+
+const FUNIL_FALLBACK: FunilEstagio[] = [];
+
+const FINANCEIRO_FALLBACK: Financeiro = {
+  valorAReceber: 0,
+  pagamentosAtrasados: 0,
+  taxaInadimplencia: 0,
+  totalVencido: 0
+};
+
+const JURIDICO_FALLBACK: Juridico = {
+  clientesAtivos: 0,
+  casosAtivos: 0,
+  prazosCriticos: 0,
+  casosAltoRisco: 0
+};
+
+const ALERTAS_FALLBACK: Alerta[] = [];
+
+function unwrap<T>(result: PromiseSettledResult<T>, label: string, fallback: T): T {
+  if (result.status === 'fulfilled') return result.value;
+  console.error(`Falha ao carregar ${label}`, result.reason);
+  return fallback;
+}
 
 const PRESETS: { key: PeriodPreset; label: string }[] = [
   { key: 'hoje', label: 'Hoje' },
@@ -37,15 +83,24 @@ export default async function PainelExecutivoPage({
   const presetKey = (PRESETS.find((p) => p.key === searchParams.periodo)?.key ?? '30d') as PeriodPreset;
   const period = resolvePeriod(presetKey);
 
-  const [resumo, comercial, funil, financeiro, juridico, alertas, lastSyncedAt] = await Promise.all([
-    getResumo(period),
-    getComercial(period),
-    getFunil(period),
-    getFinanceiro(),
-    getJuridico(),
-    getAlertas(),
-    getLastSyncedAt()
-  ]);
+  const [resumoResult, comercialResult, funilResult, financeiroResult, juridicoResult, alertasResult, lastSyncedAtResult] =
+    await Promise.allSettled([
+      getResumo(period),
+      getComercial(period),
+      getFunil(period),
+      getFinanceiro(),
+      getJuridico(),
+      getAlertas(),
+      getLastSyncedAt()
+    ]);
+
+  const resumo = unwrap(resumoResult, 'resumo', RESUMO_FALLBACK);
+  const comercial = unwrap(comercialResult, 'comercial', COMERCIAL_FALLBACK);
+  const funil = unwrap(funilResult, 'funil', FUNIL_FALLBACK);
+  const financeiro = unwrap(financeiroResult, 'financeiro', FINANCEIRO_FALLBACK);
+  const juridico = unwrap(juridicoResult, 'jurídico', JURIDICO_FALLBACK);
+  const alertas = unwrap(alertasResult, 'alertas', ALERTAS_FALLBACK);
+  const lastSyncedAt = unwrap(lastSyncedAtResult, 'última sincronização', null);
 
   const dadosDesatualizados =
     lastSyncedAt !== null && Date.now() - lastSyncedAt.getTime() > 15 * 60 * 1000;
@@ -89,7 +144,9 @@ export default async function PainelExecutivoPage({
             <span className="sample-tag">dados podem estar desatualizados — </span>
           )}
           Última sincronização:{' '}
-          {lastSyncedAt ? lastSyncedAt.toLocaleString('pt-BR') : 'nunca'}
+          {lastSyncedAt
+            ? lastSyncedAt.toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo' })
+            : 'nunca'}
         </p>
       </header>
 

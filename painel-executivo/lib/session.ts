@@ -21,8 +21,10 @@ export function verifySession(token: string): boolean {
   if (!token || !token.includes('.')) return false;
   const [issuedAt, mac] = token.split('.');
   const expectedMac = createHmac('sha256', getSecret()).update(issuedAt).digest('hex');
-  if (mac.length !== expectedMac.length) return false;
-  if (!timingSafeEqual(Buffer.from(mac), Buffer.from(expectedMac))) return false;
+  const macBuf = Buffer.from(mac, 'hex');
+  const expectedBuf = Buffer.from(expectedMac, 'hex');
+  if (macBuf.length !== expectedBuf.length) return false;
+  if (!timingSafeEqual(macBuf, expectedBuf)) return false;
   const ageSeconds = (Date.now() - Number(issuedAt)) / 1000;
   return ageSeconds >= 0 && ageSeconds <= MAX_AGE_SECONDS;
 }

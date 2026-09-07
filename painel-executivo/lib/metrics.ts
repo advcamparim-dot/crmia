@@ -103,16 +103,18 @@ export async function getFinanceiro(): Promise<Financeiro> {
        coalesce((select sum(amount) from crm_sync.pagamentos where status in ('Pendente','Atrasado')), 0) as valor_a_receber,
        coalesce((select sum(amount) from crm_sync.pagamentos where status = 'Atrasado'), 0) as pagamentos_atrasados,
        coalesce((select sum(amount) from crm_sync.pagamentos where status = 'Atrasado' and due_date < current_date), 0) as total_vencido,
-       coalesce((select sum(amount) from crm_sync.pagamentos where due_date > current_date - interval '90 days'), 0) as base_90_dias`
+       coalesce((select sum(amount) from crm_sync.pagamentos where due_date between current_date - interval '90 days' and current_date and status in ('Pendente','Atrasado','Pago')), 0) as base_90_dias,
+       coalesce((select sum(amount) from crm_sync.pagamentos where status = 'Atrasado' and due_date between current_date - interval '90 days' and current_date), 0) as atrasados_90_dias`
   );
   const row = rows[0];
   const atrasados = Number(row.pagamentos_atrasados);
   const base90 = Number(row.base_90_dias);
+  const atrasados90 = Number(row.atrasados_90_dias);
   return {
     valorAReceber: Number(row.valor_a_receber),
     pagamentosAtrasados: atrasados,
     totalVencido: Number(row.total_vencido),
-    taxaInadimplencia: base90 > 0 ? atrasados / base90 : 0
+    taxaInadimplencia: base90 > 0 ? atrasados90 / base90 : 0
   };
 }
 
