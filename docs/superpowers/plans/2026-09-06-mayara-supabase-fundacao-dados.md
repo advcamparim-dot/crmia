@@ -392,7 +392,7 @@ Rodar de novo o par de mensagens do Passo 2 (sessão nova, ex. `PG-MIGRATION-T2b
 - Consumes: fila `mayara_crm_retry` (Task 3), credencial EspoCRM já existente (`EspoCRM Integração n8n — Mayara`, id `3CNvCGWMMDOyGD2n`), credencial `Supabase — Mayara (Postgres)` (Task 4).
 - Produces: workflow reutilizável com `Execute Workflow Trigger` de entrada `{ sessionKey, nome, telefone, email, empresa, descricaoLead, eventoCalendarioId, horarioInicio, horarioFim }` — consumido pelas Tasks 8 e 9.
 
-- [ ] **Passo 1: Criar o workflow com o Execute Workflow Trigger**
+- [x] **Passo 1: Criar o workflow com o Execute Workflow Trigger**
 ```javascript
 n8n_create_workflow({
   name: "Mayara — Persistir Consulta no CRM [Sub-workflow]",
@@ -413,7 +413,7 @@ n8n_create_workflow({
 })
 ```
 
-- [ ] **Passo 2: Adicionar os 4 nós de CRM, portados das ferramentas atuais**
+- [x] **Passo 2: Adicionar os 4 nós de CRM, portados das ferramentas atuais**
 Copiar a configuração (URL, método, credencial) de cada um dos 4 nós existentes no draft principal (`Buscar Lead por Telefone`, `Criar Lead no CRM`, `Atualizar Status do Lead`, `Criar Consulta no CRM`), mas:
 - trocar `$fromAI('campo', ...)` por `={{ $json.campo }}` (lendo direto do Execute Workflow Trigger, não mais decidido pelo LLM);
 - setar `onError: "continueErrorOutput"` em todos os 4.
@@ -442,17 +442,17 @@ Exemplo (`Buscar Lead por Telefone`):
 ```
 Repetir o padrão pros outros 3 (mesma URL/método/credencial do node atual no draft, só trocando `$fromAI` por `$json.<campo>` e adicionando `onError`).
 
-- [ ] **Passo 3: Adicionar o IF de "lead já existe"**
+- [x] **Passo 3: Adicionar o IF de "lead já existe"**
 Entre `Buscar Lead por Telefone` e `Criar Lead no CRM`: IF `{{ $json.total > 0 }}` → verdadeiro pula direto pra `Atualizar Status do Lead` (usando `{{ $json.list[0].id }}` como leadId); falso segue pra `Criar Lead no CRM` (usando o `id` retornado por ela como leadId).
 
-- [ ] **Passo 4: Adicionar o nó `Enfileirar Retry no CRM`**
+- [x] **Passo 4: Adicionar o nó `Enfileirar Retry no CRM`**
 Node Postgres, credencial `Supabase — Mayara (Postgres)`:
 ```sql
 select pgmq.send('mayara_crm_retry', $1::jsonb);
 ```
 com `$1` = JSON.stringify de todos os campos de entrada do trigger (o mesmo payload recebido, repassado inteiro — reprocessar do zero, como decidido no spec).
 
-- [ ] **Passo 5: Conectar as saídas de erro dos 4 nós HTTP em `Enfileirar Retry no CRM`**
+- [x] **Passo 5: Conectar as saídas de erro dos 4 nós HTTP em `Enfileirar Retry no CRM`**
 ```javascript
 n8n_update_partial_workflow({
   id: "<id do novo sub-workflow>",
@@ -465,10 +465,10 @@ n8n_update_partial_workflow({
 })
 ```
 
-- [ ] **Passo 6: Validar**
+- [x] **Passo 6: Validar**
 `validate_workflow` (0 erros) + `n8n_get_workflow` conferindo os 4 `onError: continueErrorOutput` e as 4 conexões de erro convergindo em `Enfileirar Retry no CRM`.
 
-- [ ] **Passo 7: Testar o caminho de sucesso**
+- [x] **Passo 7: Testar o caminho de sucesso**
 ```javascript
 n8n_test_workflow({
   workflowId: "<id do sub-workflow>",
@@ -483,7 +483,7 @@ n8n_test_workflow({
 ```
 Esperado: se o 403 do EspoCRM (achado do relatório da Mayara V2) ainda não tiver sido corrigido, essa chamada vai falhar em `Criar Lead no CRM` — **esperado e correto**: confirmar que a mensagem caiu em `mayara_crm_retry` (Passo 8) em vez de considerar isso uma falha do teste.
 
-- [ ] **Passo 8: Testar o caminho de falha (fila)**
+- [x] **Passo 8: Testar o caminho de falha (fila)**
 ```sql
 select * from pgmq.read('mayara_crm_retry', 60, 5);
 ```
@@ -672,6 +672,12 @@ Adicionar seção "Fundação de dados em Supabase — concluída" no `RELATORIO
 git add RELATORIO_MAYARA_V2_TESTES_PENDENTES.md
 git commit -m "docs: registra conclusão da fundação de dados em Supabase para a Mayara"
 ```
+
+---
+
+## IDs de referência entre tasks
+
+- Sub-workflow `Mayara — Persistir Consulta no CRM [Sub-workflow]`: id `vf3iq6V7ztgsQS8G` (ativo) — usado pela Task 8 (Execute Workflow no draft principal) e Task 9 (worker de retry).
 
 ---
 
