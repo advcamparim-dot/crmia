@@ -579,7 +579,7 @@ Confirmar via `n8n_executions` que `Extrair Consulta Criada` → IF (true) → `
 - Consumes: fila `mayara_crm_retry` (Task 3), sub-workflow da Task 7, tabela `mayara.crm_retry_failed` (Task 2).
 - Produces: workflow ativo, agendado, que drena a fila de forma autônoma.
 
-- [ ] **Passo 1: Criar o workflow**
+- [x] **Passo 1: Criar o workflow**
 ```javascript
 n8n_create_workflow({
   name: "Mayara — Retry CRM Falhas [Worker]",
@@ -593,13 +593,13 @@ n8n_create_workflow({
 })
 ```
 
-- [ ] **Passo 2: Adicionar o nó de leitura da fila**
+- [x] **Passo 2: Adicionar o nó de leitura da fila**
 Node Postgres, credencial `Supabase — Mayara (Postgres)`:
 ```sql
 select * from pgmq.read('mayara_crm_retry', 60, 10);
 ```
 
-- [ ] **Passo 3: Adicionar o Execute Workflow por item**
+- [x] **Passo 3: Adicionar o Execute Workflow por item**
 Chama o sub-workflow da Task 7 — execução por item já é automática no n8n (sem precisar de Loop Over Items). `pgmq.read` retorna o payload aninhado na coluna `message`, então o mapeamento de cada input precisa ler dali, não da raiz do item:
 ```javascript
 workflowInputs: { mappingMode: "defineBelow", value: {
@@ -616,29 +616,29 @@ workflowInputs: { mappingMode: "defineBelow", value: {
 ```
 Guardar também `{{ $json.msg_id }}` e `{{ $json.read_ct }}` (via um nó Set logo antes, ou referenciando o nó de leitura por nome mais adiante) — os Passos 5 e 6 precisam desses dois valores depois que o Execute Workflow já rodou.
 
-- [ ] **Passo 4: Adicionar o IF de sucesso/falha**
+- [x] **Passo 4: Adicionar o IF de sucesso/falha**
 Baseado no `$json.error` presente ou não na saída do Execute Workflow (via `Enfileirar Retry no CRM` só rodar de novo no sub-workflow se falhar de novo — ou seja, se o Execute Workflow retornar sem erro real de negócio, considerar sucesso).
 
-- [ ] **Passo 5: Nó de sucesso — apagar da fila**
+- [x] **Passo 5: Nó de sucesso — apagar da fila**
 ```sql
 select pgmq.delete('mayara_crm_retry', $1);
 ```
 com `$1` = `{{ $json.msg_id }}` do item lido no Passo 2.
 
-- [ ] **Passo 6: Nó de falha — checar `read_ct`**
+- [x] **Passo 6: Nó de falha — checar `read_ct`**
 IF `{{ $json.read_ct > 5 }}` → verdadeiro: INSERT em `mayara.crm_retry_failed` (`payload`, `motivo_falha`, `tentativas`) + `select pgmq.archive('mayara_crm_retry', $1);`. Falso: não faz nada (deixa a mensagem, ela volta a ficar visível quando o `vt` expirar).
 
-- [ ] **Passo 7: Validar**
+- [x] **Passo 7: Validar**
 `validate_workflow` (0 erros).
 
-- [ ] **Passo 8: Testar manualmente**
+- [x] **Passo 8: Testar manualmente**
 Reenfileirar a mensagem de teste que ficou pendente da Task 7 (ou enviar uma nova via `pgmq.send`), então rodar:
 ```javascript
 n8n_test_workflow({ workflowId: "<id do worker>", method: "direct" })
 ```
 Confirmar via SQL (`select * from pgmq.read('mayara_crm_retry', 1, 10);`) que a fila esvaziou (sucesso) ou que a mensagem foi movida pra `mayara.crm_retry_failed` depois de simular >5 tentativas.
 
-- [ ] **Passo 9: Ativar o workflow**
+- [x] **Passo 9: Ativar o workflow**
 ```javascript
 n8n_update_partial_workflow({ id: "<id do worker>", operations: [{ type: "activateWorkflow" }] })
 ```
@@ -677,7 +677,11 @@ git commit -m "docs: registra conclusão da fundação de dados em Supabase para
 
 ## IDs de referência entre tasks
 
-- Sub-workflow `Mayara — Persistir Consulta no CRM [Sub-workflow]`: id `vf3iq6V7ztgsQS8G` (ativo) — usado pela Task 8 (Execute Workflow no draft principal) e Task 9 (worker de retry).
+- Sub-workflow `Mayara — Persistir Consulta no CRM [Sub-workflow]`: id `vf3iq6V7ztgsQS8G` (ativo) — usado pela Task 8 (Execute Workflow no draft principal) e Task 9 (worker de retry). **Redesenhado na Task 9:** ganhou um 10º input `isRetry` (boolean) — quando `true` (chamada do worker), uma falha NÃO reenfileira de novo (evitaria perder o `read_ct`/histórico de tentativas da mensagem original); quando `false`/ausente (chamada do draft principal), falha enfileira normalmente. Saída normalizada: `{success: true}` no sucesso, `{success: false, enfileirado: true|false}` na falha.
+- Worker `Mayara — Retry CRM Falhas [Worker]`: id `Ikub97vZp1Pi9aCv` (ativo, Schedule Trigger a cada 5 min).
+- **Achado da Task 9:** `Execute Workflow` node no modo padrão (`mode: "once"`) roda uma vez com TODOS os itens de entrada, usando só o primeiro item pro mapeamento — precisa `mode: "each"` explícito pra rodar uma vez por item da fila.
+- **Achado da Task 9:** `pgmq.archive`/`pgmq.delete` chamados via query parametrizada do node Postgres (`$1` sem cast) dão erro "function is not unique" (múltiplos overloads, tipo `unknown` ambíguo) — sempre castar explicitamente: `$1::bigint`.
+- **Achado da Task 9 (bug de n8n-mcp):** `n8n_update_partial_workflow` com `[addNode, addConnection, activateWorkflow]` no mesmo lote quebra (`Cannot read properties of undefined (reading 'map')`); funciona normalmente se `activateWorkflow` for uma chamada separada. Reportado como feedback de produto.
 
 ---
 
