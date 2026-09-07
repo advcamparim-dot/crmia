@@ -131,6 +131,27 @@ Não tenho acesso direto ao EspoCRM nesta sessão para investigar ou corrigir is
 
 ---
 
+## 🎉 Atualização — causa raiz do 403 encontrada e corrigida (2026-09-07)
+
+O diagnóstico acima (ACL insuficiente) **estava incompleto**. Investigação mais profunda, capturando a resposta HTTP completa (headers inclusos) da chamada real, revelou a causa exata via o header `X-Status-Reason`:
+
+> **"Assignment failure: assigned user or team not allowed."**
+
+Não é a permissão de **Create** (essa já estava correta: `create: 'yes'` no ACL do usuário `n8n-integration`). É a permissão de **Atribuição** (Assignment), uma configuração separada no Role do EspoCRM: ao criar um Lead sem especificar `assignedUserId`, o EspoCRM tenta atribuir automaticamente, e o Role desse usuário de API não permite esse tipo de atribuição implícita.
+
+**Correção aplicada** (sem precisar mexer na UI do EspoCRM): passar `assignedUserId` explicitamente com o próprio ID do usuário de API (`n8n-integration`, id `6a899d5f8a2b61a29`) — auto-atribuição é permitida. Corrigido em dois nós do sub-workflow `Mayara — Persistir Consulta no CRM`: `Criar Lead no CRM` (não tinha `assignedUserId` nenhum) e `Criar Consulta no CRM` (tinha um ID hardcoded de outro usuário, "Admin", que sofria do mesmo problema).
+
+**Confirmado com teste real de ponta a ponta:** Lead criado (`6a9ea008b5734cc02`), status atualizado para "Consulta Agendada", Meeting criado e vinculado ao Lead (`6a9ea008dfc8af91c`) — **primeira vez em todo o projeto que a cadeia completa de CRM funciona sem cair na fila de retry.**
+
+⚠️ **Limpeza manual necessária** (não consegui apagar via API — ACL tem `delete: 'no'` para Lead e Meeting neste Role, restrição real, não bug):
+- Lead "DiagTest DiagTest" (id `6a9e9f9c300229020`) — teste de diagnóstico.
+- Lead "Fernando Correcao" (id `6a9ea008b5734cc02`) — teste de confirmação da correção.
+- Meeting "Consulta - Fernando Correcao" (id `6a9ea008dfc8af91c`) — vinculado ao Lead acima.
+
+Com isso, **o achado C2 do relatório está agora 100% resolvido** — tanto a lógica determinística (arquitetura) quanto a causa raiz do erro de API que a acionava.
+
+---
+
 ## Fundação de dados em Supabase — concluída (2026-09-07)
 
 Implementado o plano `docs/superpowers/plans/2026-09-06-mayara-supabase-fundacao-dados.md` (spec: `docs/superpowers/specs/2026-09-06-mayara-supabase-fundacao-dados-design.md`), 10 tasks, todas concluídas e verificadas nesta sessão.
@@ -165,13 +186,12 @@ Todos os testes já aprovados foram re-executados contra o draft já migrado (se
 - ✅ Tabelas `mayara.session_state`, `mayara.bridge_responses`, `mayara.crm_retry_failed` e a fila `mayara_crm_retry` confirmadas vazias (contagem zero em todas).
 - Nenhum Lead/Meeting de teste foi criado no EspoCRM em nenhum momento — todas as tentativas de persistência bateram no mesmo 403, então não há nada a limpar lá.
 
-### O que ainda falta (fora do escopo desta migração)
+### O que ainda falta
 
-1. **Corrigir o 403 do EspoCRM** (permissão de Create em Lead) — ver achado original acima. Sem isso, a fila de retry absorve o problema mas o CRM nunca chega a persistir de verdade em produção.
-2. **Ajuste de prompt único**, cobrindo: T25 (teatralidade leve) e o novo achado T30 (estatística inventada).
-3. Só depois de ambos: aprovação explícita para trocar a Ponte de produção pra apontar pro draft.
-
-Nenhum desses três itens foi implementado nesta sessão — aguardando aprovação, conforme já estabelecido.
+1. ~~Corrigir o 403 do EspoCRM~~ — ✅ **Feito** (ver seção acima). Causa raiz era permissão de atribuição, não de criação; corrigida no sub-workflow, confirmada com teste real de ponta a ponta.
+2. **Ajuste de prompt único**, cobrindo: T25 (teatralidade leve) e o achado T30 (estatística inventada). Não implementado — aguardando aprovação.
+3. **Limpeza manual no EspoCRM** dos 2 Leads + 1 Meeting de teste listados acima (não consigo apagar via API).
+4. Só depois do item 2: aprovação explícita para trocar a Ponte de produção pra apontar pro draft.
 
 ### Limpeza pendente desta rodada de verificação
 
