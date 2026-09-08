@@ -313,3 +313,23 @@ Todas com filtro de período (`Hoje / 7 dias / 30 dias / Mês atual / Personaliz
 - Portal do cliente (sub-projeto 3, pausado por decisão do usuário).
 - Migração de dados históricos de contratos/pagamentos (controle anterior era informal — não há de onde importar).
 - Edição de rascunhos criados pela automação diretamente no painel Executivo — isso continua sendo feito no EspoCRM (o painel é só leitura, conforme já indicado no rodapé do mockup).
+
+## Conclusão (2026-09-08)
+
+Implementação completa (Tasks 1-8 do plano), testada de ponta a ponta com dados reais de teste. Falta apenas o deploy final no Coolify (Task 9, Passo 5 — pendente de acesso do usuário à interface web) e um teste de ponta a ponta com um caso de negócio real (Passo 3 — pendente de a oportunidade surgir naturalmente).
+
+**IDs de referência:**
+- Workflow de sincronização: `Painel Executivo — Sync CRM→Supabase` (n8n id `PH73hjj7zIABuZ74`), ativo, ciclo de 5 min.
+- Workflow de criação assistida: `Painel Executivo — Criação Assistida de Registros` (n8n id `1wDrXlOUL7sw2tYT`), ativo, ciclo de 5 min.
+- App Next.js: `painel-executivo/` na raiz do repo, mesclado em `main` (commit `404c1058`).
+- Projeto Supabase: `crmia-mayara` (`wuhvlvsolewslkawazlq`), schema `crm_sync`.
+
+**Divergências da spec original, encontradas durante a implementação:**
+1. **`Meeting.leads` é `linkMultiple`, não link simples** — a coluna `crm_sync.meetings.lead_id` fica sempre nula (capturar o vínculo exigiria uma chamada extra por reunião). Nenhuma métrica usa essa coluna, então não há impacto prático.
+2. **Filtro de "contrato já existe" precisou usar `proposalId`, não `proposal`** — filtros do EspoCRM por atributo de link exigem o nome com sufixo `Id`, não o nome do link em si. Mesma regra provavelmente vale para qualquer filtro futuro sobre um campo `link`.
+3. **`CContrato.source` é um enum fixo** (`Call, Email, Existing Customer, Partner, Public Relations, Web Site, Campaign, Other`), não texto livre — a automação usa `"Other"` e registra o motivo real em `description`.
+4. **Toda criação via API precisa de `assignedUserId` explícito** (auto-atribuição ao usuário `n8n-integration`, id `6a899d5f8a2b61a29`) — sem isso, EspoCRM recusa com 403 "Assignment failure", mesmo com permissão de Create concedida. Confirmado agora também para `CProposta` e `CPagamento`, além de `CContrato`/`Lead`/`Meeting` (já resolvido no sub-projeto 1).
+5. **O usuário `n8n-integration` tem Create mas não Edit em `CProposta`/`CContrato`/`CPagamento`** — intencional/aceitável, já que mudanças de status são feitas por uma pessoa pela tela do CRM, não pela automação. Isso significa que testes futuros de "o que acontece quando X muda de status" exigem alguém mudar o status manualmente — não dá pra simular via API.
+6. **Achado operacional (não é bug de código):** contratos marcados `Assinado` sem preencher `signedAt` não contam em "Receita contratada" (que filtra por essa data), só em "Valor a receber". A equipe precisa ter o hábito de preencher a data de assinatura.
+
+**Registros de teste ainda não apagados** (API sem permissão de Delete nesses módulos — precisam ser removidos manualmente pela tela do EspoCRM): 2 Propostas, 2 Contratos e 4 Pagamentos, todos com "TESTE PLANO" no nome.

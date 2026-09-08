@@ -1258,7 +1258,7 @@ git commit -m "feat: página do Painel Executivo (UI completa, identidade Câmar
 
 **Files:** nenhum arquivo novo — verificação e deploy.
 
-- [ ] **Passo 1: Rodar toda a suíte de testes automatizados**
+- [x] **Passo 1: Rodar toda a suíte de testes automatizados**
 
 ```bash
 cd painel-executivo
@@ -1267,21 +1267,33 @@ npx vitest run
 
 Expected: todos os testes de `lib/session.test.ts` e `lib/period.test.ts` passando.
 
-- [ ] **Passo 2: Conferir cada métrica manualmente contra o EspoCRM**
+**Resultado:** ✅ 5/5 testes passando (`Test Files 2 passed (2)`, `Tests 5 passed (5)`).
+
+- [x] **Passo 2: Conferir cada métrica manualmente contra o EspoCRM**
 
 Escolher 2-3 leads, 1-2 contratos e 1-2 pagamentos reais (ou de teste, se ainda não houver volume real) e confirmar visualmente no EspoCRM que os números do painel batem.
+
+**Resultado:** ✅ Usando os registros de teste da Task 4 (2 propostas, 2 contratos, 4 pagamentos), confirmei que `crm_sync.*` espelha o EspoCRM campo a campo (amounts, status, vínculos de lead/proposta/contrato todos corretos), e que a query de `getFinanceiro` bate exatamente com a soma manual (`valor_a_receber = R$ 14.000`, = R$5.000 + 3×R$3.000).
+
+**Achado operacional (não é bug):** os dois contratos de teste foram marcados `Assinado` sem preencher `signedAt`. Como "Receita contratada" (Resumo) filtra por `signed_at`, um contrato assinado sem essa data preenchida não aparece nessa métrica — só em "Valor a receber" (Financeiro, que não depende de `signed_at`). **Isso precisa virar hábito da equipe**: sempre preencher a data de assinatura ao marcar um contrato como Assinado, ou "Receita contratada" vai subestimar o período.
 
 - [ ] **Passo 3: Testar o fluxo de criação assistida de ponta a ponta com um caso real**
 
 Se houver uma proposta real que o escritório vai aceitar em breve, acompanhar o ciclo completo: proposta aceita → contrato rascunho aparece → assinar → parcelas aparecem → marcar uma parcela como paga → confirmar que o painel reflete a mudança dentro de ~10 minutos (1 ciclo de criação assistida + 1 ciclo de sync).
 
-- [ ] **Passo 4: Testar login/logout**
+**Status:** pendente — depende de um caso de negócio real acontecer; a lógica já foi validada de ponta a ponta com dados de teste na Task 4 (idempotência incluída). Retomar quando surgir uma proposta real.
+
+- [x] **Passo 4: Testar login/logout**
 
 Confirmar que sem cookie válido a rota `/painel-executivo` redireciona pra `/login`, e que a senha errada mostra o erro.
+
+**Resultado:** ✅ já verificado de forma independente (não só confiando no relatório do implementador) durante a revisão da Task 8 e na revisão final de branch: senha errada → redireciona com `?erro=1`; senha certa → `Set-Cookie` correto + redireciona; sem cookie → 307 pro login; cookie corrompido → 307 pro login (não mais 500, após a correção da revisão final).
 
 - [ ] **Passo 5: Deploy final em produção no Coolify**
 
 Redeploy do serviço com a versão final, confirmar que a URL pública responde, está atrás de login, e mostra os dados reais atualizados.
+
+**Status:** pendente — depende de acesso à interface web do Coolify (nem eu nem os subagentes temos). Aguardando o usuário.
 
 - [ ] **Passo 6: Atualizar este plano e a spec com o resultado final**
 
