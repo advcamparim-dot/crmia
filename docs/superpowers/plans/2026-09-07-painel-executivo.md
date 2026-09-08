@@ -27,7 +27,13 @@
 - **Task 2 concluída** — schema `crm_sync` aplicado (8 tabelas, RLS deny-all confirmado via advisors), migração commitada.
 - **Task 3 concluída** — workflow `Painel Executivo — Sync CRM→Supabase` (id `PH73hjj7zIABuZ74`) criado, ativo, primeiro ciclo confirmado: 2 leads + 1 meeting sincronizados, 0 falhas. Achado: `Meeting.leads` é `linkMultiple` (não link simples) — `lead_id` em `crm_sync.meetings` fica sempre nulo (nenhuma métrica da spec usa essa coluna, então não é um problema).
 - **Task 4 em andamento** — workflow `Painel Executivo — Criação Assistida de Registros` (id `1wDrXlOUL7sw2tYT`) criado e ativo com a Regra 1 (proposta aceita → contrato rascunho). **Bloqueado por achado novo:** o usuário `n8n-integration` tem `"No create access."` em `CProposta`/`CContrato`/`CPagamento` (permissão de Criação, não de atribuição — diferente do 403 resolvido no sub-projeto 1). Pedido ao usuário: em **Administração → Funções**, no papel desse usuário, marcar "Yes" em Create pra esses 3 módulos — mesma visita ao Admin já pedida na Task 1.
-- **Task 1 e a correção de ACL acima** ficaram a cargo do usuário; retomo a Task 4 assim que confirmado.
+- **Task 1 concluída e confirmada via API** — campos `numeroParcelas` (int, default 1) e `diaVencimentoPrimeiraParcela` (date) existem em `CContrato`, colocados nos layouts.
+- **Task 4 concluída** — workflow `Painel Executivo — Criação Assistida de Registros` (id `1wDrXlOUL7sw2tYT`) com as duas regras ativas e testadas de ponta a ponta:
+  - Regra 1 (proposta aceita → contrato rascunho): testada, idempotente (rodar 2x não duplica).
+  - Regra 2 (contrato assinado → parcelas): testada com `numeroParcelas=3` (3 parcelas de R$3.000, vencimentos mensais) e sem `numeroParcelas` (1 parcela, default), idempotente, ambas confirmadas no mesmo ciclo.
+  - **3 bugs reais encontrados e corrigidos durante o teste** (nenhum estava no plano original): (1) filtro de "contrato já existe" usava `attribute=proposal` (nome do link) em vez de `attribute=proposalId` (atributo de id) — retornava 400; (2) `CContrato.source` é um enum fixo (`Call, Email, Existing Customer, Partner, Public Relations, Web Site, Campaign, Other`), não texto livre — `Criar Contrato Rascunho` agora usa `"Other"` e move a nota explicativa pro campo `description`; (3) tanto `Criar Contrato Rascunho` quanto `Gerar Parcelas`/`Criar Parcela` precisaram de `assignedUserId` explícito (mesmo problema de permissão de atribuição já resolvido antes para Lead/Meeting) — sem isso, a criação falhava com 403 "Assignment failure".
+  - **Achado de permissão adicional**: o usuário `n8n-integration` não tem acesso de Edição (`Edit`) em `CProposta`/`CContrato` — só Criação. Isso é esperado e não bloqueia a automação real (mudanças de status são feitas por uma pessoa pela tela do CRM, não pela API), mas significa que eu não consigo simular esses passos sozinho em testes futuros — precisei pedir pro usuário marcar manualmente os registros de teste.
+- **Registros de teste pendentes de limpeza manual** (API não tem permissão de Delete nesses módulos): Propostas `6a9f5682ce22b698b` e `6a9f56ee9d7d43bb0`; Contratos `6a9f5a9f34d981462` e `6a9f5f4050700f6cc`; Pagamentos `6a9f5e1e99d2696ab`, `6a9f5e1e9a6cafddf`, `6a9f5e1e9980034e2`, `6a9f5f4a6245f2261` — todos com nome começando em "TESTE PLANO" ou "Contrato — TESTE PLANO", fáceis de achar e apagar pela tela.
 - **Tasks 5-8 concluídas e mescladas em `main`** (commit `404c1058`) — executadas via subagent-driven-development num worktree isolado (`worktree-painel-executivo`, já removido após o merge). Todas as 4 tasks passaram por implementação → revisão → correção quando necessário, mais uma revisão final de todo o branch (achados abaixo). Testes: 5/5 passando. App em `painel-executivo/`, ainda **não implantado no Coolify** (Task 5 Passo 6) nem testado contra um banco Supabase ao vivo pela própria aplicação (as queries da Task 7 foram validadas manualmente por mim, à parte, contra o Supabase real — ver achados).
   - **Achados da revisão final corrigidos:** fórmula da taxa de inadimplência estava com numerador/denominador de janelas diferentes (corrigida pra usar a mesma janela de 90 dias e status); fuso horário não estava configurado em lugar nenhum (Dockerfile, conexão Postgres e formatação de data agora fixados em `America/Sao_Paulo`); rota raiz `/` ainda servia a página padrão do Next.js publicamente (agora redireciona pro painel); metadados da página e `lang` ainda diziam "Create Next App"/`en`; um cookie de sessão corrompido derrubava a página com erro 500 em vez de mandar pro login (corrigido e confirmado ao vivo); faltava tratamento de erro de conexão do Postgres, `.dockerignore`, documentação das variáveis de ambiente, e uma tela de erro em português quando os dados falham ao carregar. Tudo verificado e sem quebras novas.
   - **Decisões que tomei sem perguntar** (ficam registradas aqui pra você revisar, não pedem ação a menos que discorde): (1) Tasks 1/3/4 e a Task 2 rodaram direto contra a infraestrutura real, fora do worktree — não fazia sentido isolar em branch algo que mexe numa instância única e compartilhada; (2) a Task 5 original pedia configurar o serviço no Coolify pela interface web — isso ficou de fora do que os subagentes/eu conseguimos fazer (sem acesso a navegador), então também é uma pendência sua, junto com a Task 1.
@@ -42,7 +48,7 @@
 **Interfaces:**
 - Produz: os campos `numeroParcelas` (int) e `diaVencimentoPrimeiraParcela` (date) em `CContrato`, consumidos pela Task 4 (criação assistida de parcelas).
 
-- [ ] **Passo 1: Criar o campo `numeroParcelas`**
+- [x] **Passo 1: Criar o campo `numeroParcelas`**
 
 No EspoCRM, ir em **Administração → Gerenciador de Entidades → CContrato → Campos → Adicionar Campo**:
   - Nome: `numeroParcelas`
@@ -51,7 +57,7 @@ No EspoCRM, ir em **Administração → Gerenciador de Entidades → CContrato �
   - Obrigatório: não
   - Salvar.
 
-- [ ] **Passo 2: Criar o campo `diaVencimentoPrimeiraParcela`**
+- [x] **Passo 2: Criar o campo `diaVencimentoPrimeiraParcela`**
 
 Mesma tela, **Adicionar Campo**:
   - Nome: `diaVencimentoPrimeiraParcela`
@@ -59,17 +65,17 @@ Mesma tela, **Adicionar Campo**:
   - Obrigatório: não
   - Salvar.
 
-- [ ] **Passo 3: Adicionar os dois campos ao layout de Detalhe/Edição de `CContrato`**
+- [x] **Passo 3: Adicionar os dois campos ao layout de Detalhe/Edição de `CContrato`**
 
 Em **Administração → Gerenciador de Entidades → CContrato → Layouts → Detail** (e **Edit**), arrastar os dois novos campos pro layout, perto de `amount`/`status`. Salvar cada layout.
 
-- [ ] **Passo 4: Verificar via API que os campos existem**
+- [x] **Passo 4: Verificar via API que os campos existem**
 
 Usar um workflow n8n descartável (webhook + HTTP Request GET `/api/v1/Metadata`, credencial `EspoCRM Integração n8n — Mayara`) e conferir que `entityDefs.CContrato.fields.numeroParcelas` e `.diaVencimentoPrimeiraParcela` aparecem na resposta. Apagar o workflow descartável ao final.
 
 Expected: os dois campos aparecem no JSON de metadata com os tipos corretos (`"type": "int"` e `"type": "date"`).
 
-- [ ] **Passo 5: Criar um `CContrato` de teste com os campos preenchidos**
+- [x] **Passo 5: Criar um `CContrato` de teste com os campos preenchidos**
 
 Pela interface do EspoCRM, criar um contrato de teste com `numeroParcelas = 3` e `diaVencimentoPrimeiraParcela` preenchida, confirmar que salva sem erro. Anotar o id do registro de teste (usado e limpo na Task 4).
 
@@ -295,7 +301,7 @@ Mesmo processo do Passo 2, uma por vez, confirmando `count(*) > 0` (ou `= 0` se 
 - Consome: EspoCRM (`CProposta`, `CContrato`, `CPagamento`), campos novos da Task 1.
 - Produz: workflow ativo `Painel Executivo — Criação Assistida de Registros`.
 
-- [ ] **Passo 1: Criar o workflow com a Regra 1 (proposta aceita → contrato rascunho)**
+- [x] **Passo 1: Criar o workflow com a Regra 1 (proposta aceita → contrato rascunho)**
 
 `n8n_create_workflow`, nome `Painel Executivo — Criação Assistida de Registros`, nós:
   - `Schedule Trigger` (a cada 5 minutos)
@@ -307,13 +313,13 @@ Mesmo processo do Passo 2, uma por vez, confirmando `count(*) > 0` (ou `= 0` se 
 
 Conectar: `Schedule Trigger → Buscar Propostas Aceitas → Extrair Propostas → Verificar Contrato Existente → Já Tem Contrato? → (true) Criar Contrato Rascunho`.
 
-- [ ] **Passo 2: Testar a Regra 1**
+- [x] **Passo 2: Testar a Regra 1**
 
 No EspoCRM, marcar uma Proposta de teste como `Aceita`. Disparar o workflow manualmente (`n8n_test_workflow`, method `direct`). Conferir via `n8n_executions` que `Criar Contrato Rascunho` rodou e que um novo `CContrato` com `status: Pendente` e `proposal` apontando pra essa proposta existe (checar via `GET /api/v1/CProposta/{id}` ou olhando o EspoCRM). Rodar o workflow de novo e confirmar que **não** cria um segundo contrato (idempotência via `Já Tem Contrato?`).
 
 Expected: exatamente 1 `CContrato` rascunho após 2 execuções seguidas.
 
-- [ ] **Passo 3: Adicionar a Regra 2 (contrato assinado → parcelas)**
+- [x] **Passo 3: Adicionar a Regra 2 (contrato assinado → parcelas)**
 
 No mesmo workflow, novo ramo a partir do mesmo `Schedule Trigger`:
   - `Buscar Contratos Assinados` (`httpRequest` GET `/api/v1/CContrato?where[0][type]=equals&where[0][attribute]=status&where[0][value]=Assinado&maxSize=200`)
@@ -356,17 +362,17 @@ No mesmo workflow, novo ramo a partir do mesmo `Schedule Trigger`:
 
 Conectar: `Já Tem Pagamentos? (true) → Gerar Parcelas → Criar Parcela`.
 
-- [ ] **Passo 4: Testar a Regra 2**
+- [x] **Passo 4: Testar a Regra 2**
 
 Usar o `CContrato` de teste criado na Task 1 (Passo 5, com `numeroParcelas = 3`), marcar `status = Assinado`. Disparar o workflow. Conferir que exatamente 3 `CPagamento` foram criados, com `dueDate` espaçado por mês a partir de `diaVencimentoPrimeiraParcela`, e que a soma dos 3 `amount` bate exatamente com o `amount` do contrato (checar o ajuste de centavos na 3ª parcela). Rodar de novo e confirmar que não duplica.
 
 Expected: `sum(amount)` das 3 parcelas == `amount` do contrato, com no máximo diferença de arredondamento de centavos absorvida na última.
 
-- [ ] **Passo 5: Testar o default sem `numeroParcelas`**
+- [x] **Passo 5: Testar o default sem `numeroParcelas`**
 
 Criar um segundo `CContrato` de teste sem preencher `numeroParcelas`, marcar `Assinado`. Confirmar que gera exatamente 1 `CPagamento` com o valor total e vencimento em `signedAt + 30 dias`.
 
-- [ ] **Passo 6: Ativar o workflow e limpar os registros de teste**
+- [x] **Passo 6: Ativar o workflow e limpar os registros de teste**
 
 Ativar via `activateWorkflow`. Apagar (ou marcar como cancelado, já que EspoCRM pode negar delete via API — usar a UI se necessário) os registros de teste criados nas Tasks 1 e 4 (proposta, contratos e pagamentos de teste) para não poluir as métricas reais do painel.
 
