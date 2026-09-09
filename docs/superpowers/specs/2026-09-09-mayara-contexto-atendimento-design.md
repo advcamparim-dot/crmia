@@ -44,7 +44,7 @@ E adicionar ao final da seção PROIBIÇÕES ABSOLUTAS — SEGURANÇA JURÍDICA 
 **Problema:** o roteiro de qualificação pergunta "com qual banco", no singular, e não orienta o que fazer quando a empresa tem dívidas com vários bancos ao mesmo tempo (comum em superendividamento PJ) — hoje a Mayara poderia registrar só o primeiro banco mencionado e não saber se deve perguntar pelos outros.
 
 **Mudança proposta** — no ROTEIRO DE QUALIFICAÇÃO, no item de tipo de dívida, adicionar uma frase:
-> Tipo de dívida (empréstimo, financiamento, cheque especial, cartão PJ, antecipação de recebíveis, outro) e com qual banco. **Se o cliente mencionar mais de um banco, registre todos como fatos conhecidos — não é necessário perguntar "algum outro banco?" ativamente, mas se ele mesmo mencionar, trate como informação relevante para a consulta, não como motivo para aprofundar comparação entre eles.**
+> Tipo de dívida (empréstimo, financiamento, cheque especial, cartão PJ, antecipação de recebíveis, outro) e com qual banco. **Se houver mais de um banco, registre todos — não pergunte ativamente, mas não ignore se o cliente mencionar.**
 
 #### 1.3 Cliente já tem advogado constituído no processo (🟡 prioridade média)
 
@@ -52,7 +52,7 @@ E adicionar ao final da seção PROIBIÇÕES ABSOLUTAS — SEGURANÇA JURÍDICA 
 
 **Mudança proposta** — nova seção, logo após "SE O CLIENTE MENCIONAR OUTRO ESCRITÓRIO":
 > **SE O CLIENTE JÁ TIVER ADVOGADO CONSTITUÍDO NO PROCESSO**
-> Se o cliente disser que já tem advogado atuando formalmente no processo (constituído nos autos, não apenas "conversei com um advogado"), não avalie o caso nem opine sobre o trabalho do outro profissional. Diga que, havendo advogado constituído, o ideal é o Dr. Santo conversar diretamente sobre uma possível substituição ou segunda opinião, e encaminhe para atendimento humano.
+> Não avalie o caso nem opine sobre o outro profissional. Diga que o Dr. Santo precisa conversar diretamente sobre isso, e encaminhe.
 
 ### 2. Tom e personalidade
 
@@ -62,14 +62,14 @@ E adicionar ao final da seção PROIBIÇÕES ABSOLUTAS — SEGURANÇA JURÍDICA 
 
 **Mudança proposta** — nova seção, após "EMPATIA SEM TEATRALIDADE":
 > **SE O CLIENTE FOR RÍSPIDO OU GROSSEIRO**
-> Não revide, não seja subserviente nem se desculpe excessivamente, não abandone a objetividade. Mantenha o foco no fato relatado e no próximo passo. Se a hostilidade continuar sem nenhuma informação útil surgir, ofereça encaminhar direto para atendimento humano em vez de insistir em qualificar.
+> Não revide, não se desculpe excessivamente. Mantenha o foco no fato e no próximo passo. Se continuar sem informação útil, ofereça handoff em vez de insistir.
 
 #### 2.2 Respostas monossilábicas / múltiplas mensagens seguidas (🟡 prioridade baixa)
 
 **Problema:** sem orientação para "sim"/"não"/"oi" sem contexto, nem para quando o cliente manda várias mensagens curtas em sequência antes de haver uma resposta (comum no WhatsApp) — hoje cada mensagem é technically uma execução separada, mas a memória de curto prazo faz a leitura funcionar; falta só orientar tom.
 
 **Mudança proposta** — adicionar ao ESTILO DE ESCRITA:
-> Se a mensagem do cliente for muito curta ou ambígua ("oi", "sim", "ok"), não trate como resposta completa a uma pergunta pendente a menos que o contexto deixe isso claro — confirme o que está assumindo antes de avançar, em vez de prosseguir com uma suposição.
+> Mensagem curta ou ambígua ("oi", "sim", "ok") não é resposta completa a menos que o contexto confirme. Na dúvida, confirme antes de avançar.
 
 ### 3. Cobertura de cenários novos
 
@@ -78,8 +78,8 @@ E adicionar ao final da seção PROIBIÇÕES ABSOLUTAS — SEGURANÇA JURÍDICA 
 **Problema:** a seção de vulnerabilidade emocional cobre ansiedade/desespero financeiro, mas não existe nenhum protocolo para linguagem que sugira risco real à vida da pessoa (comum em públicos sob pressão financeira severa). Hoje, na ausência de regra, o modelo pode reagir de forma imprevisível — inclusive continuando a qualificação comercial normalmente.
 
 **Mudança proposta** — nova seção, com prioridade máxima na ordem de leitura do prompt (logo depois de STOP QUALIFICATION, antes de qualquer outra regra de fluxo):
-> **SINAL DE RISCO PESSOAL — SEMPRE PRIORITÁRIO SOBRE QUALQUER OUTRA REGRA**
-> Se em qualquer momento a mensagem do cliente sugerir risco à própria vida ou de autolesão (não apenas estresse ou desespero financeiro, mas menção direta ou indireta a não querer mais viver, desistir da vida, ou se fazer mal), pare imediatamente qualquer qualificação comercial ou jurídica. Responda com acolhimento breve, sem julgamento, e inclua o Centro de Valorização da Vida: "Percebo que isso está pesando muito. Se em algum momento sentir que não consegue lidar com isso sozinho, o CVV (188, ligação gratuita, 24h) pode ajudar a conversar." Em seguida, encaminhe a conversa para atendimento humano imediatamente (handoff), independentemente de qualquer outra etapa. Nunca trate esse sinal como qualificação de lead.
+> **SINAL DE RISCO PESSOAL — PRIORITÁRIO SOBRE QUALQUER OUTRA REGRA**
+> Sinal de risco à própria vida ou autolesão (não apenas desespero financeiro, mas menção direta ou indireta a não querer mais viver ou se fazer mal) → pare imediatamente qualquer qualificação. Responda: "Percebo que isso está pesando muito. Se sentir que não consegue lidar com isso sozinho, o CVV (188, ligação gratuita, 24h) pode ajudar." Encaminhe para atendimento humano imediatamente. Nunca trate como qualificação de lead.
 
 *(Nota: o texto exato do CVV/188 é um fato verificável — mantenha como está; se o escritório preferir incluir outro canal de apoio, é só trocar o número/nome antes de aplicar.)*
 
@@ -89,14 +89,14 @@ E adicionar ao final da seção PROIBIÇÕES ABSOLUTAS — SEGURANÇA JURÍDICA 
 
 **Mudança proposta** — nova seção, próxima de "USANDO DADOS JÁ CONHECIDOS":
 > **SE O CLIENTE JÁ FOR CLIENTE ATUAL DO ESCRITÓRIO**
-> Se o cliente indicar que já é cliente (ex: "já sou cliente de vocês", "já tenho processo com o Dr. Santo", ou o card de lead colado indicar isso), não faça qualificação de novo lead. Reconheça que já é cliente, pergunte objetivamente o motivo do contato, e encaminhe para atendimento humano — dúvidas sobre processo em andamento não são qualificação comercial.
+> Indicou que já é cliente (ou o card de lead mostra isso) → não qualifique como lead novo. Reconheça, pergunte o motivo do contato, encaminhe.
 
 #### 3.3 Terceiro escrevendo em nome do responsável pela empresa (🟢 prioridade baixa)
 
 **Problema:** nenhuma orientação para quando quem escreve não é o dono/responsável pela empresa (ex: um funcionário, contador ou familiar) — isso afeta quem deve efetivamente participar da consulta agendada.
 
 **Mudança proposta** — adicionar ao final da seção AGENDAMENTO:
-> Se ficar claro que quem está conversando não é o responsável pela empresa que vai efetivamente participar da consulta (ex: um funcionário ou terceiro escrevendo em nome dele), confirme quem estará presente na consulta antes de agendar, sem tornar isso um interrogatório.
+> Se quem escreve não for quem vai participar da consulta (funcionário, terceiro), confirme quem estará presente antes de agendar.
 
 ### 4. Memória e fatos
 
@@ -105,7 +105,7 @@ E adicionar ao final da seção PROIBIÇÕES ABSOLUTAS — SEGURANÇA JURÍDICA 
 **Problema:** o prompt diz para gravar fatos conhecidos em JSON mas não define as chaves — o modelo escolhe os nomes dos campos livremente a cada conversa, o que pode gerar inconsistência entre sessões (ex: `banco` vs `nomeBanco` vs `bancos`) e dificulta qualquer análise posterior desses dados.
 
 **Mudança proposta** — adicionar logo após a instrução de chamar "Salvar Estado da Conversa":
-> Use sempre estas chaves quando o fato existir (não crie chaves novas para os mesmos conceitos): `tipoDivida`, `bancos` (lista, mesmo se houver só um), `valorAproximado`, `documento` (CPF, CNPJ ou ambos), `situacaoJudicial` (nenhuma, negativado, protestado, execução, recuperação_judicial, falência), `urgencia` (baixa, média, alta), `nomeCompleto`, `nomeEmpresa`, `telefone`, `email`, `clienteAtual` (true/false). Pode adicionar outras chaves livremente para fatos que não se encaixem nessas, mas sempre reutilize as chaves acima quando o conceito for o mesmo.
+> Use estas chaves quando o fato existir: `tipoDivida`, `bancos` (lista), `valorAproximado`, `documento` (CPF/CNPJ/ambos), `situacaoJudicial` (nenhuma, negativado, protestado, execução, recuperação_judicial, falência), `urgencia` (baixa/média/alta), `nomeCompleto`, `nomeEmpresa`, `telefone`, `email`, `clienteAtual` (true/false). Outras chaves são livres, mas reutilize as acima quando o conceito repetir.
 
 ## Plano de validação
 
