@@ -11,6 +11,10 @@ A Mayara já passou por uma auditoria completa (achados C1–C3, T05, T25, T30 �
 
 O que falta não é corrigir bugs — é **aprofundar o que ela sabe e cobrir situações reais que ainda não têm regra**. O usuário confirmou: manter o escopo em Direito Bancário PJ (não expandir para outras áreas jurídicas), aprofundar dentro dele.
 
+**Contexto operacional confirmado em 2026-09-09:** o número real de WhatsApp do escritório já está ativo e recebendo leads reais — mas hoje o atendimento é 100% manual (equipe, não a Mayara). Revisão de 3 conversas reais recentes (29/08–09/09) confirmou isso e não revelou nenhum padrão de fala da IA a corrigir (nada ali veio da Mayara). Um dos casos revisados (evasão de citação/oficial de justiça e transferência de bens para evitar penhora) expôs um risco de conduta do lado humano, fora do escopo deste spec — o usuário foi avisado separadamente.
+
+**A conexão do número definitivo à Mayara (sub-projeto 3) é um gate de confiança do usuário, não uma checklist técnica.** Mesmo com Track 1 (segurança) completo e a auditoria V2 aprovada, o usuário só vai apontar o tráfego real para a IA quando sentir segurança suficiente, após configurar e testar as mudanças deste spec. Não tratar nenhuma lista de tarefas técnicas concluída como sinal de "pronto para conectar" sem essa confirmação explícita dele.
+
 ## Objetivo deste sub-projeto
 
 Revisar o prompt atual em 4 eixos (conhecimento jurídico, tom/personalidade, cobertura de cenários, memória/fatos), identificar lacunas reais, e propor o texto exato a adicionar/alterar — para o usuário aprovar item a item antes de colar no n8n.
