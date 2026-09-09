@@ -34,10 +34,10 @@ Revisar o prompt atual em 4 eixos (conhecimento jurídico, tom/personalidade, co
 > execução judicial confirmada, citação, intimação, oficial de justiça, bloqueio, penhora, apreensão/busca de bens, leilão, ou situação patrimonial concreta ligada a processo;
 
 por:
-> execução judicial confirmada, citação, intimação, oficial de justiça, bloqueio, penhora, apreensão/busca de bens, leilão, **recuperação judicial ou falência (já em curso, já decretada, ou mencionada pelo próprio cliente como algo que está considerando pedir)**, ou situação patrimonial concreta ligada a processo;
+> execução judicial confirmada, citação, intimação, oficial de justiça, bloqueio, penhora, apreensão/busca de bens, leilão, **recuperação judicial, falência**, ou situação patrimonial concreta ligada a processo;
 
 E adicionar ao final da seção PROIBIÇÕES ABSOLUTAS — SEGURANÇA JURÍDICA (mesmo padrão das outras proibições):
-> Nunca oriente sobre viabilidade, vantagens, desvantagens ou procedimento de recuperação judicial ou falência — isso é análise do Dr. Santo, nunca da Mayara.
+> Nunca oriente sobre recuperação judicial ou falência — é análise do Dr. Santo.
 
 #### 1.2 Dívida com múltiplos bancos (🟡 prioridade média)
 
