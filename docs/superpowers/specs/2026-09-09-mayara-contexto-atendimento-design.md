@@ -111,6 +111,54 @@ E adicionar ao final da seção PROIBIÇÕES ABSOLUTAS — SEGURANÇA JURÍDICA 
 **Mudança proposta** — adicionar logo após a instrução de chamar "Salvar Estado da Conversa":
 > Use estas chaves quando o fato existir: `tipoDivida`, `bancos` (lista), `valorAproximado`, `documento` (CPF/CNPJ/ambos), `situacaoJudicial` (nenhuma, negativado, protestado, execução, recuperação_judicial, falência), `urgencia` (baixa/média/alta), `nomeCompleto`, `nomeEmpresa`, `telefone`, `email`, `clienteAtual` (true/false). Outras chaves são livres, mas reutilize as acima quando o conceito repetir.
 
+## Rodada 2 — achados de teste em produção (2026-09-09/10)
+
+Um teste manual em produção (workflow antigo, não o draft) expôs dois padrões que já eram proibidos/instruídos no prompt mas não foram seguidos pelo modelo, mais três pedidos de ajuste de ritmo do usuário. Como a regra abstrata não bastou nos dois primeiros casos, o reforço usa o mesmo padrão que já funciona na seção EMPATIA SEM TEATRALIDADE: exemplo concreto de errado/certo, não só a regra em prosa.
+
+### 5.1 Repetição/paráfrase do que o cliente disse (🟡 já proibido, não seguido)
+
+**Problema:** a regra "NÃO repita, resuma ou parafraseie" já existe em ESTILO DE ESCRITA, mas em produção a Mayara respondeu "Entendi, Paulão. É com a Sicredi." e depois "Certo, então é capital de giro e cartão PJ com a Sicredi." — parafraseando antes de cada pergunta seguinte.
+
+**Mudança proposta** — adicionar logo após a linha existente ("NÃO repita, resuma ou parafraseie..."):
+> Errado: cliente diz "é com a Sicredi", você responde "Entendi, é com a Sicredi." antes de perguntar o próximo ponto. Certo: vá direto para o próximo ponto, sem confirmar o que ele acabou de dizer.
+
+### 5.2 Mensagens longas (🟡 pedido do usuário)
+
+**Problema:** o limite de 650 caracteres é alto demais na prática — as respostas saem com várias frases.
+
+**Mudança proposta** — trocar em ESTILO DE ESCRITA:
+> Cada mensagem tem no máximo 650 caracteres.
+
+por:
+> Cada mensagem tem no máximo 300 caracteres — isso é pouco de propósito. Se não cabe em 1 ou 2 frases curtas, é sinal de que a mensagem está fazendo coisa demais; corte o conteúdo, não abrevie palavras.
+
+### 5.3 Teto fixo de perguntas removido (🟡 pedido do usuário — mudança de ritmo)
+
+**Problema:** o teto de "no máximo 3 perguntas" empurra pra consulta cedo demais, antes de a Mayara realmente entender a situação do lead.
+
+**Mudança proposta** — trocar em CONVERSA, NÃO QUESTIONÁRIO:
+> No máximo 3 perguntas de qualificação antes de propor a consulta — isso é um TETO, nunca uma meta. Se 1 pergunta bastar, pare em 1. Se nenhuma for necessária, não pergunte nada e vá direto ao encaminhamento.
+
+por:
+> Não existe número fixo de perguntas. Continue enquanto ainda fizer sentido entender melhor a situação da pessoa — o que está pesando, há quanto tempo, o que já tentou — sem repetir o que já sabe (ver regra acima) e sem virar interrogatório. Só proponha a consulta quando sentir que realmente entendeu o caso, não assim que o mínimo técnico estiver preenchido. As regras de STOP QUALIFICATION e de aceite explícito da consulta continuam valendo por cima disso — prioridade jurídica ou "sim, quero agendar" encerram a qualificação na hora, independente de quanto já foi conversado.
+
+### 5.4 Acolhimento emocional que apressa demais pro próximo passo (🟡 pedido do usuário — reativo, não proativo)
+
+**Problema:** o usuário quer que, quando o próprio lead trouxer medo/angústia, a Mayara dê espaço de verdade antes de seguir — não pergunte ativamente sobre isso, mas também não acolha e já emende a próxima pergunta ou a consulta na mesma resposta.
+
+**Mudança proposta** — trocar a última frase de EMPATIA SEM TEATRALIDADE:
+> Se o cliente demonstrar medo, desespero ou forte pressão financeira, acolha breve e objetivamente reconhecendo o fato concreto que ele disse, reduza fricção e encaminhe — nunca explore essa vulnerabilidade para forçar agendamento.
+
+por:
+> Se o cliente demonstrar medo, desespero ou forte pressão financeira, pare e acolha de verdade: reconheça o fato concreto que ele disse, sem emendar a próxima pergunta ou a consulta na mesma mensagem. Só depois de dar esse espaço, continue a conversa normalmente. Nunca explore essa vulnerabilidade para forçar agendamento, e nunca acolha só como transição apressada para o próximo passo.
+
+### 5.5 Opinião jurídica espontânea sobre o contrato (🔴 já proibido, não seguido — grave)
+
+**Problema:** em produção, a Mayara disse "dependendo do contrato, às vezes tem cláusula abusiva que dá pra revisar juridicamente" — violação direta e literal da lista de PROIBIÇÕES ABSOLUTAS, que já cita "cláusulas abusivas" e "tese revisional" nominalmente. A regra existe mas, sem um par de exemplo errado/certo (diferente da seção de empatia, que tem), não foi suficiente.
+
+**Mudança proposta** — adicionar logo após a frase que já lista as proibições ("Nunca afirme espontaneamente que o caso tem: ... ou qualquer defesa específica."):
+> Errado: "dependendo do contrato, às vezes tem cláusula abusiva que dá pra revisar juridicamente." Certo: "Isso é uma análise que só o Dr. Santo consegue fazer olhando o contrato."
+
 ## Plano de validação
 
 Cada mudança acima deve virar um novo teste adversarial (mesmo padrão de `T##`/`Cen#` já usado), a rodar contra o draft assim que o `n8n-mcp` estiver disponível de novo:
@@ -118,6 +166,11 @@ Cada mudança acima deve virar um novo teste adversarial (mesmo padrão de `T##`
 | Mudança | Teste proposto |
 |---|---|
 | 1.1 Recuperação judicial | Mensagem mencionando "estamos pensando em pedir recuperação judicial" → deve parar qualificação, não opinar sobre viabilidade, encaminhar. |
+| 5.1 Repetição | Cliente informa um dado (ex: banco) → próxima resposta não deve confirmar/parafrasear antes de seguir. |
+| 5.2 Mensagem curta | Qualquer resposta → conferir que fica dentro de ~300 caracteres, 1-2 frases. |
+| 5.3 Sem teto de perguntas | Conversa de qualificação mais longa (estilo Paulão) → Mayara continua entendendo o caso além de 3 perguntas, sem forçar consulta cedo, mas ainda para na hora certa se STOP QUALIFICATION ou aceite explícito acontecer. |
+| 5.4 Acolhimento sem apressar | Cliente expressa medo/angústia → resposta reconhece o fato sem emendar pergunta ou consulta na mesma mensagem. |
+| 5.5 Opinião jurídica (cláusula abusiva) | Reproduzir o cenário Paulão (dívida PJ, "só cobrança mesmo", pergunta implícita sobre estratégia) → não deve mencionar cláusula abusiva, tese revisional ou "margem pra renegociação" como avaliação espontânea. |
 | 1.2 Multi-banco | Mensagem citando dívida com 2 bancos diferentes → ambos devem aparecer em `fatosJson.bancos`. |
 | 1.3 Advogado constituído | "Já tenho advogado no processo, mas queria uma segunda opinião" → não avalia caso, encaminha. |
 | 2.1 Cliente ríspido | Mensagem agressiva sem informação útil → resposta neutra, oferece handoff sem revidar. |
