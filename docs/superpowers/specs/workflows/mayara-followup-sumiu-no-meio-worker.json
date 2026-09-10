@@ -1,0 +1,292 @@
+{
+  "name": "Mayara — Follow-up Sumiu no Meio [Worker]",
+  "nodes": [
+    {
+      "id": "f1",
+      "name": "Agendamento Horario",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        0,
+        0
+      ],
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "hours"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "f2",
+      "name": "Teste Manual (Webhook)",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        0,
+        200
+      ],
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "test-followup-sumiu-meio",
+        "responseMode": "lastNode"
+      },
+      "webhookId": "d2000000-0000-4000-8000-00000000d001"
+    },
+    {
+      "id": "f3",
+      "name": "Horario Comercial?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        220,
+        100
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "version": 2,
+            "leftValue": "",
+            "caseSensitive": true,
+            "typeValidation": "loose"
+          },
+          "combinator": "and",
+          "conditions": [
+            {
+              "leftValue": "={{ $now.setZone('America/Sao_Paulo').weekday }}",
+              "rightValue": 5,
+              "operator": {
+                "type": "number",
+                "operation": "lte"
+              },
+              "id": "c1"
+            },
+            {
+              "leftValue": "={{ $now.setZone('America/Sao_Paulo').hour }}",
+              "rightValue": 9,
+              "operator": {
+                "type": "number",
+                "operation": "gte"
+              },
+              "id": "c2"
+            },
+            {
+              "leftValue": "={{ $now.setZone('America/Sao_Paulo').hour }}",
+              "rightValue": 18,
+              "operator": {
+                "type": "number",
+                "operation": "lt"
+              },
+              "id": "c3"
+            }
+          ]
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "f4",
+      "name": "Buscar e Reservar Leads",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        440,
+        40
+      ],
+      "onError": "continueRegularOutput",
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "with claimed as (\n  select session_key\n  from mayara.session_state\n  where follow_up_status = 'ativo'\n    and follow_up_stage = 'nenhum'\n    and phone is not null\n    and estado not in ('S6_AGENDADO', 'S7_HANDOFF_HUMANO', 'S3_PRIORIDADE_JURIDICA')\n    and last_lead_message_at is not null\n    and now() - last_lead_message_at >= interval '4 hours'\n    and now() - last_lead_message_at < interval '24 hours'\n  order by last_lead_message_at\n  for update skip locked\n  limit 20\n)\nupdate mayara.session_state s\nset follow_up_stage = 'ia_sumiu_meio',\n    follow_up_last_sent_at = now(),\n    follow_up_tentativas = follow_up_tentativas + 1\nfrom claimed\nwhere s.session_key = claimed.session_key\nreturning s.session_key, s.phone, s.phone_number_id, s.estado, s.fatos_json;",
+        "options": {}
+      },
+      "credentials": {
+        "postgres": {
+          "id": "nNpCUIhnDuVvTApU",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "id": "f5",
+      "name": "Gerar Texto do Follow-up",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        660,
+        40
+      ],
+      "onError": "continueRegularOutput",
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.anthropic.com/v1/messages",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "anthropicApi",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "anthropic-version",
+              "value": "2023-06-01"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ model: 'claude-sonnet-4-5-20250929', max_tokens: 200, system: 'Voce e Mayara, do escritorio Camparim Advogados. O lead abaixo esta em atendimento mas nao respondeu ha algumas horas. Escreva UMA mensagem curta e natural de WhatsApp reengajando ele, baseada so nos fatos conhecidos - sem repetir tudo que ja foi dito, sem soar como cobranca, sem inventar nada fora dos fatos. Maximo 300 caracteres. No maximo 1 emoji. Tom proximo e humano, nunca urgencia falsa. Nunca de opiniao juridica, nunca prometa resultado, nunca invente dados, nunca use JSON ou formato estruturado - so texto corrido pronto pra WhatsApp. Termine perguntando se ainda faz sentido continuar, sem soar como cobranca.', messages: [{ role: 'user', content: 'Estagio atual: ' + $json.estado + '. Fatos conhecidos (JSON): ' + $json.fatos_json }] }) }}"
+      },
+      "credentials": {
+        "anthropicApi": {
+          "id": "6U02h1ioNpD09Q99",
+          "name": "Anthropic account 2"
+        }
+      }
+    },
+    {
+      "id": "f6",
+      "name": "Extrair Texto Gerado",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        880,
+        40
+      ],
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "e1",
+              "name": "textoFollowUp",
+              "type": "string",
+              "value": "={{ $json.content?.[0]?.text || '' }}"
+            },
+            {
+              "id": "e2",
+              "name": "session_key",
+              "type": "string",
+              "value": "={{ $('Buscar e Reservar Leads').item.json.session_key }}"
+            },
+            {
+              "id": "e3",
+              "name": "phone",
+              "type": "string",
+              "value": "={{ $('Buscar e Reservar Leads').item.json.phone }}"
+            },
+            {
+              "id": "e4",
+              "name": "phone_number_id",
+              "type": "string",
+              "value": "={{ $('Buscar e Reservar Leads').item.json.phone_number_id }}"
+            }
+          ]
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "f7",
+      "name": "Enviar via Graph API",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1100,
+        40
+      ],
+      "onError": "continueRegularOutput",
+      "parameters": {
+        "method": "POST",
+        "url": "=https://graph.facebook.com/v25.0/{{ $json.phone_number_id }}/messages",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpBearerAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ messaging_product: 'whatsapp', to: $json.phone.replace(/\\D/g, ''), type: 'text', text: { body: $json.textoFollowUp } }) }}",
+        "options": {
+          "timeout": 25000
+        }
+      },
+      "credentials": {
+        "httpBearerAuth": {
+          "id": "SChAKcHay4ghJVwe",
+          "name": "Bearer Auth account"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Agendamento Horario": {
+      "main": [
+        [
+          {
+            "node": "Horario Comercial?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Teste Manual (Webhook)": {
+      "main": [
+        [
+          {
+            "node": "Horario Comercial?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Horario Comercial?": {
+      "main": [
+        [
+          {
+            "node": "Buscar e Reservar Leads",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        []
+      ]
+    },
+    "Buscar e Reservar Leads": {
+      "main": [
+        [
+          {
+            "node": "Gerar Texto do Follow-up",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Gerar Texto do Follow-up": {
+      "main": [
+        [
+          {
+            "node": "Extrair Texto Gerado",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extrair Texto Gerado": {
+      "main": [
+        [
+          {
+            "node": "Enviar via Graph API",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "callerPolicy": "workflowsFromSameOwner",
+    "availableInMCP": false
+  }
+}
