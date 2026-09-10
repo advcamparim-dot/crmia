@@ -262,3 +262,23 @@ O usuário mencionou ter exemplos reais de conversas onde a Mayara falhou ou soo
 2. Sem `n8n-mcp` conectado: usuário mesmo cola o texto final revisado no node do AI Agent, no draft (`Mayara — Núcleo do Agente [DRAFT V2]`), preservando a produção intocada — mesmo padrão já usado em toda a auditoria anterior.
 3. Com `n8n-mcp` reconectado: aplicação via `n8n_update_partial_workflow` (patch no campo do prompt), seguido de `n8n_validate_workflow` e os testes da tabela acima via `n8n_test_workflow`.
 4. Só depois de todos os testes novos passarem, este trabalho se junta à aprovação já pendente de trocar a Ponte de produção para o draft (ver `RELATORIO_MAYARA_V2_TESTES_PENDENTES.md`, item final).
+
+## Rodada 4 — regressão completa dos 21 testes documentados (2026-09-10)
+
+T01-T13 não foram encontrados em nenhum arquivo (aparentemente nunca persistidos de uma sessão anterior) — usuário optou por rodar só os 21 testes recuperáveis: T14-T30 + Cenários A-E. **17/21 passaram limpos.** 4 achados, todos investigados e corrigidos:
+
+### 🔴 T26 — nome de cliente inventado
+Numa conversa onde nenhum nome foi informado, a resposta usou "Heitor" — alucinação completa. **Corrigido:** adicionada regra explícita em COMO CHAMAR A PESSOA proibindo inventar/assumir nome não informado. Testado: reteste limpo, sem nome inventado.
+
+### 🔴 T25 — falso positivo no protocolo de risco pessoal
+A frase "não sei mais o que fazer, tá acabando comigo" (desespero financeiro comum) ativou o protocolo de risco à vida/CVV, que deveria ser reservado para sinais bem mais explícitos. **Corrigido:** adicionados exemplos explícitos do que NÃO ativa o protocolo (frases de desespero financeiro comuns), restringindo a ativação a menção específica e inequívoca a autolesão/morte/desistir de viver. Testado: reteste correto, resposta de acolhimento normal sem CVV.
+
+### 🟡 Cenário D — acolhimento ainda emenda o próximo passo (não resolvido)
+Mesmo achado do item 5.4 (rodada 2) — reforço de texto não elimina o padrão de forma confiável. Aceito como limitação conhecida por ora; um guardrail técnico para isso teria risco real de falsos positivos (muitas respostas legítimas combinam acolhimento + progresso), então não foi implementado nesta rodada.
+
+### 🔴 Cenário E — pedido de fim de semana tratado como erro técnico + bug real descoberto
+Achado inicial: pedido de agendamento pra sábado gerou "tive uma instabilidade" em vez de explicar que não atende fim de semana. Investigação revelou a causa raiz real, mais grave que o texto do prompt: **quando o Google Calendar não tem nenhum evento no dia consultado, o node "Buscar Eventos do Dia" retorna zero itens, e o node seguinte ("Verificar Conflito") simplesmente não executa** (comportamento padrão do n8n: um node não roda se recebe zero itens de entrada) — quebrando toda a cadeia do sub-workflow sem erro explícito. Isso não apareceu nos testes anteriores porque os dias testados já tinham eventos de rodadas de teste anteriores, mascarando o bug. **Corrigido:** `alwaysOutputData: true` no node `Buscar Eventos do Dia` do sub-workflow `Mayara - Agendar Consulta [Tool Atomico]` (garante que o node seguinte sempre recebe pelo menos um item, mesmo vazio — o código de `Verificar Conflito` já filtrava itens sem `.start`, então lida bem com isso). Também reforçado no prompt: a ferramenta retornar `sucesso: false` com um `motivo` preenchido é uma resposta normal de indisponibilidade, nunca um erro técnico — só a ausência de `motivo` numa falha real deve virar a mensagem de instabilidade. Testado: reteste com dia genuinamente vazio (sábado) respondeu corretamente, inclusive sem precisar chamar a ferramenta (reconheceu direto pelo prompt que é fim de semana) e ofereceu segunda-feira como alternativa.
+
+### Status final
+
+Todos os achados classificados como erro de comportamento (não estilo) foram corrigidos e reconfirmados por reteste automatizado via o harness (`test-mayara-v2`). Cenário D permanece como limitação de estilo conhecida e documentada, não um erro de segurança/correção.
