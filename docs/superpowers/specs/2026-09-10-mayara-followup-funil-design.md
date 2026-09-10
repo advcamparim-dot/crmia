@@ -30,7 +30,11 @@ Consequência direta pro design: só o primeiro follow-up ("sumiu no meio", dent
 | 2º follow-up | +3 dias sem resposta desde o follow-up anterior | Template 2 |
 | Follow-ups seguintes | A cada +7 dias sem resposta | Template 2 (repetido) |
 
-Para em qualquer ponto quando: o lead responde de qualquer jeito (mesmo que não seja um "sim"/"não" direto — nesse caso volta pro fluxo normal de qualificação, sem tratamento especial de follow-up), ou a conversa já está em `S7_HANDOFF_HUMANO` (não faz sentido a automação insistir se um humano já assumiu).
+Para em qualquer ponto quando: o lead responde **qualquer coisa, por mínima que seja** (mesmo um emoji ou "kkk" já tira o lead do funil de follow-up e devolve pro fluxo normal de qualificação — não precisa ser um "sim"/"não" direto), ou a conversa já está em `S7_HANDOFF_HUMANO` (não faz sentido a automação insistir se um humano já assumiu).
+
+**Exclusão de segurança (além de S7):** leads em `S3_PRIORIDADE_JURIDICA`, ou com qualquer fato registrado indicando situação patrimonial sensível (penhora, bloqueio, oficial de justiça, recuperação judicial/falência — ver STOP QUALIFICATION e MOVIMENTAÇÃO PATRIMONIAL no prompt principal), **nunca entram no follow-up automático**, mesmo que fiquem silenciosos. Mandar "ainda tem interesse?" pra alguém em execução judicial é tonalmente errado e pode passar a impressão errada sobre a seriedade do caso. Esses casos ficam de fora da consulta de elegibilidade e só reengajam por contato humano manual.
+
+**Reavaliação da janela em tempo de execução, não de agendamento:** o worker roda de hora em hora, mas só em horário comercial — um silêncio que completa 4h numa sexta às 19h só vai ser avaliado na segunda de manhã. Nesse momento, a janela de 24h já pode ter fechado, então a decisão "texto livre ou template" precisa ser recalculada a cada execução com base no tempo real decorrido, nunca assumida a partir de quando o prazo teoricamente venceria.
 
 ## Templates propostos (usuário precisa submeter à Meta para aprovação antes de funcionar)
 
@@ -40,7 +44,9 @@ Para em qualquer ponto quando: o lead responde de qualquer jeito (mesmo que não
 **Template 2 — pergunta de encerramento:**
 > "{{1}}, sem problema se não for mais o momento certo. Só preciso saber: ainda tem interesse em resolver a questão de {{2}}, ou posso encerrar esse atendimento por aqui?"
 
-`{{1}}` = nome do lead (ou "Olá" genérico se ainda não soubermos o nome — caso do "nunca respondeu"). `{{2}}` = resumo curto do assunto (ex: "a dívida com o Bradesco", ou "sua situação com o banco" se ainda não soubermos detalhes).
+`{{1}}` = nome do lead. `{{2}}` = resumo curto do assunto. Na prática, mesmo no caso "nunca respondeu" isso geralmente já está disponível — o card de lead colado no início da conversa já traz nome e tipo de dívida na maioria dos casos (ver formato do card em USANDO DADOS JÁ CONHECIDOS no prompt principal); o fallback genérico ("Olá" / "sua situação com o banco") só é necessário no raro caso de um lead sem card, direto pelo link do WhatsApp.
+
+**Categoria do template:** submeter como **Utility**, não Marketing — é uma mensagem de continuidade de um atendimento já iniciado pelo próprio lead (que clicou no link/preencheu o formulário), não uma oferta promocional nova. Isso tende a ter aprovação mais rápida e menos restrição de conteúdo do que a categoria Marketing.
 
 **Decisão pendente do usuário:** os textos acima são uma proposta minha — a aprovação de conteúdo de template pela Meta pode ser exigente (não pode soar como marketing agressivo em certas categorias). Revisar e ajustar antes de submeter.
 
@@ -50,7 +56,7 @@ Para em qualquer ponto quando: o lead responde de qualquer jeito (mesmo que não
 alter table mayara.session_state
   add column if not exists last_lead_message_at timestamptz,
   add column if not exists follow_up_status text not null default 'ativo',
-    -- ativo | resolvido_continua | resolvido_sem_interesse | pausado_humano
+    -- ativo | resolvido_continua | resolvido_sem_interesse | pausado_humano | excluido_seguranca
   add column if not exists follow_up_stage text not null default 'nenhum',
     -- nenhum | ia_sumiu_meio | template1 | template2
   add column if not exists follow_up_last_sent_at timestamptz,
@@ -60,6 +66,10 @@ create index if not exists idx_session_state_followup
   on mayara.session_state (follow_up_status, last_lead_message_at)
   where follow_up_status = 'ativo';
 ```
+
+`follow_up_status = 'excluido_seguranca'` é setado pelo próprio Núcleo (não pelo worker) assim que detectar prioridade jurídica ou situação patrimonial sensível — junto com a transição pra `S3_PRIORIDADE_JURIDICA`/handoff, no mesmo ponto do código que já muda o estágio. Assim a exclusão de segurança nunca depende do worker "adivinhar" a partir de `fatos_json`.
+
+**Concorrência:** o worker roda de hora em hora e pode demorar mais que isso pra processar todos os leads elegíveis, ou duas execuções podem se sobrepor num restart. Pra nunca mandar a mesma mensagem duas vezes, a consulta que busca leads elegíveis precisa "reservar" a linha atomicamente antes de enviar — um `UPDATE ... SET follow_up_stage = 'enviando' WHERE follow_up_status='ativo' AND <condição de tempo> RETURNING *` (ou equivalente), nunca um `SELECT` seguido de um `UPDATE` separado, que teria uma janela de corrida entre ler e escrever.
 
 `last_lead_message_at` precisa ser **tocado sempre que uma mensagem do lead chegar**, independente de o AI Agent decidir chamar "Salvar Estado da Conversa" ou não (hoje esse UPDATE só acontece quando o modelo aprende um fato novo — não é confiável pra medir silêncio). Isso exige um UPDATE determinístico logo na entrada do Núcleo (nó `Buscar Estado da Sessao` ou logo depois), não dependente do LLM.
 
@@ -71,9 +81,12 @@ Novo workflow n8n, `Mayara — Follow-up de Funil [Worker]`, agendado (Schedule 
 
 ```
 Schedule Trigger (hourly, seg-sex 9h-18h)
-  → Buscar Leads Elegíveis (Postgres: session_state onde follow_up_status='ativo'
+  → Buscar e Reservar Leads Elegíveis (Postgres, UPDATE...RETURNING atômico:
+       follow_up_status='ativo' — nunca S3_PRIORIDADE_JURIDICA/excluido_seguranca,
+       nunca S6_AGENDADO/S7_HANDOFF_HUMANO —
        e last_lead_message_at + intervalo-do-estágio < now())
   → Code: Decidir Tipo de Follow-up (por lead: dentro ou fora da janela de 24h,
+       recalculado agora, não no momento em que o prazo venceu;
        qual template/estágio já foi usado)
   → Switch (3 ramos: texto-livre-IA / template1 / template2)
       → [texto-livre-IA] Execute Workflow: Núcleo da Mayara (gera o texto,
@@ -84,9 +97,11 @@ Schedule Trigger (hourly, seg-sex 9h-18h)
   → Update Postgres: follow_up_stage, follow_up_last_sent_at, follow_up_tentativas++
 ```
 
-Quando o lead responder (qualquer mensagem chegando pela Ponte normal): o Núcleo, ao processar a resposta, precisa resetar `follow_up_status` pra `'ativo'`... não, na verdade deve ser mais específico: uma resposta real deve **sair completamente do fluxo de follow-up** (não é mais "silencioso"). O jeito mais simples: zerar `follow_up_stage` e `follow_up_tentativas` sempre que uma mensagem do lead for processada normalmente pelo Núcleo (ele já vai atualizar `last_lead_message_at`, então o worker de follow-up simplesmente não vai mais achar esse lead como elegível na próxima consulta, sem precisar de lógica extra — os únicos campos que precisam de reset explícito são `follow_up_stage`/`follow_up_tentativas`, pra não pular direto pro template2 se a pessoa sumir de novo depois).
+Quando o lead responder (qualquer mensagem chegando pela Ponte normal): o Núcleo, ao processar a resposta, atualiza `last_lead_message_at` — sozinho isso já tira o lead da consulta de elegibilidade do worker, sem precisar de lógica extra. O único reset explícito necessário é `follow_up_stage` e `follow_up_tentativas` voltarem a `'nenhum'`/`0`, pra não pular direto pro template2 se a pessoa sumir de novo depois.
 
 Quando o lead responder "não tenho mais interesse" (ou variante): a Mayara (dentro da conversa normal, não no worker) precisa reconhecer essa resposta como encerramento do funil, marcar `follow_up_status = 'resolvido_sem_interesse'`, e responder de forma educada sem insistir. Isso é uma **mudança no prompt principal** (não no worker), fora do escopo deste workflow novo — precisa de uma seção nova tipo "SE O LEAD DISSER QUE NÃO TEM MAIS INTERESSE" no prompt do Núcleo, com a regra de marcar esse status.
+
+**Sugestão minha, não decidida ainda — dormência após tentativas prolongadas sem resposta nenhuma (nem ao template):** você pediu sem número fixo de tentativas, e mantive isso — o backoff de 7 em 7 dias já é bem menos invasivo que insistir toda hora. Mas tecnicamente "pra sempre" significa reenviar template todo mês pra leads de anos atrás que nunca vão responder, consumindo cota de template da Meta sem necessidade. Proponho, como higiene operacional (não como desistência do lead): depois de ~90 dias sem NENHUMA resposta a NENHUM template, marcar `follow_up_status = 'dormente'` — para de mandar mensagem automaticamente, mas o lead continua podendo responder a qualquer momento (mesmo anos depois) e reativa o atendimento normalmente, exatamente como os outros estados. Isso não é "desistir" do lead — é só parar de gastar template nele até ele voltar a dar sinal. Se preferir manter literalmente infinito, é só não implementar este ponto.
 
 ## Fora de escopo (por ora)
 
@@ -96,8 +111,9 @@ Quando o lead responder "não tenho mais interesse" (ou variante): a Mayara (den
 
 ## Próximos passos
 
-1. Usuário revisa/ajusta os textos dos templates e os submete pra aprovação da Meta (fora do meu alcance — precisa ser feito pelo WhatsApp Manager da conta).
-2. Confirmar a suposição sobre `session_key` = telefone, inspecionando `Mayara — Ponte WhatsApp` de verdade.
-3. Enquanto os templates não são aprovados, dá pra implementar e testar só a parte "sumiu no meio" (texto livre, dentro da janela de 24h) — funciona independente da aprovação da Meta.
-4. Depois de aprovado: implementar o resto (worker agendado, templates 1/2, reset de estado ao responder).
-5. Nova seção no prompt do Núcleo pra reconhecer "não tenho mais interesse" e marcar o status.
+1. Usuário decide sobre a proposta de dormência aos 90 dias (seção acima) — aceitar, ajustar o prazo, ou recusar e manter infinito.
+2. Usuário revisa/ajusta os textos dos templates e os submete pra aprovação da Meta como categoria Utility (fora do meu alcance — precisa ser feito pelo WhatsApp Manager da conta).
+3. Confirmar a suposição sobre `session_key` = telefone, inspecionando `Mayara — Ponte WhatsApp` de verdade.
+4. Enquanto os templates não são aprovados, dá pra implementar e testar só a parte "sumiu no meio" (texto livre, dentro da janela de 24h) — funciona independente da aprovação da Meta.
+5. Depois de aprovado: implementar o resto (worker agendado, templates 1/2, reset de estado ao responder, reserva atômica de linha).
+6. Duas seções novas no prompt do Núcleo: "SE O LEAD DISSER QUE NÃO TEM MAIS INTERESSE" (marca `resolvido_sem_interesse`) e a exclusão de segurança marcando `excluido_seguranca` junto da transição pra `S3_PRIORIDADE_JURIDICA`.
