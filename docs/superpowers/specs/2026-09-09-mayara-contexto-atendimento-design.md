@@ -173,6 +173,65 @@ O item 5.5 (opinião jurídica espontânea) falhou duas vezes seguidas em teste 
 
 **Testado:** 5 execuções do cenário que antes violava a regra (dívida PJ + "só cobrança" + CNPJ) saíram limpas depois da correção do bug de poluição, sem o guardrail precisar disparar. O guardrail em si não foi observado disparando nesta rodada (boa notícia — significa que a violação ficou rara), mas sua lógica foi verificada por inspeção e por confirmar que não quebra o restante do fluxo (`intermediateSteps` preservado, `Extrair Consulta Criada` sem erro).
 
+## Rodada 3 — pedido do usuário sobre agendamento + achados críticos de data (2026-09-10)
+
+Usuário pediu, além dos pontos acima: (a) investigar um erro no agendamento que mesmo assim criou a consulta (achado: 403 no CRM de produção, já resolvido no draft — ver seção anterior sobre produção vs. draft), (b) padronizar o formato do evento no Calendar (título, descrição fixa, cor) e a mensagem de confirmação, (c) mudar o fluxo de horários pra sempre sugerir o próximo dia útil (manhã + tarde) antes de perguntar aberto.
+
+### 6.1 Formato do evento e fluxo de horários (aplicado)
+
+Horário comercial mudou para **9h-12h e 13h-18h** (era 8h-12h/14h-17h). Fluxo de AGENDAMENTO reescrito: nunca pergunta "qual dia e horário" de forma aberta — sempre sugere o próximo dia útil com um horário de manhã e um de tarde primeiro, avança dia a dia se recusado, mas aceita direto se o cliente já disser dia+hora específicos.
+
+Evento no Calendar padronizado: título `Camparim Advogados | Gestão de Passivo Bancário – [Nome do Lead]`, descrição fixa (texto jurídico/aviso de no-show, nunca dados do lead), cor vermelha (campo correto é `additionalFields.color`, **não** `colorId` como tentei primeiro — `colorId` é aceito mas ignorado pela API nessa versão do node), e-mail do lead como convidado (convite automático via `sendUpdates: all`).
+
+### 🔴 6.2 Achado crítico: data ISO gerada pela IA — evento real criado em 07/01/2025
+
+Testando o novo fluxo, a Mayara confirmou "amanhã" e criou um evento **real** no Google Calendar com `start: 2025-01-07T10:00:00-03:00` — mais de um ano no passado, sem nenhuma relação com a tabela de datas (que estava correta). A regra "use a tabela, nunca calcule" só cobria quando o **cliente** dizia um dia da semana, não quando a própria Mayara gerava sua sugestão de "amanhã" internamente para a ferramenta.
+
+**Causa raiz:** pedir pra IA gerar uma data ISO completa (`Start: "2026-09-11T10:00:00-03:00"`) é uma tarefa de cálculo que ela erra sistematicamente, mesmo com a tabela disponível — confirmado repetidas vezes (07/01/2025, depois 20/05, depois 13/01, em tentativas sucessivas mesmo após reforçar a regra em texto).
+
+**Correção estrutural (não só texto):**
+1. **Redesenho dos parâmetros da ferramenta:** em vez de pedir uma data ISO completa, a ferramenta agora pede `diasAFrente` (posição da linha na TABELA DOS PRÓXIMOS 7 DIAS, contando a partir de 0) + `hora` (string HH:mm). A data real é calculada deterministicamente (`$now.plus({days: diasAFrente})`), nunca pela IA. Contar uma posição numa lista curta é uma tarefa muito mais confiável pra um LLM do que gerar uma data absoluta.
+2. **Guardrail de validação de data** (antes da correção estrutural acima, como primeira camada): expressão no campo `Start` que rejeita qualquer data fora da janela de 14 dias a partir de hoje, lançando erro em vez de deixar a ferramenta criar o evento. Combinado com `onError: continueRegularOutput` nas 3 ferramentas de agenda (antes nenhuma tinha isso — qualquer falha derrubava a execução inteira em vez de deixar a Mayara reagir com naturalidade, como o prompt já mandava).
+3. **Mensagem de confirmação de sucesso não é mais gerada pela IA.** Node `Preparar Retorno para Ponte` agora monta a confirmação final deterministicamente a partir do `horarioInicio` real devolvido pela ferramenta (via Luxon, nunca a IA escrevendo a data) — elimina de vez o risco de rótulo de data errado na mensagem final, mesmo que o resto do texto tenha vindo do modelo.
+
+### 🔴 6.3 Achado crítico: duplo/triplo agendamento — verificação de disponibilidade pulada
+
+Com 3 sessões de teste simultâneas pedindo o mesmo horário, a Mayara criou **3 eventos reais sobrepostos**. Investigação mostrou que a ferramenta "Verificar Disponibilidade" só foi chamada na 1ª sessão — nas outras duas, a Mayara confiou na sugestão que ela mesma tinha feito no turno anterior e foi direto pra "Create an event", sem reconferir a agenda real no momento de confirmar. A regra de prompt ("sempre confira antes de criar") não é suficiente porque depende do modelo lembrar de chamar duas ferramentas em sequência, toda vez.
+
+**Correção estrutural:** as duas ferramentas antigas (`Verificar Disponibilidade na Agenda`, `Create an event in Google Calendar`) foram desconectadas do agente (nós mantidos no canvas, desconectados do `ai_tool`, não apagados) e substituídas por uma única ferramenta atômica, um novo sub-workflow **`Mayara - Agendar Consulta [Tool Atomico]`** (id `ULH07B68qq0pvghd`, ativo), exposto via node `Agendar Consulta` (`@n8n/n8n-nodes-langchain.toolWorkflow`). Esse sub-workflow, numa única execução: calcula a data (dias à frente + hora), busca os eventos reais do dia, checa conflito e horário comercial em código, e só então cria o evento — nunca deixa a decisão de "verificar antes de criar" a cargo do modelo. Testado com 2 sessões concorrentes pedindo o mesmo slot: a 1ª agenda, a 2ª é corretamente informada que está ocupado e recebe alternativas.
+
+Isso exigiu atualizar `Extrair Consulta Criada` (procurava a ferramenta antiga pelo nome `Create_an_event_in_Google_Calendar`, agora procura `Agendar_Consulta` e lê o formato de retorno novo: `{sucesso, eventoId, inicio, fim}` ou `{sucesso: false, motivo, eventosDoDia}`).
+
+**Armadilhas encontradas na implementação do sub-workflow** (registradas para não repetir):
+- Sub-workflows criados via API não vêm ativos por padrão — `toolWorkflow` recusa executar workflow inativo ("Workflow is not active"). Precisa `POST /api/v1/workflows/:id/activate` explicitamente.
+- Dentro de um Code node em modo "rodar uma vez para todos os itens" (o padrão), `$('OutroNode').item.json` é ambíguo quando esse node tem múltiplos itens de entrada (ex: uma busca que retorna vários eventos) — sempre usar `$('OutroNode').first().json` nesse contexto, nunca `.item.json`.
+- O campo `workflowInputs` do node `toolWorkflow` (tipo `resourceMapper`) precisa de um array `schema` explícito descrevendo os campos esperados — sem ele, os valores de `value` não chegam ao sub-workflow (chegam `null`), mesmo com a expressão `$fromAI(...)` sintaticamente correta. Normalmente esse `schema` é preenchido pela UI ao clicar "Refresh"; escrevendo o JSON à mão, é preciso incluir manualmente.
+
+### 6.4 Outros achados menores desta rodada
+
+- **Vazamento de trace técnico:** numa tentativa, o texto final ao cliente incluiu literalmente `"Calling Agendar_Consulta with input: {...}"` — a IA narrou uma chamada de ferramenta que na verdade nunca foi executada (confirmado: nenhuma execução correspondente no sub-workflow). Reforçada a seção FORMATO DA RESPOSTA proibindo narrar nomes de ferramentas/JSON, e o guardrail técnico agora também detecta e substitui esse padrão (`technicalLeakPatterns`) e qualquer data DD/MM fora da janela válida mencionada no texto (`validDatesDDMM`), não só a opinião jurídica.
+- **Repetição/paráfrase (item 5.1):** o exemplo errado/certo sozinho não bastou (mesmo padrão do achado jurídico). Reforçado com múltiplos exemplos reais observados e uma instrução mais direta ("PROIBIDO abrir a resposta com 'Entendi' seguido de resumo dos fatos"). Testado 3x consecutivas depois do reforço: 3/3 limpas.
+- **Regressão de processo (autocrítica):** por três vezes nesta sessão, uma correção já aplicada foi perdida porque um PUT subsequente usou um arquivo-base desatualizado (buscado antes da correção anterior) em vez do estado mais recente do workflow. Todas as regressões foram encontradas e corrigidas antes de fechar a sessão, mas o processo correto é **sempre buscar o estado atual via GET imediatamente antes de cada novo PUT**, nunca reaproveitar um arquivo local de uma etapa anterior.
+
+### Limpeza manual necessária (eventos reais de teste)
+
+Os seguintes eventos reais foram criados no Google Calendar (`advcamparim@gmail.com`) durante os testes desta sessão e precisam ser apagados manualmente (não tenho acesso à API do Google Calendar, só à API do n8n):
+
+| ID do evento | Data/hora | Observação |
+|---|---|---|
+| `tc23i49l4ek81qk95pbss8nfo4` | 07/01/2025 10:00 | Data errada (bug já corrigido) |
+| `02v1rre8skse8vb2sg7u52dgfs` | 11/09/2026 09:00 | Triplo agendamento (bug já corrigido) |
+| `05klpc8cift9gieih4qgq361mc` | 11/09/2026 09:00 | Triplo agendamento |
+| `ga22rbu06rqr3iksdk00ojl24g` | 11/09/2026 09:00 | Triplo agendamento |
+| `hjpus9p8i77boq2ppqtg1435o0` | 11/09/2026 11:00 | Teste de conflito (Pessoa A) |
+| `6026297i7jahbprvop9nmg5vs0` | 11/09/2026 13:00 | Teste (Denise Rocha) |
+| `lt5h83ck8hlqhfgv7qlipd5u3g` | 11/09/2026 16:00 | Teste (Igor Santos) |
+| `59g2bdnc3j5q3ras3sv18274hk` | 11/09/2026 15:00 | Teste E2E final (Ricardo Melo) |
+
+### Status final desta rodada
+
+Testado de ponta a ponta depois de todas as correções: qualificação sem repetição (3/3), sugestão de horário correta (manhã+tarde do próximo dia útil), confirmação com data/dia da semana corretos (determinístico), evento real criado com título/cor/convidado corretos, e prevenção de duplo agendamento confirmada com 2 sessões concorrentes. Nenhum erro técnico conhecido em aberto nesta rodada — pendências restantes são de conteúdo/estilo (ex: cobertura de mais cenários), não de comportamento incorreto.
+
 ## Plano de validação
 
 Cada mudança acima deve virar um novo teste adversarial (mesmo padrão de `T##`/`Cen#` já usado), a rodar contra o draft assim que o `n8n-mcp` estiver disponível de novo:
