@@ -117,7 +117,13 @@ Workflow novo `Mayara — Follow-up Sumiu no Meio [Worker]` (id `CxlC28G0S3uE8X6
 
 **Testado de ponta a ponta, com envio real confirmado.** Primeira rodada (token expirado): reserva atômica funcionou, texto gerado ficou natural e dentro do limite de caracteres, `follow_up_stage`/`follow_up_tentativas` atualizados corretamente — só o envio falhou (401, token expirado). Usuário renovou o token; segunda rodada, com o número de teste autorizado (`+5514997022609`) e o `phone_number_id` real do negócio (`1365007506685934`, extraído de uma execução real do Gateway): **mensagem real enviada e confirmada pela Meta** (`wamid` retornado). Pipeline completo, do banco até a entrega real, funcionando.
 
-**Não implementado ainda:** Template 1/2 (depende da aprovação da Meta), a seção nova de prompt pra reconhecer "não tenho mais interesse", e a lógica de dormência aos 90 dias (ainda pendente de decisão do usuário).
+**Não implementado ainda:** Template 1/2 (depende da aprovação da Meta), e a lógica de dormência aos 90 dias (ainda pendente de decisão do usuário).
+
+## Implementado — "não tenho mais interesse" (2026-09-10)
+
+Nova ferramenta `Marcar Sem Interesse` (Postgres tool) no Núcleo — sem parâmetros, só executa `update mayara.session_state set follow_up_status = 'resolvido_sem_interesse' where session_key = ...`. Nova seção no prompt, "SE O LEAD DISSER QUE NÃO TEM MAIS INTERESSE", instruindo a chamar essa ferramenta silenciosamente e responder breve, sem insistir, sem perguntar o motivo.
+
+**Testado de ponta a ponta:** conversa qualificando normalmente, depois "na verdade não tenho mais interesse, pode parar de mandar mensagem" → resposta "Sem problema, obrigada pelo contato! Se mudar de ideia, é só chamar." + confirmado no banco: `follow_up_status = 'resolvido_sem_interesse'`. Esse lead agora fica permanentemente fora da consulta de elegibilidade do worker de follow-up (a query já filtra `follow_up_status = 'ativo'`).
 
 **Limitação aceita conscientemente:** o worker marca `follow_up_stage`/`follow_up_tentativas` **antes** de confirmar que o envio realmente funcionou — se o envio falhar (como no teste, por token expirado), o lead não é re-tentado nesse mesmo estágio. Isso é intencional (evita reenvio duplicado se o envio na verdade funcionou mas a resposta demorou), mas significa que uma falha real de envio faz esse lead pular direto pra "sem retorno" do ponto de vista do funil, sem re-tentativa da mensagem de texto livre — ele ainda vai receber o Template 1 no ciclo seguinte (24h), então não fica travado, só perde a etapa de texto livre naquele caso específico.
 
