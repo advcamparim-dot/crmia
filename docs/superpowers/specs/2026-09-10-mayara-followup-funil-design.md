@@ -111,6 +111,16 @@ Quando o lead responder "não tenho mais interesse" (ou variante): a Mayara (den
 - Dashboard/relatório de quantos leads estão em cada estágio de follow-up (poderia ser um card novo no Painel de Marketing ou Painel de Leads e Agendamentos existente — não desenhado aqui).
 - Qualquer follow-up para quem já tem consulta agendada (`S6_AGENDADO`) — esse caso já tem o próprio fluxo de lembrete/confirmação de consulta (feito manualmente hoje pela equipe, visto nas conversas reais revisadas nesta sessão) — não misturar com este funil de reengajamento de qualificação.
 
+## Implementado — "sumiu no meio" (2026-09-10)
+
+Workflow novo `Mayara — Follow-up Sumiu no Meio [Worker]` (id `CxlC28G0S3uE8X66`, ativo). Schedule Trigger de hora em hora + IF de horário comercial (seg-sex, 9h-18h horário de Brasília) → reserva atômica no Postgres (CTE com `for update skip locked`, exclui `S6_AGENDADO`/`S7_HANDOFF_HUMANO`/`S3_PRIORIDADE_JURIDICA`, janela 4h-24h desde `last_lead_message_at`, limite de 20 por execução) → gera o texto via chamada HTTP direta à API da Anthropic (não via node LangChain — mais simples e não depende do Agent/tools) → envia via Graph API. Inclui um segundo trigger (Webhook, path `test-followup-sumiu-meio`) só pra testes manuais, sem esperar o agendamento horário.
+
+**Testado de ponta a ponta** com um lead fake inserido diretamente no banco (10h de silêncio simulado): reserva atômica funcionou, texto gerado ficou natural e dentro do limite de caracteres, `follow_up_stage`/`follow_up_tentativas` atualizados corretamente. Envio real falhou só por **token do WhatsApp expirado** (achado operacional, não bug do worker — mesmo padrão de token temporário já visto antes no projeto; precisa gerar um token permanente, como já foi feito uma vez para o workflow de Alertas).
+
+**Não implementado ainda:** Template 1/2 (depende da aprovação da Meta), a seção nova de prompt pra reconhecer "não tenho mais interesse", e a lógica de dormência aos 90 dias (ainda pendente de decisão do usuário).
+
+**Limitação aceita conscientemente:** o worker marca `follow_up_stage`/`follow_up_tentativas` **antes** de confirmar que o envio realmente funcionou — se o envio falhar (como no teste, por token expirado), o lead não é re-tentado nesse mesmo estágio. Isso é intencional (evita reenvio duplicado se o envio na verdade funcionou mas a resposta demorou), mas significa que uma falha real de envio faz esse lead pular direto pra "sem retorno" do ponto de vista do funil, sem re-tentativa da mensagem de texto livre — ele ainda vai receber o Template 1 no ciclo seguinte (24h), então não fica travado, só perde a etapa de texto livre naquele caso específico.
+
 ## Próximos passos
 
 1. Usuário decide sobre a proposta de dormência aos 90 dias (seção acima) — aceitar, ajustar o prazo, ou recusar e manter infinito.
