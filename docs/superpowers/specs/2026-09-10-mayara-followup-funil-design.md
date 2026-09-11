@@ -161,6 +161,49 @@ Três problemas relacionados: (1) se a reserva no banco falhasse, os nodes segui
 
 A correção do `JSON.stringify` foi confirmada por leitura direta do código (é uma mudança determinística e simples), mas **não foi reverificada com uma execução real** ainda — no momento da correção estava fora do horário comercial (21h32, o `Horario Comercial?` corretamente bloqueou o teste). Rodar de novo o teste com o segredo assim que possível, e conferir que o texto gerado menciona os fatos reais (banco, valor) em vez de inventar um assunto.
 
+## Sub-projetos irmãos, planejados em 2026-09-11 (ainda não implementados)
+
+Usuário trouxe 5 observações de um teste real em produção. Três já estavam resolvidas no draft (confirmado por reteste: mensagem de confirmação sem pergunta extra grudada, sem repetição pós-agendamento). As outras duas são funcionalidades novas, do mesmo "tipo" deste documento (mensagens automáticas fora de uma conversa ativa) — documentadas aqui em vez de um spec separado, porque compartilham a mesma restrição de templates da Meta.
+
+### Lembretes de consulta agendada (T-1dia / T-1h / T-15min)
+
+**Objetivo:** depois que uma consulta é confirmada (`S6_AGENDADO`), mandar 3 lembretes automáticos: 1 dia antes, 1 hora antes, e 15 minutos antes. O último lembrete precisa **encerrar definitivamente** a Mayara pra esse lead — a partir dali quem responde é o Dr. Santo, e a Mayara nunca mais deve mandar mensagem automática pra esse número (nem follow-up, nem outro lembrete).
+
+**Pré-requisito não implementado ainda:** hoje a data/hora real da consulta confirmada só existe no Google Calendar — não é gravada em nenhum lugar consultável pelo Supabase. Antes de montar os lembretes, preciso adicionar uma coluna (`consulta_agendada_em timestamptz`) em `mayara.session_state` e um node determinístico (mesmo padrão do `Registrar Ultima Mensagem do Lead`) que grava isso no momento exato em que `Extrair Consulta Criada` confirma um sucesso real — nunca depender do LLM anotar isso em `fatos_json`.
+
+**Arquitetura proposta:** três workers agendados (ou um só com lógica de múltiplos estágios, como o worker de follow-up), cada um checando `consulta_agendada_em - now()` contra a janela certa (24h / 1h / 15min), com reserva atômica igual ao padrão já usado, marcando um `lembrete_enviado` por estágio pra nunca duplicar.
+
+**Estado terminal novo:** ao mandar o lembrete de 15 minutos, gravar `follow_up_status = 'transferido_consulta'` (ou reaproveitar um valor equivalente) — esse status entra na lista de exclusão de qualquer worker automático futuro, ao lado de `S6_AGENDADO`/`S7_HANDOFF_HUMANO`/`S3_PRIORIDADE_JURIDICA`/`excluido_seguranca`.
+
+**Restrição da Meta:** os 3 lembretes quase certamente caem fora da janela de 24h (a última mensagem do lead foi na hora do agendamento, bem antes) — **precisam de templates aprovados**, iguais aos do follow-up. Ver lista consolidada abaixo.
+
+### Vínculo automático da Mayara aos leads da campanha PJ
+
+**Problema real:** o WhatsApp do escritório recebe mensagens de clientes que não têm nada a ver com a campanha de Gestão de Passivo PJ. A Mayara nunca deve engajar esses números — só quem veio do formulário da campanha.
+
+**Descoberta importante:** não existe hoje nenhuma automação técnica ligando o preenchimento do formulário à conversa — o lead preenche, a informação cai num **grupo de WhatsApp da agência de marketing contratada**, e o usuário inicia manualmente a conversa com o lead. O mecanismo que já existe pela metade no Gateway (`Normalizar e Filtrar Evento`, checagem de `referral.source_id` contra `approvedReferralSourceIds`) nunca foi configurado de verdade (o valor ainda é o placeholder `'CONFIGURAR_ID_CAMPANHA'`) — hoje, na prática, só o número de teste hardcoded passa por esse filtro.
+
+**Decisão do usuário:** quer automação completa — no momento em que o formulário é preenchido, a qualquer hora, a Mayara já deve poder iniciar o atendimento. Sem solução manual intermediária (rejeitou tanto "encaminhar o card pra Mayara" quanto "colar o telefone numa página").
+
+**Bloqueado até a resposta da agência.** Perguntei ao usuário: qual ferramenta capta o formulário (Meta Lead Ads nativo, landing page própria, outra) e se ela dispara algum webhook/integração no momento do envio. A resposta define a arquitetura exata:
+- Se for **Meta Lead Ads**: dá pra assinar o webhook de leads da própria Meta (Graph API `leadgen` webhook) — chega em tempo real, sem depender da agência mudar nada, só de ter acesso ao Business Manager certo.
+- Se for **landing page/formulário próprio**: precisa que a agência configure um webhook apontando pro n8n (ou usar Zapier/Make como ponte, se a ferramenta não suportar webhook direto).
+
+**Restrição da Meta, de novo:** a primeira mensagem da Mayara pra um número que nunca escreveu pro WhatsApp do escritório é uma mensagem **iniciada pela empresa** — mesma regra dos lembretes e do follow-up, precisa de template aprovado (não dá pra mandar texto livre "contextual" como primeiro contato).
+
+### Lista consolidada de templates pra submeter à Meta de uma vez só
+
+Pra evitar múltiplas rodadas de aprovação, submeter tudo isso junto, categoria **Utility**:
+
+| # | Nome sugerido | Quando usa | Texto (rascunho, revisar antes de submeter) |
+|---|---|---|---|
+| 1 | `followup_checkin_leve` | Follow-up, 24h sem resposta | "Oi {{1}}! Vi que você não respondeu ainda sobre {{2}}. Ainda faz sentido pra você conversarmos? É só responder aqui." |
+| 2 | `followup_encerramento` | Follow-up, +3 dias e seguintes | "{{1}}, sem problema se não for mais o momento certo. Só preciso saber: ainda tem interesse em resolver a questão de {{2}}, ou posso encerrar esse atendimento por aqui?" |
+| 3 | `lembrete_consulta_1dia` | 1 dia antes da consulta | "Oi {{1}}! Passando pra lembrar da sua consulta amanhã, {{2}}, às {{3}} (horário de Brasília), online. Qualquer imprevisto, me avisa por aqui." |
+| 4 | `lembrete_consulta_1hora` | 1 hora antes | "{{1}}, sua consulta é daqui a 1 hora, às {{2}}. O link chega no seu e-mail. Até já!" |
+| 5 | `lembrete_consulta_transferencia` | 15 min antes (encerra a Mayara) | "{{1}}, sua consulta com o Dr. Santo Camparim é em 15 minutos. A partir de agora ele mesmo vai conduzir o atendimento por aqui. Até já!" |
+| 6 | `primeiro_contato_campanha` | Primeira mensagem automática a um lead novo da campanha | "Oi {{1}}! Aqui é a Mayara, do Camparim Advogados. Vi que você preencheu nosso formulário sobre {{2}}. Posso te ajudar a entender os próximos passos?" |
+
 ## Próximos passos (atualizado após a revisão de código)
 
 Já feito, não repetir: fundação de dados, worker "sumiu no meio" (com o bug de serialização corrigido), reconhecimento de "não tenho mais interesse", exclusão de segurança (via `estado` + camada redundante de `situacaoJudicial` na query), autenticação do webhook de teste, validações contra falha silenciosa.
