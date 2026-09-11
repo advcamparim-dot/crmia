@@ -127,11 +127,47 @@ Nova ferramenta `Marcar Sem Interesse` (Postgres tool) no Núcleo — sem parâm
 
 **Limitação aceita conscientemente:** o worker marca `follow_up_stage`/`follow_up_tentativas` **antes** de confirmar que o envio realmente funcionou — se o envio falhar (como no teste, por token expirado), o lead não é re-tentado nesse mesmo estágio. Isso é intencional (evita reenvio duplicado se o envio na verdade funcionou mas a resposta demorou), mas significa que uma falha real de envio faz esse lead pular direto pra "sem retorno" do ponto de vista do funil, sem re-tentativa da mensagem de texto livre — ele ainda vai receber o Template 1 no ciclo seguinte (24h), então não fica travado, só perde a etapa de texto livre naquele caso específico.
 
-## Próximos passos
+## Revisão de código (2026-09-10) — achados e correções
 
-1. Usuário decide sobre a proposta de dormência aos 90 dias (seção acima) — aceitar, ajustar o prazo, ou recusar e manter infinito.
-2. Usuário revisa/ajusta os textos dos templates e os submete pra aprovação da Meta como categoria Utility (fora do meu alcance — precisa ser feito pelo WhatsApp Manager da conta).
-3. Confirmar a suposição sobre `session_key` = telefone, inspecionando `Mayara — Ponte WhatsApp` de verdade.
-4. Enquanto os templates não são aprovados, dá pra implementar e testar só a parte "sumiu no meio" (texto livre, dentro da janela de 24h) — funciona independente da aprovação da Meta.
-5. Depois de aprovado: implementar o resto (worker agendado, templates 1/2, reset de estado ao responder, reserva atômica de linha).
-6. Duas seções novas no prompt do Núcleo: "SE O LEAD DISSER QUE NÃO TEM MAIS INTERESSE" (marca `resolvido_sem_interesse`) e a exclusão de segurança marcando `excluido_seguranca` junto da transição pra `S3_PRIORIDADE_JURIDICA`.
+Rodei `superpowers:requesting-code-review` contra o intervalo de commits desta fase. Achados reais, na ordem em que foram corrigidos:
+
+### 🔴 Confirmado em produção: `fatos_json` virava `[object Object]` no texto gerado
+
+O revisor suspeitou que `content: '...' + $json.fatos_json` (concatenação de string com um objeto JS, já que o node Postgres retorna `jsonb` como objeto parseado, não string) produziria `"[object Object]"` em vez dos fatos reais. **Confirmado revisitando a própria execução do teste anterior**: os fatos de teste eram "cartão PJ, Bradesco, 80 mil", mas o texto gerado falou em **"questão trabalhista"** — o modelo recebeu fatos vazios/inúteis e inventou um assunto do zero. Isso já tinha acontecido na mensagem real que confirmei como "sucesso" antes — eu só validei que o *envio* funcionou, não que o *conteúdo* estava certo. **Corrigido:** `JSON.stringify($json.fatos_json)` em vez de concatenação direta.
+
+### 🔴 Achado operacional: o schedule automático já estava rodando sozinho
+
+Ao investigar, descobri que o worker (ativo desde antes desta revisão) já tinha disparado 6 vezes sozinho via schedule horário. **Verifiquei todas as 6 execuções**: todas pegaram só linhas de teste minhas (nenhum lead real tinha uma janela de silêncio de 4-24h nesse intervalo de ~3h desde a criação do worker). Mas o risco era real — se alguém real tivesse ficado em silêncio nessa janela, teria recebido uma mensagem com assunto inventado. **Ação:** desativei o worker imediatamente ao suspeitar do bug, corrigi, e só reativei depois.
+
+### 🟡 Redundância de segurança que a spec pedia mas não foi implementada
+
+A spec original queria que o Núcleo marcasse `follow_up_status = 'excluido_seguranca'` no momento em que detecta prioridade jurídica — isso nunca foi implementado, e o worker ficou dependendo só do campo `estado`. Se o LLM registra um fato sensível (`situacaoJudicial: execução`) num turno mas só transiciona `estado` pra `S3_PRIORIDADE_JURIDICA` no turno seguinte, existe uma janela onde um lead sensível ainda seria elegível. **Corrigido com uma camada redundante mais simples**, sem exigir mudança no Núcleo: a própria query de reserva do worker agora também exclui qualquer lead cujo `fatos_json->>'situacaoJudicial'` indique execução/recuperação judicial/falência, independente do `estado`.
+
+### 🟡 Webhook de teste exposto sem autenticação em produção
+
+O path `test-followup-sumiu-meio` estava ativo, sem segredo, e qualquer um que descobrisse a URL podia forçar um envio real fora do agendamento. **Corrigido:** adicionado um node de checagem de segredo (header `x-test-secret`) antes de prosseguir — testado: bloqueia sem o header certo, passa com ele. O segredo real fica só no n8n; o arquivo exportado pro git tem o valor redigido.
+
+### 🟡 Falhas silenciosas no meio do pipeline
+
+Três problemas relacionados: (1) se a reserva no banco falhasse, os nodes seguintes rodariam com dados indefinidos mesmo assim; (2) se a geração de texto falhasse, o envio prosseguiria com uma mensagem vazia; (3) o `onError: continueRegularOutput` no envio da Graph API tornava uma falha de envio completamente invisível (o lead já tinha sido marcado como "tentado", sem ninguém saber que a mensagem nunca chegou). **Corrigido:** dois nodes de validação novos (`Reserva Valida?`, `Texto Valido?`) que interrompem o fluxo se os dados essenciais estiverem ausentes, e removido o `onError` silencioso do node de envio — uma falha real de envio agora aparece como falha de execução de verdade, visível na lista de execuções do n8n.
+
+### Achados aceitos como limitação, não corrigidos agora
+
+- **Concorrência do `FOR UPDATE SKIP LOCKED` não foi testada de verdade** (precisaria de duas execuções simultâneas de propósito) — o padrão SQL é o idiomático correto, mas a alegação de "testado de ponta a ponta" da rodada anterior superestimava isso. Registrando aqui pra não repetir a mesma alegação forte sem essa cobertura específica.
+- **Sem caminho de "voltar a ativo"** se um lead marcado `resolvido_sem_interesse` reengajar meses depois e sumir de novo — decisão de produto pendente, não decidida ainda.
+- **Duplicação de regras de tom/segurança** entre o prompt principal e o prompt inline do worker — aceito por ora, ambos cobrem o essencial (sem opinião jurídica, sem promessa, limite de caracteres), mas não se atualizam automaticamente juntos.
+
+### Verificação pendente
+
+A correção do `JSON.stringify` foi confirmada por leitura direta do código (é uma mudança determinística e simples), mas **não foi reverificada com uma execução real** ainda — no momento da correção estava fora do horário comercial (21h32, o `Horario Comercial?` corretamente bloqueou o teste). Rodar de novo o teste com o segredo assim que possível, e conferir que o texto gerado menciona os fatos reais (banco, valor) em vez de inventar um assunto.
+
+## Próximos passos (atualizado após a revisão de código)
+
+Já feito, não repetir: fundação de dados, worker "sumiu no meio" (com o bug de serialização corrigido), reconhecimento de "não tenho mais interesse", exclusão de segurança (via `estado` + camada redundante de `situacaoJudicial` na query), autenticação do webhook de teste, validações contra falha silenciosa.
+
+O que falta de verdade:
+1. **Reverificar com execução real** que o texto gerado agora usa os fatos certos (pendente — ver seção de revisão acima).
+2. Usuário decide sobre a proposta de dormência aos 90 dias — aceitar, ajustar o prazo, ou recusar e manter infinito.
+3. Usuário revisa/ajusta os textos dos templates e os submete pra aprovação da Meta como categoria Utility.
+4. Depois de aprovado: implementar Template 1/2 no worker.
+5. Decidir se um lead `resolvido_sem_interesse` pode voltar a `ativo` reengajando espontaneamente (achado da revisão, sem decisão ainda).

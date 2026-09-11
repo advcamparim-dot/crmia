@@ -99,7 +99,7 @@
       "onError": "continueRegularOutput",
       "parameters": {
         "operation": "executeQuery",
-        "query": "with claimed as (\n  select session_key\n  from mayara.session_state\n  where follow_up_status = 'ativo'\n    and follow_up_stage = 'nenhum'\n    and phone is not null\n    and estado not in ('S6_AGENDADO', 'S7_HANDOFF_HUMANO', 'S3_PRIORIDADE_JURIDICA')\n    and last_lead_message_at is not null\n    and now() - last_lead_message_at >= interval '4 hours'\n    and now() - last_lead_message_at < interval '24 hours'\n  order by last_lead_message_at\n  for update skip locked\n  limit 20\n)\nupdate mayara.session_state s\nset follow_up_stage = 'ia_sumiu_meio',\n    follow_up_last_sent_at = now(),\n    follow_up_tentativas = follow_up_tentativas + 1\nfrom claimed\nwhere s.session_key = claimed.session_key\nreturning s.session_key, s.phone, s.phone_number_id, s.estado, s.fatos_json;",
+        "query": "with claimed as (\n  select session_key\n  from mayara.session_state\n  where follow_up_status = 'ativo'\n    and follow_up_stage = 'nenhum'\n    and phone is not null\n    and estado not in ('S6_AGENDADO', 'S7_HANDOFF_HUMANO', 'S3_PRIORIDADE_JURIDICA')\n    and coalesce(fatos_json->>'situacaoJudicial', 'nenhuma') not in ('execucao', 'execução', 'recuperacao_judicial', 'recuperação_judicial', 'falencia', 'falência')\n    and last_lead_message_at is not null\n    and now() - last_lead_message_at >= interval '4 hours'\n    and now() - last_lead_message_at < interval '24 hours'\n  order by last_lead_message_at\n  for update skip locked\n  limit 20\n)\nupdate mayara.session_state s\nset follow_up_stage = 'ia_sumiu_meio',\n    follow_up_last_sent_at = now(),\n    follow_up_tentativas = follow_up_tentativas + 1\nfrom claimed\nwhere s.session_key = claimed.session_key\nreturning s.session_key, s.phone, s.phone_number_id, s.estado, s.fatos_json;",
         "options": {}
       },
       "credentials": {
@@ -135,7 +135,7 @@
         },
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={{ JSON.stringify({ model: 'claude-sonnet-4-5-20250929', max_tokens: 200, system: 'Voce e Mayara, do escritorio Camparim Advogados. O lead abaixo esta em atendimento mas nao respondeu ha algumas horas. Escreva UMA mensagem curta e natural de WhatsApp reengajando ele, baseada so nos fatos conhecidos - sem repetir tudo que ja foi dito, sem soar como cobranca, sem inventar nada fora dos fatos. Maximo 300 caracteres. No maximo 1 emoji. Tom proximo e humano, nunca urgencia falsa. Nunca de opiniao juridica, nunca prometa resultado, nunca invente dados, nunca use JSON ou formato estruturado - so texto corrido pronto pra WhatsApp. Termine perguntando se ainda faz sentido continuar, sem soar como cobranca.', messages: [{ role: 'user', content: 'Estagio atual: ' + $json.estado + '. Fatos conhecidos (JSON): ' + $json.fatos_json }] }) }}"
+        "jsonBody": "={{ JSON.stringify({ model: 'claude-sonnet-4-5-20250929', max_tokens: 200, system: 'Voce e Mayara, do escritorio Camparim Advogados. O lead abaixo esta em atendimento mas nao respondeu ha algumas horas. Escreva UMA mensagem curta e natural de WhatsApp reengajando ele, baseada so nos fatos conhecidos - sem repetir tudo que ja foi dito, sem soar como cobranca, sem inventar nada fora dos fatos. Maximo 300 caracteres. No maximo 1 emoji. Tom proximo e humano, nunca urgencia falsa. Nunca de opiniao juridica, nunca prometa resultado, nunca invente dados, nunca use JSON ou formato estruturado - so texto corrido pronto pra WhatsApp. Termine perguntando se ainda faz sentido continuar, sem soar como cobranca.', messages: [{ role: 'user', content: 'Estagio atual: ' + $json.estado + '. Fatos conhecidos (JSON): ' + JSON.stringify($json.fatos_json) }] }) }}"
       },
       "credentials": {
         "anthropicApi": {
@@ -194,7 +194,6 @@
         1100,
         40
       ],
-      "onError": "continueRegularOutput",
       "parameters": {
         "method": "POST",
         "url": "=https://graph.facebook.com/v25.0/{{ $json.phone_number_id }}/messages",
@@ -212,6 +211,114 @@
           "id": "SChAKcHay4ghJVwe",
           "name": "Bearer Auth account"
         }
+      }
+    },
+    {
+      "id": "f8",
+      "name": "Reserva Valida?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        550,
+        40
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "version": 2,
+            "leftValue": "",
+            "caseSensitive": true,
+            "typeValidation": "loose"
+          },
+          "combinator": "and",
+          "conditions": [
+            {
+              "leftValue": "={{ $json.session_key }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "notEmpty"
+              },
+              "id": "vc1"
+            },
+            {
+              "leftValue": "={{ $json.phone }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "notEmpty"
+              },
+              "id": "vc2"
+            }
+          ]
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "f9",
+      "name": "Texto Valido?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        990,
+        40
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "version": 2,
+            "leftValue": "",
+            "caseSensitive": true,
+            "typeValidation": "loose"
+          },
+          "combinator": "and",
+          "conditions": [
+            {
+              "leftValue": "={{ $json.textoFollowUp }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "notEmpty"
+              },
+              "id": "vt1"
+            }
+          ]
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "f10",
+      "name": "Segredo de Teste OK?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        0,
+        200
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "version": 2,
+            "leftValue": "",
+            "caseSensitive": true,
+            "typeValidation": "strict"
+          },
+          "combinator": "and",
+          "conditions": [
+            {
+              "leftValue": "={{ $json.headers['x-test-secret'] }}",
+              "rightValue": "REDACTED_SECRET_VER_NO_N8N",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              },
+              "id": "sc1"
+            }
+          ]
+        },
+        "options": {}
       }
     }
   ],
@@ -231,7 +338,7 @@
       "main": [
         [
           {
-            "node": "Horario Comercial?",
+            "node": "Segredo de Teste OK?",
             "type": "main",
             "index": 0
           }
@@ -254,7 +361,7 @@
       "main": [
         [
           {
-            "node": "Gerar Texto do Follow-up",
+            "node": "Reserva Valida?",
             "type": "main",
             "index": 0
           }
@@ -276,11 +383,47 @@
       "main": [
         [
           {
-            "node": "Enviar via Graph API",
+            "node": "Texto Valido?",
             "type": "main",
             "index": 0
           }
         ]
+      ]
+    },
+    "Segredo de Teste OK?": {
+      "main": [
+        [
+          {
+            "node": "Horario Comercial?",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        []
+      ]
+    },
+    "Reserva Valida?": {
+      "main": [
+        [
+          {
+            "node": "Gerar Texto do Follow-up",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        []
+      ]
+    },
+    "Texto Valido?": {
+      "main": [
+        [
+          {
+            "node": "Enviar via Graph API",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        []
       ]
     }
   },
