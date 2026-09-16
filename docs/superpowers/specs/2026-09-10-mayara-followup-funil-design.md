@@ -204,7 +204,43 @@ Pra evitar múltiplas rodadas de aprovação, submeter tudo isso junto, categori
 | 5 | `lembrete_consulta_transferencia` | 15 min antes (encerra a Mayara) | "{{1}}, sua consulta com o Dr. Santo Camparim é em 15 minutos. A partir de agora ele mesmo vai conduzir o atendimento por aqui. Até já!" |
 | 6 | `primeiro_contato_campanha` | Primeira mensagem automática a um lead novo da campanha | "Oi {{1}}! Aqui é a Mayara, do Camparim Advogados. Vi que você preencheu nosso formulário sobre {{2}}. Posso te ajudar a entender os próximos passos?" |
 
-## Próximos passos (atualizado após a revisão de código)
+## Implementado — Lembretes de Consulta (2026-09-15)
+
+Plano completo em `docs/superpowers/plans/2026-09-15-mayara-lembretes-consulta.md`, executado em 5 tasks. Resultado:
+
+### Schema (Task 1)
+
+Aplicado e verificado ao vivo no Supabase (`wuhvlvsolewslkawazlq`): colunas `consulta_agendada_em timestamptz` e `lembrete_consulta_estagio text` (`nenhum | 1dia | 1h | 15min`) em `mayara.session_state`, e `'transferido_consulta'` adicionado à check constraint de `follow_up_status` — o estado terminal previsto na seção acima, que entra na lista de exclusão de qualquer worker automático (ao lado de `S6_AGENDADO`/`S7_HANDOFF_HUMANO`/`S3_PRIORIDADE_JURIDICA`/`excluido_seguranca`).
+
+### Gravação de `consulta_agendada_em` no Núcleo (Task 2)
+
+Novo nó `Registrar Consulta Agendada` (Postgres) no workflow `Mayara — Núcleo do Agente [DRAFT V2]` (`KLdDHFsr1gJhnHkF`), ligado em série entre `Persistir Consulta no CRM` e `Call 'Logging IA - Mayara (Fail-Open)'2` — só executa no branch de sucesso de `Consulta Criada?`, nunca no de falha. Estruturalmente verificado correto (0 erros de validação, topologia exata confirmada duas vezes de forma independente, inclusive nesta rodada de regressão do Task 5).
+
+**Pendência em aberto:** a prova positiva de ponta a ponta (um agendamento real bem-sucedido fazendo `consulta_agendada_em` ser preenchido) não pôde ser obtida nem na Task 2 nem na regressão da Task 5, porque a credencial OAuth2 do Google Calendar compartilhada (`Google Calendar account`, id `CAWKu1uwYjxusSLs`) está com o grant/refresh token inválido/expirado (`invalid_grant`) — falha de infraestrutura pré-existente, não relacionada a este código, que afeta pelo menos 3 workflows ativos em produção (incluindo o Núcleo não-draft e o Painel de Leads e Agendamentos). Reproduzido de novo na regressão do Task 5 com uma sessão nova (`LEMBRETE-T5-regressao`): mesmo erro exato do Google, byte a byte, na ferramenta `Agendar Consulta`. Já foi escalado ao usuário como achado urgente e separado desde a Task 2 — precisa de reautorização manual via UI do n8n (login `advcamparim@gmail.com`, tela de credenciais → reconectar). **Continua sem solução no momento desta atualização (2026-09-16).** Assim que for corrigido, repetir o teste de 2 mensagens contra `workflowId: "9dMnpX51XMG57O1l"` e conferir `consulta_agendada_em` via SQL — nenhuma mudança adicional no workflow é necessária, o código já está pronto para isso.
+
+### Worker de lembretes (Task 3)
+
+Novo workflow `Mayara — Lembretes de Consulta [Worker]` (id `YlRXMT6gEopuwFof`, ativo). Schedule Trigger a cada 5 minutos + reserva atômica (CTE com `for update skip locked`, `estado = 'S6_AGENDADO'`, exclui `excluido_seguranca`, decide o próximo estágio por `now()` vs. `consulta_agendada_em`) → monta o payload do template certo por estágio → envia via Graph API. Ao atingir o estágio `15min`, a própria query já marca `follow_up_status = 'transferido_consulta'` na mesma transação da reserva.
+
+**Testado com dados sintéticos, todos os 3 estágios** (`1dia`/`1h`/`15min`), incluindo checagem de não-duplicação (segundo disparo imediato não reprocessa linhas já avançadas) e limpeza dos dados de teste ao final. Reverificado na regressão do Task 5 (disparo manual via webhook de teste): execução bem-sucedida, zero linhas elegíveis no momento (esperado, nenhuma consulta real agendada agindo em produção ainda), sem tocar em nenhuma sessão fora do escopo.
+
+**Bug real encontrado e corrigido durante o teste (vale registrar para não repetir):** o nó Code `Montar Template do Lembrete`, escrito verbatim a partir do plano, usava `$input.first()` para pegar só o primeiro item, mas o modo de execução padrão do nó Code (`runOnceForAllItems`, sem `mode` explícito) roda o código **uma única vez por execução do nó**, não uma vez por item. Resultado: quando a reserva atômica trazia N linhas elegíveis num mesmo tick (ex.: 3 consultas cruzando o mesmo estágio ao mesmo tempo), só a primeira tinha o lembrete efetivamente montado e enviado — as outras N-1 ficavam marcadas como "avançadas" no banco (a reserva já tinha rodado antes deste nó) mas **nunca recebiam o lembrete de verdade**, silenciosamente, sem erro visível. Corrigido reescrevendo o `jsCode` para iterar `$input.all()` e retornar um array de saída com um item por linha de entrada, mantendo o mesmo modo de execução do nó. Reverificado com um reteste de 3 linhas simultâneas: as 3 chegaram até o nó de envio (cada uma falhando com 401 esperado, ver abaixo). **Padrão a revisar em qualquer nó Code futuro deste projeto que processe resultado de uma reserva em lote:** confirmar que ele itera todos os itens de entrada, não só o primeiro.
+
+**Envio real ainda não funciona:** todas as tentativas de envio retornam `401` (`OAuthException`, código 190) da Graph API — esperado, não é defeito, os 3 templates (`lembrete_consulta_1dia`, `lembrete_consulta_1hora`, `lembrete_consulta_transferencia`) ainda não foram submetidos/aprovados pela Meta (mesma pendência da lista consolidada de templates, seção acima).
+
+### Exclusão do worker de follow-up (Task 4)
+
+Confirmado (sem necessidade de mudança) que `Mayara — Follow-up Sumiu no Meio [Worker]` (`CxlC28G0S3uE8X66`) já exclui `transferido_consulta` por construção — sua query de reserva já usa um allowlist (`follow_up_status = 'ativo'`), não uma blocklist, então qualquer status novo diferente de `'ativo'` fica automaticamente de fora, sem precisar listar `transferido_consulta` explicitamente.
+
+### Regressão final (Task 5, 2026-09-16)
+
+Reteste completo do harness (T2-style, sessão nova `LEMBRETE-T5-regressao`): mensagem de qualificação funcionou normalmente; mensagem de agendamento trombou de novo na mesma falha de credencial do Calendar (confirmado via execução do node `Agendar Consulta` — erro `invalid_grant` idêntico) — comportamento esperado dado o bloqueio ainda não resolvido, não uma regressão.
+
+Os 3 workers (`Ikub97vZp1Pi9aCv` retry de CRM, `CxlC28G0S3uE8X66` sumiu no meio, `YlRXMT6gEopuwFof` lembretes de consulta) foram executados e inspecionados: nenhum tocou dados fora do próprio escopo (`Sumiu no Meio` e `Lembretes de Consulta` foram disparados manualmente via seus webhooks de teste e não encontraram nenhuma linha elegível no momento; `Retry CRM` só opera sobre a fila `pgmq.mayara_crm_retry`/tabela `mayara.crm_retry_failed`, nunca `session_state`, confirmado por leitura de código).
+
+**Achado novo, não relacionado a este plano, urgente:** o worker `Mayara — Retry CRM Falhas [Worker]` (`Ikub97vZp1Pi9aCv`) tem um bug pré-existente (nada a ver com lembretes de consulta) no nó `Arquivar na Fila` — um erro de `pairedItem` (`ExpressionError: Multiple matches found`) impede a arquivação de mensagens da fila depois de excederem tentativas, fazendo com que as mesmas 5 mensagens travadas sejam reprocessadas e regravadas em `mayara.crm_retry_failed` a cada execução (a cada 5 minutos) desde pelo menos 2026-09-10. Confirmado por SQL: 8.629 linhas em `mayara.crm_retry_failed`, mas só **5 payloads distintos** — ou seja, duplicação pura, crescendo sem limite, e essas 5 mensagens de retry de CRM nunca de fato saem da fila. Não corrigido nesta task (fora do escopo do plano de lembretes de consulta, e é um workflow de produção compartilhado) — reportado ao usuário como achado urgente separado, precisa de correção própria.
+
+
 
 Já feito, não repetir: fundação de dados, worker "sumiu no meio" (com o bug de serialização corrigido), reconhecimento de "não tenho mais interesse", exclusão de segurança (via `estado` + camada redundante de `situacaoJudicial` na query), autenticação do webhook de teste, validações contra falha silenciosa.
 
