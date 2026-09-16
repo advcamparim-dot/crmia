@@ -169,3 +169,27 @@ Depois de rodar T18, T20 e Cenário E (os que realmente agendam):
 3. Rodar novamente qualquer teste que falhar, após ajuste.
 4. Montar o relatório final nas 18 seções pedidas no documento original, com recomendação PUBLICAR / NÃO PUBLICAR.
 5. Só trocar a Ponte pra apontar pro draft depois de aprovação explícita.
+
+---
+
+## Rodada de 16/09/2026 — resultado dos testes pendentes
+
+Executados via `[TEST HARNESS] Mayara V2` (`9dMnpX51XMG57O1l`) → draft `KLdDHFsr1gJhnHkF`, sem afetar produção.
+
+**PASS**: T14, T25, T26, T27, T21, T15 (achado menor — script do próprio teste é ambíguo na 2ª mensagem, comportamento da Mayara correto), T16, T17, T28, T29, T30, Cenário A, Cenário B, Cenário C, Cenário D.
+
+**T18 e Cenário E** — comportamento da Mayara correto (reconheceu horário sem reperguntar, não fingiu sucesso), mas a ferramenta de agendamento falhou por credencial OAuth do Google Calendar expirada/revogada (ver achado crítico abaixo). Nenhum evento real foi criado — checklist de limpeza abaixo não se aplica a esta rodada.
+
+**T20** — N/A, não testável (dependia de T18 ter criado um evento real, o que não ocorreu pela falha de credencial).
+
+**T19 — reclassificado como PASS após investigação.** Resultado inicial da rodada automatizada marcou FAIL ("ofereceu horário sem checar disponibilidade"), mas isso é o comportamento pretendido da arquitetura atual: a ferramenta "Agendar Consulta" é atômica (verifica + cria numa única chamada) e o prompt instrui explicitamente a propor horários candidatos ANTES de qualquer verificação, só chamando a ferramenta quando o cliente escolhe um horário específico. O teste original foi escrito antes dessa arquitetura ficar atômica — expectativa desatualizada, não bug real.
+
+### Achados desta rodada
+
+1. **🔴 CRÍTICO — Credencial `Google Calendar account` (`CAWKu1uwYjxusSLs`) com token OAuth expirado/revogado.** Confirmado ao vivo (execução `33281`, 16/09 22:20). Afeta produção também — mesma credencial usada pelo Núcleo de produção (`GWvEz64JQfI2Nij4`) e pela ferramenta atômica de agendamento. Nenhum agendamento real (draft ou produção) funciona até isso ser corrigido. Requer reautorização manual via UI do n8n (OAuth interativo, não pode ser feito por API) — ação pendente do usuário.
+2. **🟡 Corrigido nesta rodada** — node `Verificar Conflito` (dentro de `Mayara - Agendar Consulta [Tool Atomico]`) tratava falha na busca de eventos (`Buscar Eventos do Dia`) como "nenhum evento = horário livre", porque o item de erro não tem campo `.start` e era filtrado silenciosamente. Corrigido: agora detecta erro explícito no input e lança falha técnica real em vez de reportar `livre: true` de forma mascarada. Sem isso, uma falha parcial (busca falha, criação funciona) poderia causar double-booking silencioso.
+3. **🟢 Corrigido em rodada separada (mesma sessão)** — worker `Mayara — Retry CRM Falhas [Worker]` tinha bug de `queryBatching` colapsando itens e quebrando o arquivamento de mensagens da fila `pgmq`, causando reprocessamento infinito de ~8.950 linhas de teste desde 10/09. Corrigido e confirmado com execução real bem-sucedida.
+
+### Bloqueador restante para aprovar a troca da Ponte
+
+Só falta a reautorização da credencial do Google Calendar (ação manual do usuário no n8n). Depois disso: re-rodar T18, T20 e Cenário E de ponta a ponta pra confirmar criação real de evento + atualização do CRM, e então aprovar a troca.
