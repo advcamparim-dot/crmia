@@ -318,6 +318,8 @@ Todas com filtro de período (`Hoje / 7 dias / 30 dias / Mês atual / Personaliz
 
 Implementação completa (Tasks 1-8 do plano), testada de ponta a ponta com dados reais de teste. Falta apenas o deploy final no Coolify (Task 9, Passo 5 — pendente de acesso do usuário à interface web) e um teste de ponta a ponta com um caso de negócio real (Passo 3 — pendente de a oportunidade surgir naturalmente).
 
+> **Atualizado em 17/09/2026:** o deploy no Coolify já foi feito (ver seção "Conclusão (17/09/2026)" abaixo) — só o teste com caso de negócio real (Passo 3) segue pendente.
+
 **IDs de referência:**
 - Workflow de sincronização: `Painel Executivo — Sync CRM→Supabase` (n8n id `PH73hjj7zIABuZ74`), ativo, ciclo de 5 min.
 - Workflow de criação assistida: `Painel Executivo — Criação Assistida de Registros` (n8n id `1wDrXlOUL7sw2tYT`), ativo, ciclo de 5 min.
