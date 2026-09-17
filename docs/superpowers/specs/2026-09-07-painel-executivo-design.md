@@ -344,6 +344,17 @@ Duas proteções contra falso positivo: aborta a comparação daquela entidade s
 
 **Bug encontrado e corrigido durante a implementação:** a primeira versão alimentava `Buscar IDs no EspoCRM` e `Buscar IDs no Supabase` direto no mesmo input do node de cálculo, sem esperar os dois terminarem — n8n executa esse padrão assim que o primeiro braço chega, não quando ambos chegam. Corrigido inserindo um node `Merge` (que garante esperar as duas entradas) entre a busca e o cálculo, nas 6 entidades.
 
-**Limpeza dos 2 órfãos já encontrados:** ainda pendente — ver `crm_sync.orfaos_detectados` pra decidir se apaga manualmente do Supabase ou se são leads que precisam ser restaurados no EspoCRM.
+**Limpeza dos 2 órfãos já encontrados:** ✅ feita — usuário autorizou, registros removidos de `crm_sync.leads` e marcados `resolved=true` em `crm_sync.orfaos_detectados`.
+
+## Conclusão (17/09/2026)
+
+**URL de produção:** https://painel.camparimadvogados.com.br — confirmado ao vivo (raiz redireciona 307 pra login sem cookie, `/login` responde 200 via Next.js). Deploy já estava feito no Coolify antes desta sessão, só não estava documentado — Task 9 (plano de implementação) fechada retroativamente.
+
+**Workflows n8n envolvidos:**
+- `Painel Executivo — Sync CRM→Supabase` (`PH73hjj7zIABuZ74`) — sync incremental, 6 entidades.
+- `Painel Executivo — Detectar Exclusões CRM` (`6019g6nU0YZ7TxbG`) — reconciliação diária, criado nesta sessão.
+- `Painel Executivo — Criação Assistida de Registros` (`1wDrXlOUL7sw2tYT`) — automação proposta→contrato→parcelas.
+
+**Status geral:** implementação completa (Tasks 1-9), testada de ponta a ponta, em produção. Único item realmente pendente é o Passo 3 da Task 9 (validar a criação assistida com um caso de negócio real, não simulado) — não é uma pendência técnica, só depende do primeiro caso real acontecer no fluxo normal do escritório.
 
 **Achado colateral também descoberto na limpeza:** com a Proposta ainda "Aceita" no EspoCRM, apagar o Contrato gerado automaticamente pela Regra 1 faz a automação recriar um novo contrato no ciclo seguinte (ela só verifica "já existe contrato pra essa proposta", não se um já existiu e foi removido). Isso é esperado dado como a Regra 1 foi desenhada, mas é bom saber: **a forma correta de "desfazer" uma proposta aceita por engano é mudar o status dela** (ex: de volta pra `Rascunho` ou pra `Recusada`), não apagar o contrato gerado — só apagar o contrato sem mexer no status da proposta entra num ciclo de recriação a cada 5 minutos até a proposta deixar de estar "Aceita".
