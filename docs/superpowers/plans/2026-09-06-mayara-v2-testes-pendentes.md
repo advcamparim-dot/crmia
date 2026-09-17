@@ -327,6 +327,14 @@ Usuário conectou o número de testes da Mayara e monitorei em tempo real. Prime
 
 **Lição registrada**: ao investigar o que o cliente realmente recebe, sempre seguir a cadeia completa até o node que faz a chamada HTTP real (`Enviar via Graph API` na Ponte), nunca parar no output bruto do `AI Agent` — há pelo menos um node de override determinístico no meio do caminho que pode mudar o texto final.
 
+### 🔴 Achado do code review — arquivo fonte da verdade do prompt estava desatualizado
+
+O `/code-review` rodado após esta sessão pegou um problema sério: `docs/superpowers/specs/2026-09-09-mayara-prompt-revisado.txt` é o arquivo versionado que serve de fonte da verdade pra regenerar o prompt do Núcleo (usado em commits anteriores como `0ec27c3d`), mas eu passei a sessão inteira editando o prompt **direto no n8n** via `n8n_update_partial_workflow`, sem nunca sincronizar esse arquivo. Ele ainda tinha a arquitetura antiga de `diasAFrente` (contagem de posição) — exatamente a causa raiz do bug de alucinação de data corrigido hoje. Se alguém regenerasse o prompt a partir desse arquivo no futuro, reintroduziria o bug já corrigido e validado em produção, silenciosamente.
+
+**Corrigido**: arquivo reescrito por completo pra bater 100% com o prompt real em produção no `KLdDHFsr1gJhnHkF` neste momento (confirmado node por node), incluindo todas as mudanças de hoje: `diaDaSemana` em vez de `diasAFrente`, restrição de gravar `S6_AGENDADO` só após sucesso real, e o reforço contra resumir fatos antes de propor consulta.
+
+**Processo a adotar dali pra frente**: sempre que o prompt do Núcleo for editado direto no n8n, sincronizar `docs/superpowers/specs/2026-09-09-mayara-prompt-revisado.txt` na mesma sessão — esse arquivo é o único registro versionado do prompt (o próprio workflow n8n não é versionado no git).
+
 ### Status final
 
 Bug de data (arquitetura nome-do-dia): confirmado robusto também em produção real, incluindo o override de confirmação. Único achado real desta rodada (resumo de fatos) corrigido. Draft V2 segue em produção sem bloqueador conhecido.
