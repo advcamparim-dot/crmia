@@ -312,3 +312,21 @@ Usuário aprovou explicitamente ("troca a Ponte pro draft agora"). Node `Chamar 
 A partir deste momento, todo atendimento real via WhatsApp passa pelo Núcleo novo, com todas as correções desta sessão (bug de data, estado fantasma, CRM com dados vazios, worker de retry). O antigo `Mayara — Núcleo do Agente` (`GWvEz64JQfI2Nij4`) fica órfão — nada mais chama ele — pode ser arquivado depois de um período de observação, mas não apaguei agora por precaução (rollback rápido se precisar: reverter o `workflowId` desse node de volta pra `GWvEz64JQfI2Nij4`).
 
 **Recomendação pós-troca**: acompanhar as próximas conversas reais de perto (execuções do workflow `KLdDHFsr1gJhnHkF` no n8n) nas primeiras horas/dias, já que o volume de teste (5-6 sessões simuladas) é pequeno comparado a tráfego real variado.
+
+---
+
+## 17/09/2026 — Monitoramento ao vivo do primeiro tráfego real (número de testes conectado)
+
+Usuário conectou o número de testes da Mayara e monitorei em tempo real. Primeira conversa real completa: lead de campanha (cartão PJ, Santander, ~150 mil), qualificação correta do início ao fim, **primeiro agendamento real de produção com sucesso** (evento criado, depois cancelado a pedido do usuário por ser teste).
+
+### Achados desta conversa real
+
+1. **🟡 Real — resumo de fatos proibido antes de propor consulta.** A Mayara listou de volta banco/valor/tempo de atraso/situação antes de perguntar se podia agendar — viola a regra de estilo já existente no prompt (que já proibia isso em outros contextos, mas não reforçava especificamente esse momento de transição). **Corrigido**: adicionado exemplo específico na seção ESTILO DE ESCRITA proibindo esse resumo especificamente no momento de propor a consulta.
+
+2. **🔴→✅ Falso alarme, corrigido nesta nota — não era um bug.** Reportei inicialmente que a mensagem final disse "quinta-feira, 18/09" quando a data real era sexta-feira. **Investigação mais a fundo mostrou que esse era o achado errado**: eu tinha olhado o texto bruto do node `AI Agent` (valor intermediário) em vez de seguir a cadeia completa. O node `Preparar Retorno para Ponte` já recalcula o dia da semana deterministicamente a partir do `horarioInicio` real do evento (usando Luxon/DateTime, não o LLM) e sobrescreve o texto antes de qualquer envio. Confirmado rastreando a execução real da Ponte (`34986`) até a chamada de fato feita à API do WhatsApp (`Enviar via Graph API`, `wamid` real confirmado): o texto realmente enviado ao Marcos foi **"Consulta confirmada! Sexta-feira, 18/09..."** — correto. Nenhuma correção necessária; o sistema já tinha essa proteção desde antes desta sessão.
+
+**Lição registrada**: ao investigar o que o cliente realmente recebe, sempre seguir a cadeia completa até o node que faz a chamada HTTP real (`Enviar via Graph API` na Ponte), nunca parar no output bruto do `AI Agent` — há pelo menos um node de override determinístico no meio do caminho que pode mudar o texto final.
+
+### Status final
+
+Bug de data (arquitetura nome-do-dia): confirmado robusto também em produção real, incluindo o override de confirmação. Único achado real desta rodada (resumo de fatos) corrigido. Draft V2 segue em produção sem bloqueador conhecido.
