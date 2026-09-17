@@ -193,3 +193,41 @@ Executados via `[TEST HARNESS] Mayara V2` (`9dMnpX51XMG57O1l`) → draft `KLdDHF
 ### Bloqueador restante para aprovar a troca da Ponte
 
 Só falta a reautorização da credencial do Google Calendar (ação manual do usuário no n8n). Depois disso: re-rodar T18, T20 e Cenário E de ponta a ponta pra confirmar criação real de evento + atualização do CRM, e então aprovar a troca.
+
+---
+
+## Rodada de 17/09/2026 — Calendar reconectado, novo achado crítico (bug de data)
+
+Usuário reautorizou a credencial `Google Calendar account` via UI do n8n. Re-rodei T18 pra confirmar. O erro de OAuth sumiu, mas apareceu um problema mais sério: **a Mayara erra a data ao chamar a ferramenta de agendamento, de formas diferentes a cada tentativa.**
+
+### Sequência de evidências (nesta ordem)
+
+1. **T18 retry 1** — pedi "segunda às 10h" (segunda = posição 5 na tabela). A ferramenta foi chamada com `diasAFrente: 4` (posição de domingo). Resultado: Mayara disse "essa segunda cai no fim de semana" (errado — confundiu domingo com segunda). Nenhum evento criado (rejeitado corretamente como fim de semana, ainda que pelo motivo errado).
+2. **Mesma sessão, ofereci "terça às 9h"** — chamada foi feita com `diasAFrente: 5` (posição de segunda-feira, não terça). **Evento real foi criado** no Google Calendar (`advcamparim@gmail.com`) pra **segunda-feira 21/09/2026 09h-10h** (eventoId `9otmn6i2gocs46flpdnnkb0q9g`, summary "Camparim Advogados | Gestão de Passivo Bancário – Carlos Teste"). **⚠️ Esse evento está errado (cliente pediu terça, recebeu segunda) e ainda não foi cancelado — precisa ser cancelado manualmente no Calendar.**
+3. **Diagnóstico**: causa parecia ser "contar posição numérica é uma tarefa que LLM erra". Troquei a arquitetura: em vez de `diasAFrente` (posição, contando), a ferramenta passou a pedir `dataEscolhida` (string dd/MM/aaaa, copiada literalmente da tabela) — tarefa de cópia, teoricamente mais confiável pra LLM. Também reformatei a tabela `proximosDias` de uma linha única separada por `|` pra uma lista vertical (uma data por linha, com "(HOJE)" marcando a primeira).
+4. **T18 retry 2 (com a nova arquitetura)** — pedi "sexta às 11h" (sexta = 18/09/2026 na tabela). A ferramenta foi chamada com `dataEscolhida: "19/09/2026"` (sábado, a linha seguinte). Corretamente rejeitado como fim de semana pela validação nova (nenhum evento criado).
+5. **T18 retry 3 (mesma arquitetura, sessão nova)** — mesmo pedido. Desta vez `dataEscolhida: "24/01/2025"` — uma data **totalmente alucinada**, sem relação com nenhuma linha da tabela (mais de um ano no passado). A validação de janela de 7 dias que eu tinha acabado de adicionar em `Montar Datas` pegou isso e lançou erro real — a Mayara respondeu "instabilidade técnica" honestamente, sem confirmar nada. Nenhum evento criado.
+6. **Hipótese testada**: talvez fosse ruído de amostragem (o node `Anthropic Chat Model` não tinha `temperature` definida, caindo no padrão alto da API). Defini `temperature: 0.2` no model do draft.
+7. **T18 retry 4 (com temperature 0.2)** — mesmo pedido ("sexta às 11h"). `dataEscolhida: "10/01/2025"` — alucinação de novo, mesma faixa (janeiro/2025). Validação pegou, resposta honesta de novo.
+8. **T18 retry 5** — mesmíssimo pedido de novo. `dataEscolhida: "10/01/2025"` — **exatamente a mesma string da tentativa anterior**. Isso derruba a hipótese de ruído aleatório: é um viés determinístico e reproduzível do modelo nesse contexto específico de chamada de ferramenta, não amostragem. Causa raiz exata ainda não identificada — pode estar relacionada a algo na descrição do parâmetro `$fromAI`, algum comportamento de cache do Claude, ou outra coisa ainda não isolada.
+
+### Achado corrigido e confirmado nesta rodada
+
+**🟢 Estado fantasma de agendamento (S6_AGENDADO) gravado mesmo com falha real da ferramenta.** No retry 4 (achado 7 acima), depois da ferramenta `Agendar Consulta` falhar, a Mayara chamou `Salvar Estado da Conversa` gravando `estado: "S6_AGENDADO"` (que significa "evento criado com sucesso" no vocabulário do prompt) — mesmo a ferramenta tendo retornado erro. Pro cliente ela foi honesta ("instabilidade técnica"), mas o estado interno persistido ficava mentindo. Corrigido: prompt agora proíbe explicitamente gravar S6_AGENDADO sem sucesso real confirmado pela ferramenta. **Confirmado no retry 5**: mesmo com a ferramenta falhando de novo, `Salvar Estado da Conversa` não foi chamado — nenhum estado fantasma gravado.
+
+### Mudanças aplicadas nesta rodada (todas no draft, produção intocada)
+
+1. Ferramenta `Agendar Consulta` e workflow `Mayara - Agendar Consulta [Tool Atomico]`: trocado `diasAFrente` (posição numérica) por `dataEscolhida` (data dd/MM/aaaa copiada da tabela), com validação de janela de 7 dias em `Montar Datas` (rejeita datas fora do intervalo real, incluindo alucinações grosseiras).
+2. Tabela `proximosDias` no prompt: formato lista vertical (uma linha por dia) em vez de uma linha só separada por `|`.
+3. `Anthropic Chat Model` (draft): `temperature` definida em `0.2` (não resolveu a alucinação, mas reduz variância geral das respostas — mantido).
+4. Prompt: proibição explícita de gravar `S6_AGENDADO` sem sucesso real da ferramenta de agendamento — confirmado funcionando.
+
+### Pendências abertas
+
+- **🔴 Bug de alucinação de data ainda NÃO resolvido.** Nenhuma das três abordagens tentadas (contagem→cópia, formato de tabela, temperature baixa) eliminou o problema. Precisa de investigação mais profunda antes de mais tentativas de fix — possivelmente testar a chamada da ferramenta isolada direto pela API da Anthropic (fora do n8n) pra isolar se é algo do LangChain/n8n ou do modelo em si.
+- **🔴 Limpeza pendente**: evento real errado no Google Calendar (`advcamparim@gmail.com`, segunda 21/09/2026 09h-10h, "Carlos Teste", eventoId `9otmn6i2gocs46flpdnnkb0q9g`) precisa ser cancelado manualmente.
+- T20 e Cenário E continuam não re-testados de ponta a ponta (não faz sentido até o bug de data ser resolvido — criaria mais eventos errados).
+
+### Recomendação atualizada
+
+**Ainda não aprovar a troca da Ponte pro draft.** O bloqueador de credencial OAuth foi resolvido, mas o bug de data é mais grave do que o problema original: pode agendar consultas reais em dias errados com confiança total (sem avisar ninguém), ao contrário da falha de credencial (que pelo menos degradava de forma honesta). Este é o bloqueador principal agora.
