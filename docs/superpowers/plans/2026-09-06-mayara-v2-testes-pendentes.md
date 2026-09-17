@@ -263,3 +263,42 @@ Antes de aprovar a troca da Ponte pro draft, ainda falta:
 1. Limpar os 3 eventos de teste + leads de CRM associados (acima).
 2. Re-rodar T20 (horário ocupado) de ponta a ponta — ainda não testado com a arquitetura nova.
 3. Rodar mais alguns casos de T18/Cenário E com frases variadas (ex: "semana que vem", múltiplas negociações de dia) pra ganhar mais confiança antes de considerar o bug de data definitivamente robusto — 2 testes é pouco pra um bug que já surpreendeu 3 vezes.
+
+---
+
+## Rodada de 17/09/2026 (conclusão) — limpeza, T20, testes extras e novo bug de CRM corrigido
+
+### 1. Limpeza concluída
+- Nenhum lead de teste existia no CRM pros e-mails de Carlos/Ana/Bruno/Diego/Elisa (confirmado via API antes de qualquer criação de lead — os agendamentos daquela rodada anterior não tinham chegado a persistir no CRM ainda).
+- Os 3 eventos reais de teste (segunda 21/09 errado, sexta 18/09, quarta 23/09) foram cancelados via um workflow temporário criado e removido só pra essa finalidade (`TEMP - Cancelar Evento Teste Calendar`, criado/usado/apagado 3 vezes ao longo da rodada).
+
+### 2. T20 (horário ocupado) — PASS confirmado com evidência real
+Criei um agendamento real (Bruno Teste, "amanhã 10h" → resolvido corretamente pra sexta 18/09 10h), depois tentei marcar o mesmo horário numa sessão diferente (Diego Teste, "sexta às 10h"). A ferramenta detectou o conflito de verdade (`motivo: horario_ocupado`, com o evento real listado em `eventosDoDia`) e a Mayara ofereceu 3 alternativas reais (9h, 11h, 14h). Nenhuma alucinação.
+
+### 3. Testes extras de frase (reforço de confiança no fix de data)
+- "hoje mesmo às 16h" → `diaDaSemana: "hoje"` → resolvido corretamente pra 17/09 (quinta, hoje). PASS.
+- "amanhã às 10h" → resolvido corretamente pra sexta 18/09. PASS.
+- "segunda que vem às 10h" → resolvido corretamente pra segunda 21/09. PASS.
+- Total acumulado: **5 de 5 testes corretos** com a arquitetura de nome-do-dia, incluindo frases indiretas. Bug de data considerado robusto.
+
+### 4. 🆕 Bug novo encontrado e corrigido: CRM persistindo lead com nome/telefone/email/empresa vazios
+
+Ao confirmar os agendamentos acima, percebi que nenhum lead aparecia no CRM. Rastreei: o node `Persistir Consulta no CRM` montava o payload lendo `fatosJson` do node `Montar Contexto` — que é a fotografia do **início do turno**, antes da IA salvar os dados novos via `Salvar Estado da Conversa` no meio da mesma resposta. Quando o cliente manda nome/empresa/telefone/email/horário tudo numa mensagem só (comum em quem já decidiu agendar), esse snapshot inicial está vazio. Havia também um bug secundário: os nomes de campo lidos (`nome`, `empresa`) não batiam com as chaves reais do prompt (`nomeCompleto`, `nomeEmpresa`).
+
+**Primeira tentativa de fix** (extrair o `fatosJson` mais recente de dentro do `intermediateSteps` do próprio Agent) causou travamento real do node (`Extrair Consulta Criada` ficando pendurado por 60-75s e caindo com "Unknown error", reproduzido 2 de 2 vezes) — revertida imediatamente.
+
+**Fix definitivo aplicado**: adicionei um node novo, `Buscar Estado Atualizado` (uma query Postgres simples), entre `Consulta Criada?` e `Persistir Consulta no CRM`, que busca o `fatos_json` direto da tabela `mayara.session_state` — que já está atualizado nesse ponto, porque `Salvar Estado da Conversa` grava no banco em tempo real durante a resposta da IA. `Persistir Consulta no CRM` agora lê desse node novo, com as chaves certas (`nomeCompleto`, `nomeEmpresa`, `telefone`, `email`).
+
+**Confirmado com teste real**: Helena Teste, "sexta às 9h" → evento criado corretamente (18/09 9h) **e** lead criado no EspoCRM com nome, telefone (+5511922221111), e-mail e empresa corretos, status "Consulta Agendada". Evento cancelado depois; lead de teste não pôde ser apagado (API key do n8n sem permissão de DELETE em Lead — 403) e ficou no CRM marcado como teste (`helena.teste.mayara@teste.invalid`, "Teste8 LTDA") — apagar manualmente se quiser.
+
+**Nota sobre os 4 agendamentos da rodada anterior sem lead** (Carlos/Ana/Bruno/Elisa): ficaram enfileirados em `pgmq.q_mayara_crm_retry` com payload vazio (o mesmo bug, antes do fix). Como o worker de retry já foi corrigido nesta mesma sessão (rodada anterior, bug de `queryBatching`), esses 4 itens vão ser tentados, falhar (payload vazio pra sempre, não tem como recuperar retroativamente), e depois de 5 tentativas serem arquivados e logados em `mayara.crm_retry_failed` automaticamente — sem loop infinito. Não precisa de ação manual, mas o Lead desses 4 nunca vai existir no CRM (dados de teste, sem prejuízo real).
+
+### Status final desta rodada
+
+Todos os itens da lista de pendências resolvidos:
+1. ✅ Limpeza de eventos/CRM feita (exceto 1 lead de teste que a API não deixa apagar).
+2. ✅ T20 confirmado PASS com evidência real de detecção de conflito.
+3. ✅ 5 de 5 testes de frase variada corretos — bug de data considerado robusto.
+4. ✅ Bug adicional de CRM com dados vazios encontrado e corrigido nesta mesma rodada (não estava na lista original, foi achado ao validar o item 3).
+
+**Recomendação final**: com os itens acima resolvidos e validados com evidência real de execução (não só inspeção de prompt), o draft V2 está em condição técnica de ser aprovado para substituir a Ponte de produção. Falta só a decisão final do usuário — é uma mudança de produção com atendimento real de clientes, deve ser feita conscientemente, mas não há mais bloqueador técnico conhecido.
