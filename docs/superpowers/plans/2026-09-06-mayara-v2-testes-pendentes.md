@@ -231,3 +231,35 @@ Usuário reautorizou a credencial `Google Calendar account` via UI do n8n. Re-ro
 ### Recomendação atualizada
 
 **Ainda não aprovar a troca da Ponte pro draft.** O bloqueador de credencial OAuth foi resolvido, mas o bug de data é mais grave do que o problema original: pode agendar consultas reais em dias errados com confiança total (sem avisar ninguém), ao contrário da falha de credencial (que pelo menos degradava de forma honesta). Este é o bloqueador principal agora.
+
+---
+
+## Rodada de 17/09/2026 (continuação) — bug de data resolvido via mudança de arquitetura
+
+Aplicado o processo formal da skill `systematic-debugging`: 3 fixes tinham falhado (posição→cópia de data, formato de tabela, temperature baixa), o que pela própria regra da skill significa parar de tentar fixes pontuais e questionar a arquitetura.
+
+**Achado que sustentou a mudança**: em nenhum dos 5 testes anteriores a Mayara errou o *nome do dia da semana* na conversa com o cliente — só errou o valor estruturado (posição numérica ou data) que ela mandava pra ferramenta. O erro estava isolado na tarefa de *gerar/copiar um valor preciso*, não na compreensão da conversa.
+
+**Mudança de arquitetura aplicada**: a ferramenta `Agendar Consulta` não pede mais `dataEscolhida` (data gerada pelo LLM). Agora pede `diaDaSemana` — só o NOME do dia, de um vocabulário fechado de 9 palavras (hoje, amanha, domingo, segunda, terca, quarta, quinta, sexta, sabado). O código em `Montar Datas` (workflow `Mayara - Agendar Consulta [Tool Atomico]`) resolve a data exata 100% deterministicamente a partir desse nome, usando o mesmo cálculo que gera a tabela do prompt — nenhuma data chega a ser gerada ou copiada pelo LLM em momento algum.
+
+**Resultado**: 2 de 2 testes corretos após a mudança, incluindo uma frase indireta ("quarta que vem às 15h", não só "quarta às Xh"):
+- `diaDaSemana: "sexta"` → resolvido pro código como 18/09/2026 → evento real criado nesse dia/hora exatos (eventoId `tsf5l2h3j9ntsmr3oa5ioe4tq4`).
+- `diaDaSemana: "quarta"` → resolvido como 23/09/2026 → evento real criado corretamente (eventoId `akteb5m5h6rk19ue4f7687tea8`).
+
+### Limpeza pendente no Google Calendar (`advcamparim@gmail.com`)
+
+Três eventos de teste reais precisam ser cancelados manualmente:
+1. **Errado** (bug antigo, antes do fix) — segunda 21/09/2026 09h-10h, "Carlos Teste", eventoId `9otmn6i2gocs46flpdnnkb0q9g`.
+2. Teste válido pós-fix — sexta 18/09/2026 11h-12h, "Carlos Teste", eventoId `tsf5l2h3j9ntsmr3oa5ioe4tq4`.
+3. Teste válido pós-fix — quarta 23/09/2026 15h-16h, "Ana Teste", eventoId `akteb5m5h6rk19ue4f7687tea8`.
+
+Também conferir EspoCRM (Leads) por registros criados automaticamente a partir desses 3 agendamentos (busca por `carlos.teste.mayara@teste.invalid` e `ana.teste.mayara@teste.invalid`) e apagar/marcar como teste.
+
+### Status atualizado
+
+Bug de data: **resolvido e validado**. Bug de estado fantasma (S6_AGENDADO): **resolvido e validado** (rodada anterior). Credencial OAuth: **resolvida**. T19: **reclassificado PASS**.
+
+Antes de aprovar a troca da Ponte pro draft, ainda falta:
+1. Limpar os 3 eventos de teste + leads de CRM associados (acima).
+2. Re-rodar T20 (horário ocupado) de ponta a ponta — ainda não testado com a arquitetura nova.
+3. Rodar mais alguns casos de T18/Cenário E com frases variadas (ex: "semana que vem", múltiplas negociações de dia) pra ganhar mais confiança antes de considerar o bug de data definitivamente robusto — 2 testes é pouco pra um bug que já surpreendeu 3 vezes.
