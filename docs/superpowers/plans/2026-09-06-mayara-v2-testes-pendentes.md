@@ -302,3 +302,13 @@ Todos os itens da lista de pendências resolvidos:
 4. ✅ Bug adicional de CRM com dados vazios encontrado e corrigido nesta mesma rodada (não estava na lista original, foi achado ao validar o item 3).
 
 **Recomendação final**: com os itens acima resolvidos e validados com evidência real de execução (não só inspeção de prompt), o draft V2 está em condição técnica de ser aprovado para substituir a Ponte de produção. Falta só a decisão final do usuário — é uma mudança de produção com atendimento real de clientes, deve ser feita conscientemente, mas não há mais bloqueador técnico conhecido.
+
+---
+
+## 🚀 17/09/2026 — Ponte trocada para o DRAFT V2 (produção)
+
+Usuário aprovou explicitamente ("troca a Ponte pro draft agora"). Node `Chamar Mayara` do workflow `Mayara — Ponte WhatsApp` (`B1xdt1WotCQE3NOb`) atualizado: `workflowId` de `GWvEz64JQfI2Nij4` (Núcleo antigo) para `KLdDHFsr1gJhnHkF` (Núcleo DRAFT V2). Confirmado por leitura direta do node após a mudança.
+
+A partir deste momento, todo atendimento real via WhatsApp passa pelo Núcleo novo, com todas as correções desta sessão (bug de data, estado fantasma, CRM com dados vazios, worker de retry). O antigo `Mayara — Núcleo do Agente` (`GWvEz64JQfI2Nij4`) fica órfão — nada mais chama ele — pode ser arquivado depois de um período de observação, mas não apaguei agora por precaução (rollback rápido se precisar: reverter o `workflowId` desse node de volta pra `GWvEz64JQfI2Nij4`).
+
+**Recomendação pós-troca**: acompanhar as próximas conversas reais de perto (execuções do workflow `KLdDHFsr1gJhnHkF` no n8n) nas primeiras horas/dias, já que o volume de teste (5-6 sessões simuladas) é pequeno comparado a tráfego real variado.
