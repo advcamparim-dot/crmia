@@ -335,6 +335,14 @@ O `/code-review` rodado após esta sessão pegou um problema sério: `docs/super
 
 **Processo a adotar dali pra frente**: sempre que o prompt do Núcleo for editado direto no n8n, sincronizar `docs/superpowers/specs/2026-09-09-mayara-prompt-revisado.txt` na mesma sessão — esse arquivo é o único registro versionado do prompt (o próprio workflow n8n não é versionado no git).
 
+### 🟡 Achado do code review (2ª rodada) — contradição sobre duração da consulta
+
+Rodei `/code-review --fix` de novo depois da sincronização acima, e achou uma contradição real dentro do próprio prompt: a seção AGENDAMENTO dizia "Duração da consulta: sempre 1 hora" (fato interno, usado pra bloquear o horário na agenda), enquanto a seção INFORMAÇÕES COMERCIAIS diz "Nunca informe duração da consulta... Não existe duração oficial aprovada". Como a duração real (1h) estava explícita e sem qualificação de "uso interno", a Mayara podia vazar essa informação por engano se o cliente perguntasse quanto tempo dura.
+
+**Corrigido** direto no n8n e sincronizado aqui: a frase agora deixa claro que 1 hora é só uso interno pra bloquear a agenda, e reforça a proibição de informar isso ao cliente.
+
+**Achado técnico colateral**: essa edição específica (find/replace curto via `patchNodeField`) derrubou a conexão do `n8n-mcp` 5 vezes seguidas — muito mais instável que qualquer outra edição do dia, incluindo reescritas completas do prompt (15KB+) que funcionaram sem problema. Trocar pra `updateNode` com o campo inteiro (em vez de find/replace) funcionou de primeira. Não investiguei a fundo a causa (o servidor roda com `LOG_LEVEL=error` e `DISABLE_CONSOLE_OUTPUT=true`, sem stack trace acessível), mas registro o padrão: se um `patchNodeField` pequeno começar a cair repetidamente, tentar `updateNode` com o valor completo do campo como alternativa.
+
 ### Status final
 
 Bug de data (arquitetura nome-do-dia): confirmado robusto também em produção real, incluindo o override de confirmação. Único achado real desta rodada (resumo de fatos) corrigido. Draft V2 segue em produção sem bloqueador conhecido.
