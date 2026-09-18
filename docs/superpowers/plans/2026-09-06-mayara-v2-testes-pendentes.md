@@ -346,3 +346,21 @@ Rodei `/code-review --fix` de novo depois da sincronização acima, e achou uma 
 ### Status final
 
 Bug de data (arquitetura nome-do-dia): confirmado robusto também em produção real, incluindo o override de confirmação. Achados reais desta rodada — resumo de fatos proibido antes de propor consulta, arquivo fonte da verdade do prompt desatualizado, e contradição sobre duração da consulta — todos corrigidos. Draft V2 segue em produção sem bloqueador conhecido.
+
+---
+
+## 18/09/2026 — Auditoria de ponta a ponta (code review + workflows n8n) e limpeza de órfãos
+
+Rodei `/code-review` no código versionado (`painel-executivo/`) e uma auditoria manual dos 28 workflows do n8n (a lógica de negócio real não está no git, então o code-review não alcança essa parte).
+
+**Painel Executivo — 5 achados, 4 corrigidos e commitados** (commit `0b5d5dc`): timing attack na comparação de senha do login (corrigido com HMAC+timingSafeEqual), cookie de sessão `secure:true` incondicional (só força em produção agora), `--legacy-peer-deps` mascarando conflito real de `@types/node` (causa raiz corrigida), imagem Docker com devDependencies desnecessárias (`npm prune` adicionado). **Pendente**: esse fix só entra em produção depois de um redeploy manual no Coolify — não fiz isso.
+
+**Workers n8n — mesmo bug de hoje, achado de novo**: o worker de Lembretes de Consulta (`YlRXMT6gEopuwFof`) também só reconhecia `fatos.nomeCompleto`/`fatos.nome`, não `fatos.nomeLead` — corrigido e aplicado.
+
+**Workflows desativados** (evidência: zero execuções, ou órfãos desde a troca de Ponte de 17/09) — usuário aprovou desativar e revisitar em 30 dias:
+- `Mayara — Núcleo do Agente` (antigo, `GWvEz64JQfI2Nij4`) — órfão desde a troca pro DRAFT V2.
+- `[TEST HARNESS] Mayara V2` (`9dMnpX51XMG57O1l`)
+- `Mayara - WhatsApp Teste Controlado v2` (`UUj57cKUtrDXPrZZ`) — zero execuções desde a criação.
+- `Painel de Marketing` (`d4zFZapUwlfFdHbx`), `Painel Financeiro - Fase 8` (`Ayn5LeejtkVXvQXZ`), `Painel de Performance da IA - Fase 10` (`U2wZdc0BanA4w51E`), `Painel Operacional Jurídico - Fase 7` (`2vQlgJKR1XRRHTGC`), `Painel - Leads e Agendamentos` (`xQcS5tCVwf7yTOtN`), `Painel Executivo - Comercial Financeiro e Operacional` (`gpxeg1dklVEDxUxJ`) — os 6 painéis HTML antigos, zero execuções cada, substituídos pelo Painel Executivo novo.
+
+**⏰ AÇÃO PENDENTE — revisitar em ou após 2026-10-18**: confirmar que os 9 workflows acima continuam sem execuções desde 18/09/2026, e se sim, apagar de vez (`n8n_delete_workflow`). Ferramenta de agendamento automático não é durável entre sessões, então isso depende de alguém (usuário ou eu, numa sessão futura) lembrar de conferir — não vai disparar sozinho.
