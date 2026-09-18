@@ -345,4 +345,4 @@ Rodei `/code-review --fix` de novo depois da sincronização acima, e achou uma 
 
 ### Status final
 
-Bug de data (arquitetura nome-do-dia): confirmado robusto também em produção real, incluindo o override de confirmação. Único achado real desta rodada (resumo de fatos) corrigido. Draft V2 segue em produção sem bloqueador conhecido.
+Bug de data (arquitetura nome-do-dia): confirmado robusto também em produção real, incluindo o override de confirmação. Achados reais desta rodada — resumo de fatos proibido antes de propor consulta, arquivo fonte da verdade do prompt desatualizado, e contradição sobre duração da consulta — todos corrigidos. Draft V2 segue em produção sem bloqueador conhecido.
