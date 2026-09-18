@@ -39,7 +39,7 @@ export async function requireSession(): Promise<void> {
 export async function createSessionCookie(): Promise<void> {
   cookies().set(COOKIE_NAME, signSession(), {
     httpOnly: true,
-    secure: true,
+    secure: process.env.NODE_ENV === 'production',
     sameSite: 'lax',
     maxAge: MAX_AGE_SECONDS,
     path: '/'
