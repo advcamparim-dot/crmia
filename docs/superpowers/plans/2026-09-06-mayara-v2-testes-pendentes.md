@@ -364,3 +364,43 @@ Rodei `/code-review` no código versionado (`painel-executivo/`) e uma auditoria
 - `Painel de Marketing` (`d4zFZapUwlfFdHbx`), `Painel Financeiro - Fase 8` (`Ayn5LeejtkVXvQXZ`), `Painel de Performance da IA - Fase 10` (`U2wZdc0BanA4w51E`), `Painel Operacional Jurídico - Fase 7` (`2vQlgJKR1XRRHTGC`), `Painel - Leads e Agendamentos` (`xQcS5tCVwf7yTOtN`), `Painel Executivo - Comercial Financeiro e Operacional` (`gpxeg1dklVEDxUxJ`) — os 6 painéis HTML antigos, zero execuções cada, substituídos pelo Painel Executivo novo.
 
 **⏰ AÇÃO PENDENTE — revisitar em ou após 2026-10-18**: confirmar que os 9 workflows acima continuam sem execuções desde 18/09/2026, e se sim, apagar de vez (`n8n_delete_workflow`). Ferramenta de agendamento automático não é durável entre sessões, então isso depende de alguém (usuário ou eu, numa sessão futura) lembrar de conferir — não vai disparar sozinho.
+
+---
+
+## Regressão V3 (19/09/2026)
+
+Clone `Mayara — Núcleo do Agente [DRAFT V3]` (`aULd8QZQ3OVFhoRg`), versão publicada `6d05a0fa` (prompt confirmado com a chave `produtos`, node `Calcular Lacunas` presente). Via `n8n_test_workflow` (trigger chat, `sessionId` novo por cenário, prefixo `R3-`). Cada execução conferida como `mode: webhook` com `startedAt` posterior ao timestamp tomado antes da chamada. Produção (`KLdDHFsr1gJhnHkF`) não tocada. Nenhuma correção aplicada nesta rodada.
+
+**Rodada INCOMPLETA.** Depois de 15 cenários, a chamada à Anthropic passou a falhar em toda execução (execuções `39051`, `39053`, `39056`, node `AI Agent`): `400 invalid_request_error — Your credit balance is too low to access the Anthropic API`. Os 3 cenários que exigem agendamento real (T18, T20, Cenário E) ficaram sem rodar. São justamente os que cobrem S6_AGENDADO só após sucesso real, CRM com dados corretos, nome correto no CRM e resolução de dia da semana com evento real. Nenhum evento de calendário nem registro de CRM foi criado nesta rodada.
+
+| Cenário | Resultado | Execução | Nota |
+|---|---|---|---|
+| T14 Honorários | PASS | 38963 | Consulta só online/gratuita, sem valor nem duração inventados. |
+| T15 Banco já informado | PASS | 38982 / 38990 | 2ª resposta não repete banco (pergunta CNPJ/CPF, ambiguidade do script como na V2). |
+| T16 Execução já informada | PASS | 38985 / 38993 | Não repete a pergunta de execução, segue para dados do agendamento. |
+| T17 Aceita consulta | PASS | 38996 / 39005 | Para de qualificar, pede só o nome completo. |
+| T18 Dia + hora exatos | NÃO EXECUTADO | 39051, 39053 (erro) | Bloqueado por saldo Anthropic zerado. |
+| T19 Só período | PASS | 38979 | Oferece quarta 9h ou 11h, não confirma horário. |
+| T20 Horário ocupado | NÃO EXECUTADO | n/a | Depende de T18 criar evento; bloqueado. |
+| T21 Data passada | PASS | 38976 | Não confirma 2020, oferece segunda 10h ou 15h. |
+| T22 Falha CRM/Calendar | SKIPPED | n/a | Não forçável sem derrubar credencial, verificado por design (como na V2). |
+| T23 Mensagem duplicada | SKIPPED | n/a | Dedup é da Ponte, fora do Núcleo. |
+| T24 Documento recebido | SKIPPED | n/a | Gateway bloqueia mídia antes da Mayara, chat trigger só texto. |
+| T25 Emocional | FAIL | 38967 | Resposta: "Entendo que isso está pesando muito. Vou te ajudar a organizar essa situação. Pra eu entender melhor o que está acontecendo: essa dívida é com qual banco?". Prompt exige acolhimento autônomo, sem pergunta junto e sem empatia genérica. A pergunta seguiu a lacuna do `Calcular Lacunas` (situação judicial), não houve espaço de acolhimento. |
+| T26 Concorrente | PASS | 38970 | Não ataca, não desconta, segue normal. |
+| T27 Quer falar com advogado | PASS | 38973 | Encaminha sem novas perguntas de qualificação. |
+| T28 Informação conflitante | PASS | 38999 / 39008 | `Salvar Estado da Conversa` gravou `valorAproximado: "200 mil"` na 2ª mensagem (era "50 mil"). |
+| T29 Pergunta repetida | PASS | 39002 / 39011 | Consistente (gratuita/online). Nota: cita "videochamada" e que honorários são "conversados na consulta", detalhes que o prompt não traz. |
+| T30 Histórico longo | PASS | 39029, 39032, 39035, 39038, 39041, 39044 | Última resposta não repete nada já dito e propõe conversa com o advogado. |
+| Cenário A Capital de giro + fiador | PASS | 39014 | Não repete dados, sem opinião sobre fiador. Pergunta há quanto tempo está em atraso. |
+| Cenário B Execução + terceiro + oficial | PASS | 39017 | Stop qualification, sem orientação, encaminha. |
+| Cenário C Bens vendidos em nome de terceiro | FAIL | 39020 | Resposta: "Entendi. Isso pode ser um ponto sensível dependendo da situação. Esses carros foram vendidos antes ou depois de começar algum processo judicial contra a empresa?". Esperado: encaminhar ao advogado sem avaliar. Obtido: comentário avaliativo ("ponto sensível") e pergunta que sonda a cronologia da venda (linha de avaliação de fraude), sem encaminhar. |
+| Cenário D Medo de bloqueio | PASS | 39023 / 39026 | Não repete a pergunta de execução, sem diagnóstico, encaminha e oferece horário. Nota: abre com "Entendo que isso preocupa muito" (empatia genérica, mesmo padrão do T25). |
+| Cenário E Fluxo completo | NÃO EXECUTADO | n/a | Bloqueado por saldo Anthropic zerado. |
+
+**Contagem:** PASS 14, FAIL 2 (T25, Cenário C), SKIPPED 3 (T22, T23, T24), NÃO EXECUTADO 3 (T18, T20, Cenário E). Ao todo 22 cenários no arquivo (T01-T13 nunca foram persistidos).
+
+**Achados:**
+1. T25 e Cenário C são candidatos a regressão do prompt V3 (`Calcular Lacunas` empurrando a pergunta prioritária mesmo em turnos que pedem só acolhimento ou encaminhamento). Causa raiz não investigada nesta rodada (sem fix, por instrução). Comparar com o comportamento V2 antes de decidir.
+2. Bloqueador externo: saldo da conta Anthropic (`Anthropic account 2`) zerado. Se essa credencial é a mesma do Núcleo de produção, o atendimento real também está afetado. Não verificado (leitura da produção não autorizada nesta sessão).
+3. Pendente após recarga: rodar T18, T20 e Cenário E com lead falso ("TESTE AUTOMATIZADO ..."), registrar ids de evento e de lead e conferir S6_AGENDADO, CRM e dia da semana.
