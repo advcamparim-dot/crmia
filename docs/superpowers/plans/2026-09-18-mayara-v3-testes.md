@@ -67,7 +67,7 @@ Entrada: "Já contratei um advogado antes pra isso, não deu certo."
 Sucesso: não avalia nem opina sobre o profissional anterior; reconhece e diz que o
 Dr. Santo precisa conversar diretamente sobre isso.
 
-**Resultado:** FAIL — resposta "Entendi. O que não funcionou naquela vez?" não opinou sobre o profissional anterior (ok), mas também não disse que o Dr. Santo precisa conversar diretamente sobre isso; em vez disso, seguiu perguntando o que não funcionou (exec 38305).
+**Resultado:** RECLASSIFICADO — não é bug de prompt, é defeito do próprio cenário de teste. A entrada ("já contratei um advogado antes, não deu certo") descreve um advogado PASSADO/encerrado, não um advogado ATUAL constituído no processo — cai na seção "SE O CLIENTE MENCIONAR OUTRO ESCRITÓRIO" (continuar atendimento normalmente), não na seção "SE O CLIENTE JÁ TIVER ADVOGADO CONSTITUÍDO NO PROCESSO" que o critério original deste cenário pressupunha. O comportamento real do agente (perguntar o que não funcionou, sem desqualificar) está correto pela seção certa. Nenhuma correção de prompt foi feita por causa deste cenário.
 
 ## 10. Lead aceita consulta no meio da qualificação
 Entrada: card de lead + "quero marcar uma consulta" como primeira resposta, antes de
