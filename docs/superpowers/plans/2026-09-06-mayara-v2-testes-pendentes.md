@@ -371,7 +371,7 @@ Rodei `/code-review` no código versionado (`painel-executivo/`) e uma auditoria
 
 Clone `Mayara — Núcleo do Agente [DRAFT V3]` (`aULd8QZQ3OVFhoRg`), versão publicada `6d05a0fa` (prompt confirmado com a chave `produtos`, node `Calcular Lacunas` presente). Via `n8n_test_workflow` (trigger chat, `sessionId` novo por cenário, prefixo `R3-`). Cada execução conferida como `mode: webhook` com `startedAt` posterior ao timestamp tomado antes da chamada. Produção (`KLdDHFsr1gJhnHkF`) não tocada. Nenhuma correção aplicada nesta rodada.
 
-**Rodada INCOMPLETA.** Depois de 15 cenários, a chamada à Anthropic passou a falhar em toda execução (execuções `39051`, `39053`, `39056`, node `AI Agent`): `400 invalid_request_error — Your credit balance is too low to access the Anthropic API`. Os 3 cenários que exigem agendamento real (T18, T20, Cenário E) ficaram sem rodar. São justamente os que cobrem S6_AGENDADO só após sucesso real, CRM com dados corretos, nome correto no CRM e resolução de dia da semana com evento real. Nenhum evento de calendário nem registro de CRM foi criado nesta rodada.
+**Rodada completa (dois tempos).** Primeiro tempo: depois de 15 cenários, a chamada à Anthropic passou a falhar em toda execução (execuções `39051`, `39053`, `39056`, `39065`, node `AI Agent`): `400 invalid_request_error — Your credit balance is too low to access the Anthropic API`. Os 3 cenários que exigem agendamento real (T18, T20, Cenário E) ficaram pendentes. Segundo tempo (após recarga de saldo, sonda `R3-sonda-3`, execução `39073`, `mode: webhook`): T18, T20 e Cenário E rodados com lead fictício "TESTE AUTOMATIZADO" (email `teste.automatizado@example.com`).
 
 | Cenário | Resultado | Execução | Nota |
 |---|---|---|---|
@@ -379,9 +379,9 @@ Clone `Mayara — Núcleo do Agente [DRAFT V3]` (`aULd8QZQ3OVFhoRg`), versão pu
 | T15 Banco já informado | PASS | 38982 / 38990 | 2ª resposta não repete banco (pergunta CNPJ/CPF, ambiguidade do script como na V2). |
 | T16 Execução já informada | PASS | 38985 / 38993 | Não repete a pergunta de execução, segue para dados do agendamento. |
 | T17 Aceita consulta | PASS | 38996 / 39005 | Para de qualificar, pede só o nome completo. |
-| T18 Dia + hora exatos | NÃO EXECUTADO | 39051, 39053 (erro) | Bloqueado por saldo Anthropic zerado. |
+| T18 Dia + hora exatos | PASS | 39076, 39079, 39082, 39086 | Não reperguntou dia/hora (pediu só o telefone, exigido pelo prompt). Segunda 10h estava ocupada por evento antigo de teste (`fabio.teste.mayara`, 17/09): ferramenta retornou `horario_ocupado` (39082), estado ficou `S5_AGENDAMENTO`, ofereceu 9h/11h/14h. Ao escolher 11h (39086): evento criado, `S6_AGENDADO` gravado só depois, confirmação "Segunda-feira, 21/09, as 11h" correta. CRM: lead com nome, telefone, e-mail e empresa corretos (ver ids abaixo). |
 | T19 Só período | PASS | 38979 | Oferece quarta 9h ou 11h, não confirma horário. |
-| T20 Horário ocupado | NÃO EXECUTADO | n/a | Depende de T18 criar evento; bloqueado. |
+| T20 Horário ocupado | PASS | 39095 | Pedido "segunda às 11h" (slot ocupado pelo evento do T18). Ferramenta: `sucesso:false, motivo: horario_ocupado`, `eventosDoDia` lista 10h-11h e 11h-12h. Ofereceu 9h, 14h e 15h (todos livres). Nenhum evento criado. |
 | T21 Data passada | PASS | 38976 | Não confirma 2020, oferece segunda 10h ou 15h. |
 | T22 Falha CRM/Calendar | SKIPPED | n/a | Não forçável sem derrubar credencial, verificado por design (como na V2). |
 | T23 Mensagem duplicada | SKIPPED | n/a | Dedup é da Ponte, fora do Núcleo. |
@@ -396,11 +396,29 @@ Clone `Mayara — Núcleo do Agente [DRAFT V3]` (`aULd8QZQ3OVFhoRg`), versão pu
 | Cenário B Execução + terceiro + oficial | PASS | 39017 | Stop qualification, sem orientação, encaminha. |
 | Cenário C Bens vendidos em nome de terceiro | FAIL | 39020 | Resposta: "Entendi. Isso pode ser um ponto sensível dependendo da situação. Esses carros foram vendidos antes ou depois de começar algum processo judicial contra a empresa?". Esperado: encaminhar ao advogado sem avaliar. Obtido: comentário avaliativo ("ponto sensível") e pergunta que sonda a cronologia da venda (linha de avaliação de fraude), sem encaminhar. |
 | Cenário D Medo de bloqueio | PASS | 39023 / 39026 | Não repete a pergunta de execução, sem diagnóstico, encaminha e oferece horário. Nota: abre com "Entendo que isso preocupa muito" (empatia genérica, mesmo padrão do T25). |
-| Cenário E Fluxo completo | NÃO EXECUTADO | n/a | Bloqueado por saldo Anthropic zerado. |
+| Cenário E Fluxo completo | FAIL (comportamento) | 39100, 39103, 39106 (CRM: 39109) | Fluxo técnico correto: evento criado, `S5` antes e `S6_AGENDADO` só depois do sucesso, confirmação "Segunda-feira, 21/09, as 14h" correta. Desvios: (1) após "quero marcar segunda as 14h" (aceite explícito), respondeu "Antes de confirmar o horário, preciso entender rapidamente a situação. A empresa tem dívida com algum banco?" sem chamar a ferramenta (`tentouAgendar:false`, exec 39103), contra a regra de parar de qualificar no aceite. A consulta só foi criada depois que o lead respondeu a pergunta. (2) CRM não criou o lead: `Criar Lead no CRM` recebeu 409 (e-mail duplicado do lead do T18) e a chamada foi enfileirada para retry (pgmq msg 17). Causa provável: artefato do teste (mesmo e-mail nos dois leads), não do V3. |
 
-**Contagem:** PASS 14, FAIL 2 (T25, Cenário C), SKIPPED 3 (T22, T23, T24), NÃO EXECUTADO 3 (T18, T20, Cenário E). Ao todo 22 cenários no arquivo (T01-T13 nunca foram persistidos).
+**Contagem:** PASS 16 (14 do primeiro tempo + T18 + T20), FAIL 3 (T25, Cenário C, Cenário E), SKIPPED 3 (T22, T23, T24). Ao todo 22 cenários no arquivo (T01-T13 nunca foram persistidos).
+
+**Registros reais criados (segundo tempo, nada apagado):**
+- Google Calendar (`advcamparim@gmail.com`), segunda 21/09/2026:
+  - `k26vi1osmjst2tdsv5tlhf656o`, 11h-12h, "TESTE AUTOMATIZADO Carlos" (T18).
+  - `0pbmf49r3ksqe9j2jg0go7c84g`, 14h-15h, "TESTE AUTOMATIZADO Ana" (Cenário E).
+- EspoCRM:
+  - Lead `6aaeffeeb52b5dde7` "TESTE AUTOMATIZADO Carlos", status "Consulta Agendada", telefone +5514999990018, empresa "Teste Automatizado T18 LTDA".
+  - Meeting `6aaeffeeef6012776` "Consulta - TESTE AUTOMATIZADO Carlos" (21/09 14:00 UTC = 11h BRT), ligada ao lead.
+  - Lead do Cenário E não foi criado (409 duplicado). Ficou 1 item na fila `pgmq.q_mayara_crm_retry` (msg 17, payload de "TESTE AUTOMATIZADO Ana", evento `0pbmf49r3ksqe9j2jg0go7c84g`), que tende a falhar 5 vezes e ir para `mayara.crm_retry_failed`.
+- Evento antigo que já ocupava segunda 10h (não criado nesta rodada): `ku85unf49726b88hechjbejnh0`, "Fabio Teste" de 17/09.
+- Linhas de teste em `mayara.session_state` e `bridge_responses` com sessionIds `R3-*`.
+
+**Checagens dos bugs já corrigidos (V3):**
+- Alucinação de data/dia da semana: sem ocorrência. `diaDaSemana: "segunda"` resolveu 21/09 nas 3 chamadas da ferramenta; mensagens finais com dia correto.
+- S6_AGENDADO prematuro: sem ocorrência. Em falha (`horario_ocupado`, execuções 39082 e 39095) o estado permaneceu S5 ou nem foi gravado; só foi gravado S6 após `consultaCriada: true` (39086, 39106).
+- CRM vazio / nome errado: sem ocorrência. Payload do CRM com nome, telefone, e-mail e empresa vindos de `Buscar Estado Atualizado`; lead criado com "TESTE AUTOMATIZADO Carlos" (exec 39089).
+- Ferramenta mascarando falha real como "livre": não reproduzido. Conflito real foi detectado com `eventosDoDia`.
 
 **Achados:**
-1. T25 e Cenário C são candidatos a regressão do prompt V3 (`Calcular Lacunas` empurrando a pergunta prioritária mesmo em turnos que pedem só acolhimento ou encaminhamento). Causa raiz não investigada nesta rodada (sem fix, por instrução). Comparar com o comportamento V2 antes de decidir.
-2. Bloqueador externo: saldo da conta Anthropic (`Anthropic account 2`) zerado. Se essa credencial é a mesma do Núcleo de produção, o atendimento real também está afetado. Não verificado (leitura da produção não autorizada nesta sessão).
-3. Pendente após recarga: rodar T18, T20 e Cenário E com lead falso ("TESTE AUTOMATIZADO ..."), registrar ids de evento e de lead e conferir S6_AGENDADO, CRM e dia da semana.
+1. T25, Cenário C e Cenário E (turno 2) são desvios de comportamento do prompt V3: pergunta de qualificação inserida em turnos que pedem só acolhimento, encaminhamento ou execução de um aceite explícito. Todos parecem ligados ao bloco de lacunas do `Calcular Lacunas` ("LACUNA PRIORITÁRIA EM ABERTO" mesmo com dados de contato conhecidos, e `FATOS JÁ CONHECIDOS` ignorando contato). Causa raiz não investigada nesta rodada (sem fix, por instrução). Comparar com o comportamento V2 antes de decidir.
+2. Bloqueio de saldo Anthropic (`Anthropic account 2`) resolvido pelo usuário. Se a credencial é a mesma da produção, a produção também ficou afetada no intervalo (não verificado).
+3. 409 de e-mail duplicado no CRM (Cenário E): comportamento existente do EspoCRM; o retry enfileirado não tem como ter sucesso enquanto o lead do T18 existir. Limpeza manual: remover a msg 17 da fila ou deixar arquivar após 5 tentativas.
+4. Limpeza manual pendente: os 2 eventos de calendário, o lead e a meeting do EspoCRM listados acima (a API key do n8n não tem DELETE em Lead, conforme ledger de 17/09).
