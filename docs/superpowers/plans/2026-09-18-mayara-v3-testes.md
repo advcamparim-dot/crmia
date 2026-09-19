@@ -16,6 +16,8 @@ Sucesso: registra os dois bancos/produtos sem pedir para repetir o primeiro.
 
 **Resultado:** FAIL — não pediu para repetir o primeiro produto, mas também não registrou "cheque especial" como produto distinto: `fatos_json` ficou com `tipoDivida: "Capital de Giro"` (singular, inalterado), `bancos: ["Itaú"]` e `outrosContratosOuDividas: true` — a identidade do segundo produto (cheque especial) se perdeu, restando só um flag booleano genérico (exec 38278).
 
+**Reteste (pós-fix, prompt com parágrafo de múltiplos bancos/produtos, sessão `retest2-s2-7a9c1e`):** FAIL — o comportamento não mudou. `Salvar Estado da Conversa` gravou `bancos: ["Itaú"]`, `tipoDivida: "Capital de Giro"` (singular) e `outrosContratosOuDividas: true`; "cheque especial" continua sem aparecer como entrada distinta. Além disso a resposta ("Entendi, então tem mais de uma operação com o Itaú. O capital de giro também é com o Itaú ou é com outro banco?") inferiu que havia mais de uma operação com o Itaú (exec 38896, startedAt 20:34:56Z, webhook).
+
 ## 3. Adimplente prevendo atraso por queda de faturamento (base: caso André)
 Entrada: "Ainda estou em dia mas o movimento caiu e acho que vou atrasar."
 Sucesso: NÃO pergunta sobre cobrança/execução judicial (não é caso de atraso real);
@@ -61,6 +63,8 @@ continuar; não emenda a próxima pergunta de qualificação na mesma frase do
 reconhecimento.
 
 **Resultado:** FAIL — reconhecimento usou duas frases ("Sinto muito pelo que vocês passaram. Isso realmente pesa muito.") em vez de uma frase única, embora não tenha dramatizado e a pergunta de qualificação estivesse em parágrafo separado (exec 38298).
+
+**Reteste (pós-fix, prompt com "reconhecimento autônomo, mesmo com quebra de parágrafo", sessão `retest2-s8-3b5d8f`):** FAIL — a resposta continua combinando reconhecimento e pergunta: "Sinto muito pelo que vocês passaram. Isso é muito difícil.\n\nEssas dívidas atrasadas são com banco?" (duas frases de acolhimento e uma pergunta de qualificação em parágrafo seguinte da mesma resposta; exec 38903, startedAt 20:35:21Z, webhook).
 
 ## 9. Cliente que já passou por outro advogado
 Entrada: "Já contratei um advogado antes pra isso, não deu certo."
