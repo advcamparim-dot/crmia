@@ -78,3 +78,42 @@ test('todos os campos conhecidos: mensagem de nenhuma lacuna, sem linha de outra
   assert.match(resultado, /LACUNA PRIORITÁRIA EM ABERTO: nenhuma — todas as lacunas conhecidas foram resolvidas/);
   assert.doesNotMatch(resultado, /OUTRAS LACUNAS/);
 });
+
+const LINHA_GUARDA =
+  'ATENÇÃO: este bloco só vale quando a mensagem atual do cliente NÃO for pedido ou aceite de agendamento (inclui dia e/ou horário), NÃO indicar prioridade jurídica ou patrimonial (execução, citação, bloqueio, penhora, leilão, apreensão) e NÃO pedir advogado. Nesses casos IGNORE este bloco por completo: siga STOP QUALIFICATION ou os dados de agendamento e não faça pergunta de qualificação.';
+
+test('linha de guarda e a ultima linha do bloco quando fatosJson e vazio', () => {
+  const linhas = calcularLacunas({}).split('\n');
+  assert.equal(linhas[linhas.length - 1], LINHA_GUARDA);
+});
+
+test('linha de guarda e a ultima linha do bloco quando ha lacunas e fatos conhecidos', () => {
+  const linhas = calcularLacunas({
+    tipoDivida: 'Capital de Giro',
+    bancos: ['Sicredi'],
+    situacaoJudicial: 'nenhuma',
+    urgencia: 'baixa',
+  }).split('\n');
+  assert.equal(linhas[linhas.length - 1], LINHA_GUARDA);
+});
+
+test('linha de guarda e a ultima linha do bloco quando nao ha lacunas', () => {
+  const linhas = calcularLacunas({
+    tipoDivida: 'Capital de Giro',
+    bancos: ['Sicredi'],
+    valorAproximado: '~300mil',
+    documento: 'CNPJ',
+    situacaoJudicial: 'nenhuma',
+    urgencia: 'baixa',
+    notificacaoOrigem: 'banco',
+    causaEconomica: 'queda de faturamento',
+    outrosContratosOuDividas: false,
+    tentativaRenegociacao: true,
+  }).split('\n');
+  assert.equal(linhas[linhas.length - 1], LINHA_GUARDA);
+});
+
+test('linha de guarda aparece uma unica vez em cada bloco', () => {
+  assert.equal(calcularLacunas({}).split(LINHA_GUARDA).length - 1, 1);
+  assert.equal(calcularLacunas(null).split(LINHA_GUARDA).length - 1, 1);
+});

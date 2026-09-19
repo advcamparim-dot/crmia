@@ -1,3 +1,6 @@
+const LINHA_GUARDA =
+  'ATENÇÃO: este bloco só vale quando a mensagem atual do cliente NÃO for pedido ou aceite de agendamento (inclui dia e/ou horário), NÃO indicar prioridade jurídica ou patrimonial (execução, citação, bloqueio, penhora, leilão, apreensão) e NÃO pedir advogado. Nesses casos IGNORE este bloco por completo: siga STOP QUALIFICATION ou os dados de agendamento e não faça pergunta de qualificação.';
+
 export function calcularLacunas(fatosJson) {
   const f = fatosJson || {};
 
@@ -37,6 +40,7 @@ export function calcularLacunas(fatosJson) {
       linhaFatos,
       'LACUNA PRIORITÁRIA EM ABERTO: nenhuma — todas as lacunas conhecidas foram resolvidas',
       'NUNCA PERGUNTE O QUE JÁ ESTÁ EM "FATOS JÁ CONHECIDOS"',
+      LINHA_GUARDA,
     ].join('\n');
   }
 
@@ -46,5 +50,6 @@ export function calcularLacunas(fatosJson) {
     linhas.push(`OUTRAS LACUNAS (só considerar se a prioritária já foi resolvida): ${outras.join('; ')}`);
   }
   linhas.push('NUNCA PERGUNTE O QUE JÁ ESTÁ EM "FATOS JÁ CONHECIDOS"');
+  linhas.push(LINHA_GUARDA);
   return linhas.join('\n');
 }
