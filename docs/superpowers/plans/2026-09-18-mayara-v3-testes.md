@@ -18,6 +18,8 @@ Sucesso: registra os dois bancos/produtos sem pedir para repetir o primeiro.
 
 **Reteste (pós-fix, prompt com parágrafo de múltiplos bancos/produtos, sessão `retest2-s2-7a9c1e`):** FAIL — o comportamento não mudou. `Salvar Estado da Conversa` gravou `bancos: ["Itaú"]`, `tipoDivida: "Capital de Giro"` (singular) e `outrosContratosOuDividas: true`; "cheque especial" continua sem aparecer como entrada distinta. Além disso a resposta ("Entendi, então tem mais de uma operação com o Itaú. O capital de giro também é com o Itaú ou é com outro banco?") inferiu que havia mais de uma operação com o Itaú (exec 38896, startedAt 20:34:56Z, webhook).
 
+**Reteste 2 (pós-fix, chave `produtos` no prompt, versão publicada 6d05a0fa, sessão `retest3-s2-c4e8b2`):** PASS — `Salvar Estado da Conversa` gravou `produtos: ["capital de giro", "cheque especial - Itaú"]` (duas entradas distintas) além de `bancos: ["Itaú"]` e `outrosContratosOuDividas: true`. A resposta ("Entendi. E o capital de giro é com qual banco?") não pediu para repetir o primeiro produto nem inferiu banco que o cliente não disse (exec 38956, startedAt 21:12:56Z, webhook).
+
 ## 3. Adimplente prevendo atraso por queda de faturamento (base: caso André)
 Entrada: "Ainda estou em dia mas o movimento caiu e acho que vou atrasar."
 Sucesso: NÃO pergunta sobre cobrança/execução judicial (não é caso de atraso real);
