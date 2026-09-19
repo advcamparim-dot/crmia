@@ -1,5 +1,5 @@
 const LINHA_GUARDA =
-  'ATENÇÃO: este bloco só vale quando a mensagem atual do cliente NÃO for pedido ou aceite de agendamento (inclui dia e/ou horário), NÃO indicar prioridade jurídica ou patrimonial (execução, citação, bloqueio, penhora, leilão, apreensão) e NÃO pedir advogado. Nesses casos IGNORE este bloco por completo: siga STOP QUALIFICATION ou os dados de agendamento e não faça pergunta de qualificação.';
+  'ATENÇÃO: este bloco só vale quando a mensagem atual do cliente NÃO for: pedido ou aceite de agendamento (inclui dia e/ou horário); desabafo, medo, desespero ou sofrimento emocional; menção a venda, transferência ou ocultação de bens; sinal de prioridade jurídica ou patrimonial (execução, citação, bloqueio, penhora, leilão, apreensão); nem pedido de advogado. Nesses casos IGNORE este bloco por completo: siga a regra específica do prompt (agendamento, EMPATIA SEM TEATRALIDADE com acolhimento autônomo e sem pergunta, MOVIMENTAÇÃO PATRIMONIAL, STOP QUALIFICATION) e não faça pergunta de qualificação.';
 
 export function calcularLacunas(fatosJson) {
   const f = fatosJson || {};
