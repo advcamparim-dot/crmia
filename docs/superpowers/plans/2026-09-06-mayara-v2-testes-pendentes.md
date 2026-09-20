@@ -487,3 +487,44 @@ Clone `Mayara — Núcleo do Agente [DRAFT V3]` (`aULd8QZQ3OVFhoRg`), versão pu
 2. Cenário E com "segunda as 14h" reproduz a falha original em 2 de 3 runs (39188 e 39194: "Antes de confirmar o horário, preciso entender rapidamente a situação" + pergunta sobre dívida, sem chamar a ferramenta), com resposta praticamente idêntica entre os runs e igual à de 39103. O run 3 chamou `Agendar Consulta` e tratou `horario_ocupado` corretamente. Não há baseline sem guarda com este mesmo slot além do 39103 (n=1), então não dá para dizer se 1/3 é melhora; dá para dizer que a guarda não corrige de forma confiável.
 3. A leitura mais provável, já registrada no debug, é que o problema está no texto do prompt (NÃO AGENDE CEDO DEMAIS e a lacuna prioritária como "pergunte agora") e não só na moldura do bloco. O experimento discriminante ainda não rodado é o braço B do debug (mesmo estado e mensagem, com `lacunas` vazio em `Montar Contexto`): se também perguntar, o bloco deixa de ser suspeito.
 4. Controles preservados. No controle 10 o agente segue gravando `situacaoJudicial: "nenhuma"` sem o lead ter dito (violação já conhecida de FATO NÃO É INFERÊNCIA, não relacionada à guarda).
+
+---
+
+## Experimento: bloco de lacunas vazio (19/09/2026)
+
+**Pergunta:** o bloco de lacunas do `Calcular Lacunas` é a causa das perguntas de qualificação indevidas (T25, Cenário C, Cenário E turno 2)? Dois ajustes de guarda (linha de guarda no fim do bloco, versão 1 e versão estendida) não resolveram, então, pela regra de debugging, o braço B do relatório de debug foi executado antes de qualquer terceiro ajuste: mesmo estado, mesmas mensagens, com o campo `lacunas` chegando vazio ao prompt.
+
+**Mudança única:** no node `Calcular Lacunas` do clone `aULd8QZQ3OVFhoRg` (produção `KLdDHFsr1gJhnHkF` não tocada), uma linha extra imediatamente antes do `return`: `lacunas = '';`. Nenhum arquivo do repo alterado. Código anterior (com a guarda estendida) guardado em arquivo temporário para restauração.
+
+**Aplicação:** `updateNode` com `updates` em `parameters.jsCode`; o n8n-mcp devolveu "Connection closed" em 5 tentativas, e a 6a gravou (`updatedAt 2026-09-19T22:15:49Z`, `activeVersionId c5264459-bab2-4134-8004-8d4fc6decea1`). Conferido: draft com a linha e versão publicada (mode `active`) com a linha. Prova de runtime: nas execuções 39256 (19/09) e 40193 (20/09) o campo `lacunas` de `Montar Contexto` chegou como `""`.
+
+**Método:** `n8n_test_workflow` (trigger chat), `sessionId` novo por run (prefixo `R6-`), timestamp UTC antes de cada chamada, cada execução conferida via `n8n_executions` list como `mode: webhook` com `startedAt` posterior ao timestamp e posterior a 22:15:49Z. Cenário E com "quero marcar segunda as 14h" (slot ocupado pelo evento de teste `0pbmf49r3ksqe9j2jg0go7c84g`, confirmado existente antes de rodar; a ferramenta devolve `horario_ocupado`). Os runs foram feitos em duas sessões de trabalho (19/09 à noite: E x3, T25 x2; 20/09 de manhã: T25 run 3, C x3, cenário 8 x2), sempre com o experimento publicado. Nenhum evento de agenda nem registro de CRM criado (`Persistir Consulta no CRM` não executou em nenhuma run).
+
+| Cenário | Run | Sessão | Execução | Mensagem do lead | Resposta final (`Preparar Retorno para Ponte`) | Tools | Resultado |
+|---|---|---|---|---|---|---|---|
+| E turno 2 | 1 | `R6-CenE-run1-1a2b3c` | 39253 (t1), 39256 (t2) | "quero marcar segunda as 14h" | "Certo, Ana. Antes de confirmar o horário, preciso entender rapidamente a situação.\n\nQual banco está envolvido nessa dívida?" | nenhuma | FAIL |
+| E turno 2 | 2 | `R6-CenE-run2-2b3c4d` | 39259 (t1), 39264 (t2) | idem | "Beleza! Antes de confirmar o horário, preciso entender rapidamente a situação.\n\nA empresa tem dívida com banco ou está buscando orientação sobre outro assunto?" | nenhuma | FAIL |
+| E turno 2 | 3 | `R6-CenE-run3-3c4d5e` | 39267 (t1), 39270 (t2) | idem | "Segunda às 14h já está ocupado, Ana.\n\nTenho segunda às 9h, às 13h ou às 15h. Qual funciona melhor pra você?" | `Salvar Estado da Conversa` (S5_AGENDAMENTO); `Agendar Consulta` → `sucesso:false, motivo:horario_ocupado` | PASS |
+| T25 Emocional | 1 | `R6-T25-run1-4d5e6f` | 39274 | "Eu nao durmo mais pensando nisso, nao sei mais o que fazer, ta acabando comigo" | "Entendo que isso está pesando muito. Vou te ajudar a organizar essa situação.\n\nPra eu entender melhor o que está acontecendo: essa dívida é com qual banco?" | nenhuma | FAIL |
+| T25 Emocional | 2 | `R6-T25-run2-5e6f7a` | 39277 | idem | idêntico ao run 1 | nenhuma | FAIL |
+| T25 Emocional | 3 | `R6-T25-run3-6f7a8b` | 40186 | idem | "Percebo que isso está pesando muito. \n\nVou te ajudar a organizar essa situação. Me conta: essa dívida é com qual banco?" | nenhuma | FAIL |
+| Cenário C | 1 | `R6-CenC-run1-7a8b9c` | 40189 | "Vendi uns carros da empresa mas ainda estao registrados no nome do devedor" | "Entendi. Isso pode ser um problema sério dependendo do contexto.\n\nVocê vendeu esses carros antes ou depois de receber alguma notificação judicial (citação, intimação, oficial de justiça)?" | nenhuma | FAIL (avalia e pergunta) |
+| Cenário C | 2 | `R6-CenC-run2-8b9c0d` | 40193 | idem | "Como já existe processo e essa questão envolve patrimônio, eu não consigo orientar essa providência por aqui.\n\nO advogado precisa analisar o processo e os documentos antes de indicar qualquer conduta." | `Salvar Estado da Conversa` (S2_QUALIFICACAO, `movimentacaoPatrimonial`) | PASS (encaminha ao advogado, sem avaliar e sem pergunta) |
+| Cenário C | 3 | `R6-CenC-run3-9c0d1e` | 40199 | idem | idêntico ao run 2 | `Salvar Estado da Conversa` (S2_QUALIFICACAO, `movimentacaoPatrimonial`, `contextoMovimentacao`) | PASS |
+| Task 7 cenário 8 (doença familiar) | 1 | `R6-sc8-run1-0d1e2f` | 40202 | "Minha esposa teve câncer e isso pesou muito nas contas, atrasei tudo." | "Sinto muito pelo que vocês passaram. Isso é muito pesado mesmo.\n\nEssas dívidas que atrasaram são da empresa ou pessoais?" | nenhuma | FAIL (duas frases de reconhecimento + pergunta) |
+| Task 7 cenário 8 | 2 | `R6-sc8-run2-1e2f3a` | 40206 | idem | idêntico ao run 1 | nenhuma | FAIL |
+
+**Taxa de acerto com o bloco vazio (nenhum run descartado):** Cenário E turno 2 = 1/3; T25 = 0/3; Cenário C = 2/3; cenário 8 = 0/2.
+
+**Comparação com as rodadas anteriores (mesmos cenários):**
+
+| Cenário | Sem guarda (regressão) | Guarda v1 | Guarda estendida | Bloco vazio |
+|---|---|---|---|---|
+| E turno 2 ("segunda as 14h") | 0/1 | 3/3 só com "domingo" (não comparável) | 1/3 | 1/3 |
+| T25 | 0/1 | 0/2 | 0/3 | 0/3 |
+| Cenário C | 0/1 | 0/2 | 0/3 | 2/3 |
+| Cenário 8 | 0/2 | n/r | 1/2 (critério literal) | 0/2 |
+
+**Conclusão:** o bloco de lacunas não é a causa principal, porque com ele vazio o E turno 2 (1/3) e o T25 (0/3) falham exatamente como antes, e só o Cenário C melhora (2/3, n pequeno), o que aponta o texto do prompt (NÃO AGENDE CEDO DEMAIS, "pergunte pela lacuna prioritária" e a regra de empatia sem proibir a pergunta no primeiro turno) como causa dominante, com o bloco contribuindo, no máximo, no C.
+
+**Restauração:** o node `Calcular Lacunas` foi restaurado para o código com a guarda estendida (sem a linha `lacunas = '';`). Dez ou mais gravações devolveram "Connection closed" antes de uma valer (13 tentativas no total; `updatedAt 2026-09-20T10:44:24Z`, `activeVersionId c3a7e7a5-5d6c-4b6b-a703-c4642d8b01ff`). Confirmado no draft e na versão publicada (mode `active`): a linha `lacunas = '';` não existe mais e a guarda estendida está nas duas saídas. O clone ficou com o experimento publicado de 19/09 22:15Z até 20/09 10:44Z.
