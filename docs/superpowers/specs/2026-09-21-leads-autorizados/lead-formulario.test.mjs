@@ -18,7 +18,7 @@ function invisiveisLiterais(texto) {
   return achados;
 }
 
-// ============ TASK 2 TESTS (from initial) ============
+// ============ chaveTelefone e normalizarTelefone ============
 
 test('chaveTelefone: mesma chave com e sem nono digito, e igual a funcao SQL', () => {
   assert.equal(chaveTelefone('+5514997022609'), '1497022609');
@@ -48,7 +48,7 @@ test('normalizarTelefone: recusa invalidos', () => {
   }
 });
 
-// ============ TASK 3 INITIAL TESTS ============
+// ============ sanitizacao e validacao do payload ============
 
 test('sanitizarTexto: uma linha, limitado, so texto ou numero', () => {
   assert.equal(sanitizarTexto('  a\n\nb\tc  '), 'a b c');
@@ -206,10 +206,10 @@ test('validarLead: Proxy com ownKeys que lanca', () => {
   assert.deepEqual(r, { ok: false, motivo: 'campo_invalido' });
 });
 
-// ============ TASK 3 FIX ROUND 3 STRENGTHENED TESTS ============
+// ============ sanitizacao e validacao do payload: email, invisiveis, tetos e last-wins ============
 
 test('email: corte seguro apos lowercase mantem pares e remove surrogate solto', () => {
-  const entrada = 'a@b.c' + 'xx' + 'İ'.repeat(54) + '\u{10400}'.repeat(3);
+  const entrada = 'a@b.c' + 'xx' + '\u0130'.repeat(54) + '\u{10400}'.repeat(3);
   const r = validarLead({ nome: 'A', telefone: '11999990001', email: entrada });
   const esperado = 'a@b.cxx' + 'i\u0307'.repeat(54) + '\u{10428}'.repeat(2);
   assert.equal(r.lead.email, esperado);
@@ -217,7 +217,7 @@ test('email: corte seguro apos lowercase mantem pares e remove surrogate solto',
 });
 
 test('email: perde o @ no corte, entao fica vazio e sai dos fatos', () => {
-  const r = validarLead({ nome: 'A', telefone: '11999990001', email: 'İ'.repeat(70) + '@b.co' });
+  const r = validarLead({ nome: 'A', telefone: '11999990001', email: '\u0130'.repeat(70) + '@b.co' });
   assert.equal(r.lead.email, '');
   assert.equal('email' in r.lead.fatos, false);
 });
@@ -229,16 +229,29 @@ test('email: maiuscula valida vira minuscula', () => {
 test('validarLead: vazio depois de sanitizado nao sobrescreve', () => {
   for (const later of ['\u0000', '\u200b', { x: 1 }, null, '']) {
     const r = validarLead({ nome: 'Maria', Nome: later, telefone: '11999990001' });
-    assert.equal(r.lead.nome, 'Maria', `Failed for ${typeof later}`);
+    assert.equal(r.lead.nome, 'Maria', `Failed for ${JSON.stringify(later)}`);
   }
 });
 
 test('validarLead: cada invisivel estendido isoladamente', () => {
-  const invisiveis = ['\u00ad', '\u061c', '\u180e', '\u2066', '\u2067', '\u2068', '\u2069', '\u206a', '\u206b', '\u206c', '\u206d'];
+  const invisiveis = [
+    '\u00ad', '\u061c', '\u180e',
+    '\u2060', '\u2061', '\u2062', '\u2063', '\u2064',
+    '\u2066', '\u2067', '\u2068', '\u2069',
+    '\u206a', '\u206b', '\u206c', '\u206d', '\u206e', '\u206f',
+    '\ufff9', '\ufffa', '\ufffb',
+  ];
   for (const ch of invisiveis) {
     const r = validarLead({ nome: 'A' + ch + 'B', telefone: '11999990001' });
-    assert.equal(r.lead.nome, 'A B', `Failed for ${ch.codePointAt(0).toString(16)}`);
+    assert.equal(r.lead.nome, 'A B', 'U+' + ch.codePointAt(0).toString(16).toUpperCase().padStart(4, '0'));
   }
+});
+
+test('sanitizarTexto: surrogate solto no meio do texto vira espaco (jsonb rejeita)', () => {
+  assert.equal(sanitizarTexto('a\ud800b'), 'a b');
+  assert.equal(sanitizarTexto('a\udc00b'), 'a b');
+  assert.equal(sanitizarTexto('a\u{1F600}b'), 'a\u{1F600}b');
+  assert.equal(JSON.stringify(sanitizarTexto('a\ud800b')).includes('\\ud8'), false);
 });
 
 test('validarLead: empresa teto exato 120', () => {
@@ -290,7 +303,7 @@ test('validarLead: last-wins com valores vazios', () => {
   assert.equal(r2.lead.nome, 'A');
 });
 
-// ============ GUARD TESTS (FIXED WITH PROPER CODEPOINT DETECTION) ============
+// ============ guarda de caracteres invisiveis ============
 
 test('guarda: detector invisiveisLiterais funciona com astral', () => {
   assert.deepEqual(invisiveisLiterais('a\u{E0041}b'), ['U+E0041']);
