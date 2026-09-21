@@ -3,3 +3,11 @@
 .claude/
 .serena/
 IA ATENDIMENTO/
+
+# variaveis de ambiente (segredos); o exemplo continua versionado
+.env
+.env.*
+!.env.example
+
+# artefatos locais do fluxo superpowers
+.superpowers/
