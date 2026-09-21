@@ -19,3 +19,90 @@ export function normalizarTelefone(bruto) {
   const telefone = '+55' + d;
   return { ok: true, telefone, chave: chaveTelefone(telefone) };
 }
+
+export function sanitizarTexto(valor, max = 80) {
+  if (typeof valor === 'number') valor = Number.isFinite(valor) ? String(valor) : '';
+  if (typeof valor !== 'string') return '';
+  return valor.replace(/\s+/g, ' ').trim().slice(0, max);
+}
+
+function normalizarChave(chave) {
+  return String(chave)
+    .normalize('NFD')
+    .replace(/[̀-ͯ]/g, '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '_')
+    .replace(/^_+|_+$/g, '');
+}
+
+const ALIASES = {
+  nome: ['nome', 'name', 'full_name', 'nome_completo'],
+  telefone: ['telefone', 'phone', 'celular', 'whatsapp', 'phone_number', 'fone', 'telefone_whatsapp'],
+  email: ['email', 'e_mail'],
+  empresa: ['empresa', 'company', 'razao_social', 'nome_da_empresa'],
+  idCampanha: ['id_campanha', 'campanha', 'campaign', 'campaign_id', 'utm_campaign'],
+  ondeDivida: ['onde_esta_a_divida', 'onde_esta_divida', 'divida_em'],
+  valor: ['valor_da_divida', 'valor', 'valor_divida'],
+  situacao: ['situacao'],
+  tipo: ['tipo', 'tipo_de_divida', 'tipo_divida'],
+};
+
+function extrairCampos(payload) {
+  const mapa = new Map();
+  for (const [chave, valor] of Object.entries(payload)) mapa.set(normalizarChave(chave), valor);
+  const pegar = (aliases, max) => {
+    for (const alias of aliases) {
+      const texto = sanitizarTexto(mapa.get(alias), max);
+      if (texto) return texto;
+    }
+    return '';
+  };
+  return {
+    nome: pegar(ALIASES.nome, 120),
+    telefone: ALIASES.telefone.map((a) => mapa.get(a)).find((v) => v !== undefined && v !== null && v !== ''),
+    email: pegar(ALIASES.email, 120),
+    empresa: pegar(ALIASES.empresa, 120),
+    idCampanha: pegar(ALIASES.idCampanha, 80),
+    ondeDivida: pegar(ALIASES.ondeDivida, 80),
+    valor: pegar(ALIASES.valor, 80),
+    situacao: pegar(ALIASES.situacao, 120),
+    tipo: pegar(ALIASES.tipo, 80),
+  };
+}
+
+function mapearDocumento(texto) {
+  const t = normalizarChave(texto);
+  if (t.includes('ambos') || (t.includes('cnpj') && t.includes('cpf'))) return 'ambos';
+  if (t.includes('cnpj') || t.includes('juridica')) return 'CNPJ';
+  if (t.includes('cpf') || t.includes('fisica')) return 'CPF';
+  return '';
+}
+
+export function validarLead(payload) {
+  if (!payload || typeof payload !== 'object' || Array.isArray(payload)) return { ok: false, motivo: 'campo_invalido' };
+  const c = extrairCampos(payload);
+  const tel = normalizarTelefone(c.telefone);
+  if (!tel.ok) return { ok: false, motivo: 'telefone_invalido' };
+  const email = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(c.email) ? c.email.toLowerCase() : '';
+  const fatos = { telefone: tel.telefone, origemLead: 'formulario' };
+  if (c.nome) fatos.nomeCompleto = c.nome;
+  if (c.empresa) fatos.nomeEmpresa = c.empresa;
+  if (email) fatos.email = email;
+  if (c.tipo) fatos.tipoDivida = c.tipo;
+  if (c.valor) fatos.valorAproximado = c.valor;
+  const documento = mapearDocumento(c.ondeDivida);
+  if (documento) fatos.documento = documento;
+  if (c.situacao) fatos.situacaoFormulario = c.situacao;
+  return {
+    ok: true,
+    lead: {
+      telefone: tel.telefone,
+      telefoneChave: tel.chave,
+      nome: c.nome,
+      email,
+      empresa: c.empresa,
+      idCampanha: c.idCampanha,
+      fatos,
+    },
+  };
+}
