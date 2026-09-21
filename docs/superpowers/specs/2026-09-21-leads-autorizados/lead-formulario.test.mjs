@@ -107,10 +107,10 @@ test('sanitizarTexto: remove caracteres de controle (NUL, U+0085, U+001C, U+200B
   assert.equal(sanitizarTexto('João\u0000Silva'), 'João Silva');
   assert.equal(sanitizarTexto('texto\u0085fim'), 'texto fim');
   assert.equal(sanitizarTexto('abc\u001cdef'), 'abc def');
-  assert.equal(sanitizarTexto('zero​width'), 'zero width');
-  assert.equal(sanitizarTexto('override‮false'), 'override false');
+  assert.equal(sanitizarTexto('zero\u200bwidth'), 'zero width');
+  assert.equal(sanitizarTexto('override\u202efalse'), 'override false');
   assert.equal(sanitizarTexto('carriage\rreturn'), 'carriage return');
-  assert.equal(sanitizarTexto('line separator'), 'line separator');
+  assert.equal(sanitizarTexto('line\u2028separator'), 'line separator');
 });
 
 test('sanitizarTexto: emoji truncado nao deixa surrogate solto', () => {
@@ -229,9 +229,9 @@ test('validarLead: invisibles em cada campo via validarLead', () => {
   const r = validarLead({
     nome: 'Maria\u0085Silva',
     empresa: 'Tech\u001cCorp',
-    tipo: 'Divida​Personal',
-    valor: 'Mil‮Reais',
-    situacao: 'Status⁦Info',
+    tipo: 'Divida\u200bPersonal',
+    valor: 'Mil\u202eReais',
+    situacao: 'Status\u2066Info',
     id_campanha: 'Camp\u{E0041}aign',
     telefone: '11999990016',
   });
@@ -266,7 +266,7 @@ test('validarLead: last-wins com valores vazios', () => {
   const r3 = validarLead({ nome: '\u0000', Nome: 'Maria', telefone: '11999990019' });
   assert.equal(r3.ok, true);
   assert.equal(r3.lead.nome, 'Maria');
-  const r4 = validarLead({ nome: '​', Nome: 'Maria', telefone: '11999990020' });
+  const r4 = validarLead({ nome: 'A\u200bB', Nome: 'Maria', telefone: '11999990020' });
   assert.equal(r4.ok, true);
   assert.equal(r4.lead.nome, 'Maria');
 });
