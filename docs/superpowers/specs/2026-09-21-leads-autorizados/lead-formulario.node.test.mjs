@@ -6,10 +6,15 @@ import { validarLead } from './lead-formulario.mjs';
 
 const arquivo = new URL('./lead-formulario.node.js', import.meta.url);
 
-function rodarNode(entrada) {
+// Roda o corpo gerado com um $input arbitrario (para simular first() quebrado).
+function rodarComInput($input) {
   const corpo = readFileSync(arquivo, 'utf8');
   const fn = new Function('$input', corpo);
-  return fn({ first: () => ({ json: entrada }) })[0].json;
+  return fn($input)[0].json;
+}
+
+function rodarNode(entrada) {
+  return rodarComInput({ first: () => ({ json: entrada }) });
 }
 
 // Corpo minimo valido; os testes acrescentam campos a ele.
@@ -269,6 +274,101 @@ test('payloadBruto: a chave __proto__ vinda de um JSON continua sendo dado, sem 
   assert.equal(saida.payloadBruto.x, undefined);
 });
 
+test('payloadBruto: varios NUL e varios surrogates soltos na mesma string saem todos limpos', () => {
+  const saida = rodarNode({
+    body: lead({
+      nuls: 'a\u0000b\u0000c',
+      soltos: 'x\ud800y\ud800z\udc00',
+      entreSoltos: 'a\ud800b\ud800' + PAR + 'c\udc00d\udc00',
+      misto: '\u0000\ud800\u0000' + PAR + '\udc00\u0000',
+      'k\u0000e\u0000y\ud800\ud800': 'v',
+      lista: ['1\u00002\u00003', 'p\ud800q\ud800r'],
+    }),
+  });
+  assert.deepEqual(saida.payloadBruto, {
+    nome: 'Ana',
+    telefone: '(11) 99999-0001',
+    nuls: 'abc',
+    soltos: 'xyz',
+    entreSoltos: 'ab\u{1F600}cd',
+    misto: '\u{1F600}',
+    key: 'v',
+    lista: ['123', 'pqr'],
+  });
+});
+
+test('payloadBruto: getter que lanca em um item de array vira null so naquele item', () => {
+  const lista = ['antes', 'x', 'depois'];
+  Object.defineProperty(lista, 1, {
+    get() {
+      throw new Error('boom');
+    },
+    enumerable: true,
+    configurable: true,
+  });
+  let saida;
+  assert.doesNotThrow(() => {
+    saida = rodarNode({ body: lead({ lista }) });
+  });
+  assert.equal(saida.ok, true);
+  assert.deepEqual(saida.payloadBruto.lista, ['antes', null, 'depois']);
+});
+
+test('payloadBruto: corpo raiz que e array tem no maximo 200 itens', () => {
+  const itens = Array.from({ length: 201 }, (_, i) => i);
+  const saida = rodarNode({ body: itens });
+  assert.equal(saida.ok, false);
+  assert.equal(saida.motivo, 'campo_invalido');
+  assert.equal(saida.payloadBruto.length, 200);
+  assert.deepEqual(saida.payloadBruto, itens.slice(0, 200));
+  const exatos = rodarNode({ body: itens.slice(0, 200) });
+  assert.equal(exatos.payloadBruto.length, 200);
+  assert.deepEqual(exatos.payloadBruto, itens.slice(0, 200));
+});
+
+test('payloadBruto: NaN e Infinity passam como numeros (o JSON os serializa como null)', () => {
+  const saida = rodarNode({ body: lead({ nan: NaN, inf: Infinity, ninf: -Infinity, lista: [NaN, Infinity] }) });
+  assert.equal(saida.ok, true);
+  assert.deepEqual(saida.payloadBruto, {
+    nome: 'Ana',
+    telefone: '(11) 99999-0001',
+    nan: NaN,
+    inf: Infinity,
+    ninf: -Infinity,
+    lista: [NaN, Infinity],
+  });
+  assert.equal(
+    JSON.stringify(saida.payloadBruto),
+    '{"nome":"Ana","telefone":"(11) 99999-0001","nan":null,"inf":null,"ninf":null,"lista":[null,null]}',
+  );
+});
+
+test('envelope: body presente mas undefined ou null e campo_invalido; sem a chave body usa o proprio item', () => {
+  assert.deepEqual(rodarNode({ body: undefined }), { ok: false, motivo: 'campo_invalido', payloadBruto: null });
+  assert.deepEqual(rodarNode({ body: null }), { ok: false, motivo: 'campo_invalido', payloadBruto: null });
+  const item = lead({});
+  const saida = rodarNode(item);
+  assert.equal(saida.ok, true);
+  assert.equal(saida.nome, 'Ana');
+  assert.deepEqual(saida.payloadBruto, item);
+});
+
+test('payloadBruto: chaves herdadas por prototype nao entram, so as proprias', () => {
+  const corpo = Object.create({ herdada: 1 });
+  corpo.nome = 'Ana';
+  corpo.telefone = '(11) 99999-0001';
+  corpo.aninhado = Object.assign(Object.create({ herdadaFilha: 2 }), { propria: 3 });
+  const saida = rodarNode({ body: corpo });
+  assert.equal(saida.ok, true);
+  assert.deepEqual(saida.payloadBruto, {
+    nome: 'Ana',
+    telefone: '(11) 99999-0001',
+    aninhado: { propria: 3 },
+  });
+  assert.equal(Object.prototype.hasOwnProperty.call(saida.payloadBruto, 'herdada'), false);
+  assert.equal(Object.prototype.hasOwnProperty.call(saida.payloadBruto.aninhado, 'herdadaFilha'), false);
+});
+
 // ============ corpo hostil: o node nunca lanca ============
 
 test('corpo hostil: getter que lanca no corpo devolve campo_invalido com o resto limpo', () => {
@@ -332,6 +432,36 @@ test('corpo hostil: getter que lanca no proprio envelope body devolve campo_inva
   assert.deepEqual(saida, { ok: false, motivo: 'campo_invalido', payloadBruto: null });
 });
 
+test('item de entrada hostil: first() sem item, que lanca ou com json em getter que lanca nao faz o node lancar', () => {
+  const esperado = { ok: false, motivo: 'campo_invalido', payloadBruto: null };
+  const casos = {
+    'first devolve undefined': { first: () => undefined },
+    'first devolve null': { first: () => null },
+    'first lanca': {
+      first: () => {
+        throw new Error('x');
+      },
+    },
+    'json e getter que lanca': {
+      first: () => ({
+        get json() {
+          throw new Error('x');
+        },
+      }),
+    },
+    'json undefined': { first: () => ({}) },
+    'first nao e funcao': {},
+    '$input undefined': undefined,
+  };
+  for (const [nome, input] of Object.entries(casos)) {
+    let saida;
+    assert.doesNotThrow(() => {
+      saida = rodarComInput(input);
+    }, nome);
+    assert.deepEqual(saida, esperado, nome);
+  }
+});
+
 // ============ o resultado inteiro serializa sem o que o Postgres recusa ============
 
 test('o detector de escapes proibidos realmente detecta (controle negativo)', () => {
@@ -385,5 +515,10 @@ for (const nome of ['gerar-node.mjs', 'lead-formulario.node.js', 'lead-formulari
     const conteudo = readFileSync(new URL('./' + nome, import.meta.url), 'utf8');
     const encontrados = invisiveisLiterais(conteudo);
     assert.deepEqual(encontrados, [], nome + ': ' + encontrados.length + ' invisivel(is): ' + encontrados.join(', '));
+  });
+
+  test('guarda: ' + nome + ' e ASCII puro', () => {
+    const conteudo = readFileSync(new URL('./' + nome, import.meta.url), 'utf8');
+    assert.equal(/^[\x00-\x7f]*$/.test(conteudo), true, nome + ' tem caractere fora de ASCII');
   });
 }

@@ -210,15 +210,18 @@ function limparParaBanco(valor, profundidade) {
   }
 }
 
-const entrada = $input.first().json;
+let entrada;
 let payloadBruto = null;
 let r = { ok: false, motivo: 'campo_invalido' };
 try {
+  // A leitura do item fica DENTRO do try: first() sem item, first() que lanca ou json em getter que
+  // lanca tambem viram campo_invalido com payloadBruto null, em vez de derrubar o node.
+  entrada = $input.first().json;
   const corpo = entrada && typeof entrada === 'object' && 'body' in entrada ? entrada.body : entrada;
   payloadBruto = limparParaBanco(corpo, 0);
   r = validarLead(corpo);
 } catch {
-  // Corpo hostil (getter ou proxy que lanca): segue como campo_invalido, sem lancar.
+  // Item ou corpo hostil (getter ou proxy que lanca): segue como campo_invalido, sem lancar.
 }
 if (!r.ok) return [{ json: { ok: false, motivo: r.motivo, payloadBruto } }];
 return [{ json: { ok: true, ...r.lead, payloadBruto } }];
