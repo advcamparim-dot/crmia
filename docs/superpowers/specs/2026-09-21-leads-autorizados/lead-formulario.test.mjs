@@ -102,3 +102,93 @@ test('validarLead: chaves fora da lista fixa nao viram fatos', () => {
   assert.equal(r.ok, true);
   assert.deepEqual(Object.keys(r.lead.fatos).sort(), ['nomeCompleto', 'origemLead', 'telefone']);
 });
+
+test('sanitizarTexto: remove caracteres de controle (NUL, U+0085, U+001C, U+200B, U+202E, CR, U+2028)', () => {
+  assert.equal(sanitizarTexto('João\u0000Silva'), 'João Silva');
+  assert.equal(sanitizarTexto('texto\u0085fim'), 'texto fim');
+  assert.equal(sanitizarTexto('abc\u001cdef'), 'abc def');
+  assert.equal(sanitizarTexto('zero​width'), 'zero width');
+  assert.equal(sanitizarTexto('override‮false'), 'override false');
+  assert.equal(sanitizarTexto('carriage\rreturn'), 'carriage return');
+  assert.equal(sanitizarTexto('line separator'), 'line separator');
+});
+
+test('sanitizarTexto: emoji truncado nao deixa surrogate solto', () => {
+  const emoji = 'texto 😀 mais';
+  const truncado = sanitizarTexto(emoji, 8);
+  assert.equal(truncado.length <= 8, true);
+  const json = JSON.stringify(truncado);
+  assert.equal(json.includes('\\ud83d'), false);
+});
+
+test('validarLead: email com acento turco respeta limite de 120', () => {
+  const r = validarLead({ nome: 'A', telefone: '11999990005', email: 'test' + 'İ'.repeat(100) + '@example.com' });
+  assert.equal(r.ok, true);
+  assert.equal(r.lead.email.length <= 120, true);
+});
+
+test('validarLead: telefone numerico sem formatacao', () => {
+  const r = validarLead({ nome: 'A', telefone: '5511999990006' });
+  assert.equal(r.ok, true);
+  assert.equal(r.lead.telefone, '+5511999990006');
+});
+
+test('validarLead: documento ambos quando aparece fisica e juridica', () => {
+  const r = validarLead({ nome: 'A', telefone: '11999990007', divida_em: 'Pessoa Física e Jurídica' });
+  assert.equal(r.ok, true);
+  assert.equal(r.lead.fatos.documento, 'ambos');
+});
+
+test('validarLead: chaves hostis __proto__ e constructor nao viram fatos', () => {
+  const payload = JSON.parse('{"__proto__":{"x":1},"constructor":{"y":2},"nome":"A","telefone":"11999990008"}');
+  const r = validarLead(payload);
+  assert.equal(r.ok, true);
+  assert.equal(Object.prototype.hasOwnProperty.call(r.lead.fatos, '__proto__'), false);
+  assert.equal(Object.prototype.hasOwnProperty.call(r.lead.fatos, 'constructor'), false);
+  assert.deepEqual(Object.keys(r.lead.fatos).sort(), ['nomeCompleto', 'origemLead', 'telefone']);
+});
+
+test('validarLead: getter que lanca retorna campo_invalido', () => {
+  const payload = {
+    nome: 'A',
+    get telefone() {
+      throw new Error('hostil');
+    },
+  };
+  const r = validarLead(payload);
+  assert.deepEqual(r, { ok: false, motivo: 'campo_invalido' });
+});
+
+test('validarLead: chaves duplicadas normalizadas, vazio nao sobrescreve valor', () => {
+  const r = validarLead({ nome: 'Maria', Nome: '', telefone: '11999990009' });
+  assert.equal(r.ok, true);
+  assert.equal(r.lead.nome, 'Maria');
+  assert.equal(r.lead.fatos.nomeCompleto, 'Maria');
+});
+
+test('validarLead: alias de telefone, primeiro invalido e segundo valido', () => {
+  const r = validarLead({ nome: 'A', telefone: 'invalido', celular: '11999990010' });
+  assert.equal(r.ok, true);
+  assert.equal(r.lead.telefone, '+5511999990010');
+});
+
+test('validarLead: tetos de 120 e 80 em campos especificos', () => {
+  const r = validarLead({
+    nome: 'x'.repeat(150),
+    empresa: 'y'.repeat(150),
+    email: 'teste' + 'a'.repeat(150) + '@example.com',
+    tipo: 'z'.repeat(150),
+    valor: 'v'.repeat(150),
+    situacao: 's'.repeat(150),
+    idCampanha: 'c'.repeat(150),
+    telefone: '11999990011',
+  });
+  assert.equal(r.ok, true);
+  assert.equal(r.lead.nome.length <= 120, true);
+  assert.equal(r.lead.empresa.length <= 120, true);
+  assert.equal(r.lead.email.length <= 120, true);
+  assert.equal(r.lead.fatos.tipoDivida.length <= 80, true);
+  assert.equal(r.lead.fatos.valorAproximado.length <= 80, true);
+  assert.equal(r.lead.fatos.situacaoFormulario.length <= 120, true);
+  assert.equal(r.lead.idCampanha.length <= 80, true);
+});

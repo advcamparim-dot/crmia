@@ -23,7 +23,14 @@ export function normalizarTelefone(bruto) {
 export function sanitizarTexto(valor, max = 80) {
   if (typeof valor === 'number') valor = Number.isFinite(valor) ? String(valor) : '';
   if (typeof valor !== 'string') return '';
-  return valor.replace(/\s+/g, ' ').trim().slice(0, max);
+  return valor
+    .replace(/[\ud800-\udbff](?![\udc00-\udfff])|(?<![\ud800-\udbff])[\udc00-\udfff]/g, ' ')
+    .replace(/[\u0000-\u001f\u007f-\u009f​-‏‪-‮⁠-⁤﻿]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .slice(0, max)
+    .replace(/[\ud800-\udbff]$/, '')
+    .trimEnd();
 }
 
 function normalizarChave(chave) {
@@ -49,7 +56,13 @@ const ALIASES = {
 
 function extrairCampos(payload) {
   const mapa = new Map();
-  for (const [chave, valor] of Object.entries(payload)) mapa.set(normalizarChave(chave), valor);
+  for (const [chave, valor] of Object.entries(payload)) {
+    const chaveNorm = normalizarChave(chave);
+    const valorExistente = mapa.get(chaveNorm);
+    if (valorExistente === undefined || valorExistente === null || valorExistente === '' || valorExistente.toString().trim() === '') {
+      mapa.set(chaveNorm, valor);
+    }
+  }
   const pegar = (aliases, max) => {
     for (const alias of aliases) {
       const texto = sanitizarTexto(mapa.get(alias), max);
@@ -57,9 +70,23 @@ function extrairCampos(payload) {
     }
     return '';
   };
+  let telefoneSelecionado = '';
+  for (const alias of ALIASES.telefone) {
+    const valor = mapa.get(alias);
+    if (valor !== undefined && valor !== null && valor !== '') {
+      const resultado = normalizarTelefone(valor);
+      if (resultado.ok) {
+        telefoneSelecionado = valor;
+        break;
+      }
+      if (!telefoneSelecionado) {
+        telefoneSelecionado = valor;
+      }
+    }
+  }
   return {
     nome: pegar(ALIASES.nome, 120),
-    telefone: ALIASES.telefone.map((a) => mapa.get(a)).find((v) => v !== undefined && v !== null && v !== ''),
+    telefone: telefoneSelecionado,
     email: pegar(ALIASES.email, 120),
     empresa: pegar(ALIASES.empresa, 120),
     idCampanha: pegar(ALIASES.idCampanha, 80),
@@ -72,7 +99,7 @@ function extrairCampos(payload) {
 
 function mapearDocumento(texto) {
   const t = normalizarChave(texto);
-  if (t.includes('ambos') || (t.includes('cnpj') && t.includes('cpf'))) return 'ambos';
+  if (t.includes('ambos') || (t.includes('cnpj') && t.includes('cpf')) || (t.includes('fisica') && t.includes('juridica'))) return 'ambos';
   if (t.includes('cnpj') || t.includes('juridica')) return 'CNPJ';
   if (t.includes('cpf') || t.includes('fisica')) return 'CPF';
   return '';
@@ -80,10 +107,15 @@ function mapearDocumento(texto) {
 
 export function validarLead(payload) {
   if (!payload || typeof payload !== 'object' || Array.isArray(payload)) return { ok: false, motivo: 'campo_invalido' };
-  const c = extrairCampos(payload);
+  let c;
+  try {
+    c = extrairCampos(payload);
+  } catch {
+    return { ok: false, motivo: 'campo_invalido' };
+  }
   const tel = normalizarTelefone(c.telefone);
   if (!tel.ok) return { ok: false, motivo: 'telefone_invalido' };
-  const email = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(c.email) ? c.email.toLowerCase() : '';
+  const email = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(c.email) ? c.email.toLowerCase().slice(0, 120) : '';
   const fatos = { telefone: tel.telefone, origemLead: 'formulario' };
   if (c.nome) fatos.nomeCompleto = c.nome;
   if (c.empresa) fatos.nomeEmpresa = c.empresa;
