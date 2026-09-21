@@ -12,7 +12,11 @@ export default function LoginPage({ searchParams }: { searchParams: { erro?: str
           required
           style={{ padding: '10px 12px', borderRadius: 4, border: '1px solid #2a352d', background: '#1a2420', color: '#e9ede7' }}
         />
-        {searchParams.erro && <p style={{ color: '#c23b3b', fontSize: 13, margin: 0 }}>Senha incorreta.</p>}
+        {searchParams.erro === '2' ? (
+          <p style={{ color: '#c23b3b', fontSize: 13, margin: 0 }}>Muitas tentativas. Aguarde alguns minutos e tente novamente.</p>
+        ) : (
+          searchParams.erro && <p style={{ color: '#c23b3b', fontSize: 13, margin: 0 }}>Senha incorreta.</p>
+        )}
         <button type="submit" style={{ padding: '10px 12px', borderRadius: 4, border: 'none', background: '#b08a5a', color: '#151009', fontWeight: 600, cursor: 'pointer' }}>
           Entrar
         </button>
