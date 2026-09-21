@@ -80,22 +80,31 @@ begin
 end $$;
 
 do $$
+declare v_base int;
 begin
-  -- teto por hora (leads de teste nao contam)
-  update mayara.config set valor = '2' where chave = 'teto_leads_por_hora';
-  delete from mayara.leads_autorizados;
-  assert mayara.dentro_do_teto_por_hora() = true, 'vazio dentro do teto';
+  -- teto por hora, RELATIVO ao estado atual: nao apaga nem altera linhas que o teste nao criou.
+  -- O teto vira (base + 2); o update da config e revertido pelo rollback.
+  v_base := (select count(*) from mayara.leads_autorizados
+             where criado_em > now() - interval '1 hour' and origem <> 'teste');
+  update mayara.config set valor = (v_base + 2)::text where chave = 'teto_leads_por_hora';
+  assert mayara.dentro_do_teto_por_hora() = true, 'base dentro do teto';
+  -- (a) um lead de campanha + um de teste: ainda dentro (com o filtro quebrado a contagem seria base+2 = teto)
   perform mayara.upsert_lead_autorizado('+5511999990010','C',null,null,'landing_campanha_pj',null,'{}'::jsonb);
+  perform mayara.upsert_lead_autorizado('+5511999990012','E',null,null,'teste',null,'{}'::jsonb);
+  assert mayara.dentro_do_teto_por_hora() = true, 'teste nao conta para o teto';
+  -- (b) segundo lead de campanha: no teto
   perform mayara.upsert_lead_autorizado('+5511999990011','D',null,null,'landing_campanha_pj',null,'{}'::jsonb);
   assert mayara.dentro_do_teto_por_hora() = false, 'no teto';
-  perform mayara.upsert_lead_autorizado('+5511999990012','E',null,null,'teste',null,'{}'::jsonb);
-  assert (select count(*) from mayara.leads_autorizados) = 3, 'lead de teste entrou';
-  assert mayara.dentro_do_teto_por_hora() = false, 'teste nao conta para o teto';
+  -- (c) mais um lead de teste: continua no teto e a contagem de nao-teste nao mudou
+  perform mayara.upsert_lead_autorizado('+5511999990013','F',null,null,'teste',null,'{}'::jsonb);
+  assert mayara.dentro_do_teto_por_hora() = false, 'segundo teste nao tira do teto';
+  assert (select count(*) from mayara.leads_autorizados
+          where criado_em > now() - interval '1 hour' and origem <> 'teste') = v_base + 2, 'contagem de nao-teste = base + 2';
 end $$;
 
 do $$
 begin
-  -- config inicial e RLS ligada nas quatro tabelas e em leads_rejeitados
+  -- config inicial e RLS ligada nas quatro tabelas
   assert (select valor from mayara.config where chave = 'envio_template_ativo') = 'false', 'template desligado';
   assert (select relrowsecurity from pg_class where oid = 'mayara.leads_autorizados'::regclass), 'rls leads';
   assert (select relrowsecurity from pg_class where oid = 'mayara.numeros_nao_cadastrados'::regclass), 'rls numeros';
