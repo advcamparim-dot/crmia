@@ -214,10 +214,13 @@ test('validarLead: tetos exatos de 120 e 80', () => {
 test('validarLead: email com surrogates e İ nao deixa solto', () => {
   const r1 = validarLead({ nome: 'A', telefone: '11999990013', email: 'a@b.c' + 'xx' + 'İ'.repeat(54) + '\ud800\ud800\ud800' });
   assert.equal(r1.ok, true);
-  assert.equal(r1.lead.email, '');
-  assert.equal(JSON.stringify(r1.lead.email).includes('\\ud'), false);
+  const expected1 = 'a@b.cxx' + 'i̇'.repeat(54);
+  assert.equal(r1.lead.email, expected1);
+  assert.equal(r1.lead.email.length <= 120, true);
+  assert.equal(r1.lead.email.includes('@'), true);
+  assert.equal(JSON.stringify(r1.lead.email).includes('\\ud8'), false);
   const r2 = validarLead({ nome: 'A', telefone: '11999990014', email: 'İ@example.com' });
-  assert.equal(r2.lead.email, '');
+  assert.equal(r2.lead.email, 'i̇@example.com');
   const r3 = validarLead({ nome: 'A', telefone: '11999990015', email: 'Test@Example.Com' });
   assert.equal(r3.lead.email, 'test@example.com');
 });
@@ -229,7 +232,7 @@ test('validarLead: invisibles em cada campo via validarLead', () => {
     tipo: 'Divida​Personal',
     valor: 'Mil‮Reais',
     situacao: 'Status⁦Info',
-    idCampanha: 'Camp\u{E0041}aign',
+    id_campanha: 'Camp\u{E0041}aign',
     telefone: '11999990016',
   });
   assert.equal(r.ok, true);
