@@ -192,3 +192,104 @@ test('validarLead: tetos de 120 e 80 em campos especificos', () => {
   assert.equal(r.lead.fatos.situacaoFormulario.length <= 120, true);
   assert.equal(r.lead.idCampanha.length <= 80, true);
 });
+
+test('sanitizarTexto: corte exato na fronteira do emoji', () => {
+  assert.equal(sanitizarTexto('texto 😀 mais', 7), 'texto');
+  assert.equal(sanitizarTexto('abc def', 4), 'abc');
+  assert.equal(sanitizarTexto('12345', 5), '12345');
+  assert.equal(sanitizarTexto('123456', 5), '12345');
+});
+
+test('validarLead: tetos exatos de 120 e 80', () => {
+  const r = validarLead({
+    nome: 'x'.repeat(200),
+    tipo: 'y'.repeat(200),
+    telefone: '11999990012',
+  });
+  assert.equal(r.ok, true);
+  assert.equal(r.lead.nome.length, 120);
+  assert.equal(r.lead.fatos.tipoDivida.length, 80);
+});
+
+test('validarLead: email com surrogates e İ nao deixa solto', () => {
+  const r1 = validarLead({ nome: 'A', telefone: '11999990013', email: 'a@b.c' + 'xx' + 'İ'.repeat(54) + '\ud800\ud800\ud800' });
+  assert.equal(r1.ok, true);
+  assert.equal(r1.lead.email, '');
+  assert.equal(JSON.stringify(r1.lead.email).includes('\\ud'), false);
+  const r2 = validarLead({ nome: 'A', telefone: '11999990014', email: 'İ@example.com' });
+  assert.equal(r2.lead.email, '');
+  const r3 = validarLead({ nome: 'A', telefone: '11999990015', email: 'Test@Example.Com' });
+  assert.equal(r3.lead.email, 'test@example.com');
+});
+
+test('validarLead: invisibles em cada campo via validarLead', () => {
+  const r = validarLead({
+    nome: 'Maria\u0085Silva',
+    empresa: 'Tech\u001cCorp',
+    tipo: 'Divida​Personal',
+    valor: 'Mil‮Reais',
+    situacao: 'Status⁦Info',
+    idCampanha: 'Camp\u{E0041}aign',
+    telefone: '11999990016',
+  });
+  assert.equal(r.ok, true);
+  assert.equal(r.lead.fatos.nomeCompleto, 'Maria Silva');
+  assert.equal(r.lead.fatos.nomeEmpresa, 'Tech Corp');
+  assert.equal(r.lead.fatos.tipoDivida, 'Divida Personal');
+  assert.equal(r.lead.fatos.valorAproximado, 'Mil Reais');
+  assert.equal(r.lead.fatos.situacaoFormulario, 'Status Info');
+  assert.equal(r.lead.idCampanha, 'Camp aign');
+});
+
+test('validarLead: Proxy com ownKeys que lanca', () => {
+  const handler = {
+    ownKeys() {
+      throw new Error('hostile');
+    },
+  };
+  const payload = new Proxy({}, handler);
+  const r = validarLead(payload);
+  assert.deepEqual(r, { ok: false, motivo: 'campo_invalido' });
+});
+
+test('validarLead: last-wins com valores vazios', () => {
+  const r1 = validarLead({ nome: 'A', Nome: 'B', telefone: '11999990017' });
+  assert.equal(r1.ok, true);
+  assert.equal(r1.lead.nome, 'B');
+  assert.equal(r1.lead.fatos.nomeCompleto, 'B');
+  const r2 = validarLead({ nome: 'A', Nome: '', telefone: '11999990018' });
+  assert.equal(r2.ok, true);
+  assert.equal(r2.lead.nome, 'A');
+  const r3 = validarLead({ nome: '\u0000', Nome: 'Maria', telefone: '11999990019' });
+  assert.equal(r3.ok, true);
+  assert.equal(r3.lead.nome, 'Maria');
+  const r4 = validarLead({ nome: '​', Nome: 'Maria', telefone: '11999990020' });
+  assert.equal(r4.ok, true);
+  assert.equal(r4.lead.nome, 'Maria');
+});
+
+import { readFileSync } from 'node:fs';
+test('guarda: nenhum code point invisivel literal em lead-formulario.mjs', () => {
+  const conteudo = readFileSync(new URL('./lead-formulario.mjs', import.meta.url), 'utf8');
+  const invisibles = [];
+  for (const char of conteudo) {
+    const code = char.charCodeAt(0);
+    if ((code >= 0x0000 && code <= 0x0008) ||
+        code === 0x000b || code === 0x000c ||
+        (code >= 0x000e && code <= 0x001f) ||
+        (code >= 0x007f && code <= 0x009f) ||
+        code === 0x00ad || code === 0x061c || code === 0x180e ||
+        (code >= 0x200b && code <= 0x200f) ||
+        (code >= 0x2028 && code <= 0x202e) ||
+        (code >= 0x2060 && code <= 0x2064) ||
+        (code >= 0x2066 && code <= 0x206f) ||
+        (code >= 0x0300 && code <= 0x036f) ||
+        code === 0xfeff ||
+        (code >= 0xfff9 && code <= 0xfffb)) {
+      invisibles.push({ char, code: '0x' + code.toString(16).toUpperCase().padStart(4, '0') });
+    }
+  }
+  if (invisibles.length > 0) {
+    throw new Error(`Encontrado ${invisibles.length} code point(s) invisível(is) literal(is) em lead-formulario.mjs. Primeiro: ${invisibles[0].char} (${invisibles[0].code}). Use escapes \\uXXXX em vez de bytes literais.`);
+  }
+});

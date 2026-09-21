@@ -20,12 +20,18 @@ export function normalizarTelefone(bruto) {
   return { ok: true, telefone, chave: chaveTelefone(telefone) };
 }
 
+function cortarAoMax(texto, max) {
+  texto = texto.slice(0, max);
+  return texto.replace(/[\ud800-\udbff]$/, '').trimEnd();
+}
+
 export function sanitizarTexto(valor, max = 80) {
   if (typeof valor === 'number') valor = Number.isFinite(valor) ? String(valor) : '';
   if (typeof valor !== 'string') return '';
   return valor
     .replace(/[\ud800-\udbff](?![\udc00-\udfff])|(?<![\ud800-\udbff])[\udc00-\udfff]/g, ' ')
-    .replace(/[\u0000-\u001f\u007f-\u009f​-‏‪-‮⁠-⁤﻿]/g, ' ')
+    .replace(/[\u0000-\u001f\u007f-\u009f\u00ad\u061c\u180e\u200b-\u200f\u2028-\u202e\u2060-\u2064\u2066-\u2069\u206a-\u206f\ufff9-\ufffb]/g, ' ')
+    .replace(/[\u{E0000}-\u{E007F}]/gu, ' ')
     .replace(/\s+/g, ' ')
     .trim()
     .slice(0, max)
@@ -36,7 +42,7 @@ export function sanitizarTexto(valor, max = 80) {
 function normalizarChave(chave) {
   return String(chave)
     .normalize('NFD')
-    .replace(/[̀-ͯ]/g, '')
+    .replace(/[\u0300-\u036f]/g, '')
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, '_')
     .replace(/^_+|_+$/g, '');
@@ -55,35 +61,42 @@ const ALIASES = {
 };
 
 function extrairCampos(payload) {
-  const mapa = new Map();
+  const mapaListas = new Map();
   for (const [chave, valor] of Object.entries(payload)) {
     const chaveNorm = normalizarChave(chave);
-    const valorExistente = mapa.get(chaveNorm);
-    if (valorExistente === undefined || valorExistente === null || valorExistente === '' || valorExistente.toString().trim() === '') {
-      mapa.set(chaveNorm, valor);
+    if (!mapaListas.has(chaveNorm)) {
+      mapaListas.set(chaveNorm, []);
     }
+    mapaListas.get(chaveNorm).push(valor);
   }
   const pegar = (aliases, max) => {
     for (const alias of aliases) {
-      const texto = sanitizarTexto(mapa.get(alias), max);
-      if (texto) return texto;
+      const valores = mapaListas.get(alias) || [];
+      for (let i = valores.length - 1; i >= 0; i--) {
+        const texto = sanitizarTexto(valores[i], max);
+        if (texto) return texto;
+      }
     }
     return '';
   };
   let telefoneSelecionado = '';
+  let primeiroNaoVazio = '';
   for (const alias of ALIASES.telefone) {
-    const valor = mapa.get(alias);
-    if (valor !== undefined && valor !== null && valor !== '') {
-      const resultado = normalizarTelefone(valor);
-      if (resultado.ok) {
-        telefoneSelecionado = valor;
-        break;
-      }
-      if (!telefoneSelecionado) {
-        telefoneSelecionado = valor;
+    const valores = mapaListas.get(alias) || [];
+    for (let i = valores.length - 1; i >= 0; i--) {
+      const valor = valores[i];
+      if (valor !== undefined && valor !== null && valor !== '') {
+        if (!primeiroNaoVazio) primeiroNaoVazio = valor;
+        const resultado = normalizarTelefone(valor);
+        if (resultado.ok) {
+          telefoneSelecionado = valor;
+          break;
+        }
       }
     }
+    if (telefoneSelecionado) break;
   }
+  if (!telefoneSelecionado) telefoneSelecionado = primeiroNaoVazio;
   return {
     nome: pegar(ALIASES.nome, 120),
     telefone: telefoneSelecionado,
@@ -115,7 +128,12 @@ export function validarLead(payload) {
   }
   const tel = normalizarTelefone(c.telefone);
   if (!tel.ok) return { ok: false, motivo: 'telefone_invalido' };
-  const email = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(c.email) ? c.email.toLowerCase().slice(0, 120) : '';
+  let email = sanitizarTexto(c.email, 120);
+  email = email.toLowerCase();
+  email = cortarAoMax(email, 120);
+  if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    email = '';
+  }
   const fatos = { telefone: tel.telefone, origemLead: 'formulario' };
   if (c.nome) fatos.nomeCompleto = c.nome;
   if (c.empresa) fatos.nomeEmpresa = c.empresa;
