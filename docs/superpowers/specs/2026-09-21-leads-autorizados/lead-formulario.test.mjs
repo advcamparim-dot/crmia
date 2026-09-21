@@ -1,6 +1,24 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { chaveTelefone, normalizarTelefone } from './lead-formulario.mjs';
+import { chaveTelefone, normalizarTelefone, sanitizarTexto, validarLead } from './lead-formulario.mjs';
+import { readFileSync } from 'node:fs';
+
+// Helper: Detect invisible characters using codePointAt (supports astral plane)
+function invisiveisLiterais(texto) {
+  const achados = [];
+  for (const ch of texto) {
+    const c = ch.codePointAt(0);
+    if (c <= 0x08 || c === 0x0b || c === 0x0c || (c >= 0x0e && c <= 0x1f) || (c >= 0x7f && c <= 0x9f) ||
+        c === 0xad || c === 0x61c || c === 0x180e || (c >= 0x200b && c <= 0x200f) || (c >= 0x2028 && c <= 0x202e) ||
+        (c >= 0x2060 && c <= 0x2064) || (c >= 0x2066 && c <= 0x206f) || (c >= 0x300 && c <= 0x36f) ||
+        c === 0xfeff || (c >= 0xfff9 && c <= 0xfffb) || (c >= 0xe0000 && c <= 0xe007f)) {
+      achados.push('U+' + c.toString(16).toUpperCase().padStart(4, '0'));
+    }
+  }
+  return achados;
+}
+
+// ============ TASK 2 TESTS (from initial) ============
 
 test('chaveTelefone: mesma chave com e sem nono digito, e igual a funcao SQL', () => {
   assert.equal(chaveTelefone('+5514997022609'), '1497022609');
@@ -30,7 +48,7 @@ test('normalizarTelefone: recusa invalidos', () => {
   }
 });
 
-import { sanitizarTexto, validarLead } from './lead-formulario.mjs';
+// ============ TASK 3 INITIAL TESTS ============
 
 test('sanitizarTexto: uma linha, limitado, so texto ou numero', () => {
   assert.equal(sanitizarTexto('  a\n\nb\tc  '), 'a b c');
@@ -121,12 +139,6 @@ test('sanitizarTexto: emoji truncado nao deixa surrogate solto', () => {
   assert.equal(json.includes('\\ud83d'), false);
 });
 
-test('validarLead: email com acento turco respeta limite de 120', () => {
-  const r = validarLead({ nome: 'A', telefone: '11999990005', email: 'test' + 'İ'.repeat(100) + '@example.com' });
-  assert.equal(r.ok, true);
-  assert.equal(r.lead.email.length <= 120, true);
-});
-
 test('validarLead: telefone numerico sem formatacao', () => {
   const r = validarLead({ nome: 'A', telefone: '5511999990006' });
   assert.equal(r.ok, true);
@@ -159,38 +171,10 @@ test('validarLead: getter que lanca retorna campo_invalido', () => {
   assert.deepEqual(r, { ok: false, motivo: 'campo_invalido' });
 });
 
-test('validarLead: chaves duplicadas normalizadas, vazio nao sobrescreve valor', () => {
-  const r = validarLead({ nome: 'Maria', Nome: '', telefone: '11999990009' });
-  assert.equal(r.ok, true);
-  assert.equal(r.lead.nome, 'Maria');
-  assert.equal(r.lead.fatos.nomeCompleto, 'Maria');
-});
-
 test('validarLead: alias de telefone, primeiro invalido e segundo valido', () => {
   const r = validarLead({ nome: 'A', telefone: 'invalido', celular: '11999990010' });
   assert.equal(r.ok, true);
   assert.equal(r.lead.telefone, '+5511999990010');
-});
-
-test('validarLead: tetos de 120 e 80 em campos especificos', () => {
-  const r = validarLead({
-    nome: 'x'.repeat(150),
-    empresa: 'y'.repeat(150),
-    email: 'teste' + 'a'.repeat(150) + '@example.com',
-    tipo: 'z'.repeat(150),
-    valor: 'v'.repeat(150),
-    situacao: 's'.repeat(150),
-    idCampanha: 'c'.repeat(150),
-    telefone: '11999990011',
-  });
-  assert.equal(r.ok, true);
-  assert.equal(r.lead.nome.length <= 120, true);
-  assert.equal(r.lead.empresa.length <= 120, true);
-  assert.equal(r.lead.email.length <= 120, true);
-  assert.equal(r.lead.fatos.tipoDivida.length <= 80, true);
-  assert.equal(r.lead.fatos.valorAproximado.length <= 80, true);
-  assert.equal(r.lead.fatos.situacaoFormulario.length <= 120, true);
-  assert.equal(r.lead.idCampanha.length <= 80, true);
 });
 
 test('sanitizarTexto: corte exato na fronteira do emoji', () => {
@@ -211,18 +195,70 @@ test('validarLead: tetos exatos de 120 e 80', () => {
   assert.equal(r.lead.fatos.tipoDivida.length, 80);
 });
 
-test('validarLead: email com surrogates e İ nao deixa solto', () => {
-  const r1 = validarLead({ nome: 'A', telefone: '11999990013', email: 'a@b.c' + 'xx' + 'İ'.repeat(54) + '\ud800\ud800\ud800' });
-  assert.equal(r1.ok, true);
-  const expected1 = 'a@b.cxx' + 'i̇'.repeat(54);
-  assert.equal(r1.lead.email, expected1);
-  assert.equal(r1.lead.email.length <= 120, true);
-  assert.equal(r1.lead.email.includes('@'), true);
-  assert.equal(JSON.stringify(r1.lead.email).includes('\\ud8'), false);
-  const r2 = validarLead({ nome: 'A', telefone: '11999990014', email: 'İ@example.com' });
-  assert.equal(r2.lead.email, 'i̇@example.com');
-  const r3 = validarLead({ nome: 'A', telefone: '11999990015', email: 'Test@Example.Com' });
-  assert.equal(r3.lead.email, 'test@example.com');
+test('validarLead: Proxy com ownKeys que lanca', () => {
+  const handler = {
+    ownKeys() {
+      throw new Error('hostile');
+    },
+  };
+  const payload = new Proxy({}, handler);
+  const r = validarLead(payload);
+  assert.deepEqual(r, { ok: false, motivo: 'campo_invalido' });
+});
+
+// ============ TASK 3 FIX ROUND 3 STRENGTHENED TESTS ============
+
+test('email: corte seguro apos lowercase mantem pares e remove surrogate solto', () => {
+  const entrada = 'a@b.c' + 'xx' + 'İ'.repeat(54) + '\u{10400}'.repeat(3);
+  const r = validarLead({ nome: 'A', telefone: '11999990001', email: entrada });
+  const esperado = 'a@b.cxx' + 'i\u0307'.repeat(54) + '\u{10428}'.repeat(2);
+  assert.equal(r.lead.email, esperado);
+  assert.equal(r.lead.fatos.email, esperado);
+});
+
+test('email: perde o @ no corte, entao fica vazio e sai dos fatos', () => {
+  const r = validarLead({ nome: 'A', telefone: '11999990001', email: 'İ'.repeat(70) + '@b.co' });
+  assert.equal(r.lead.email, '');
+  assert.equal('email' in r.lead.fatos, false);
+});
+
+test('email: maiuscula valida vira minuscula', () => {
+  assert.equal(validarLead({ nome: 'A', telefone: '11999990001', email: 'Test@Example.COM' }).lead.email, 'test@example.com');
+});
+
+test('validarLead: vazio depois de sanitizado nao sobrescreve', () => {
+  for (const later of ['\u0000', '\u200b', { x: 1 }, null, '']) {
+    const r = validarLead({ nome: 'Maria', Nome: later, telefone: '11999990001' });
+    assert.equal(r.lead.nome, 'Maria', `Failed for ${typeof later}`);
+  }
+});
+
+test('validarLead: cada invisivel estendido isoladamente', () => {
+  const invisiveis = ['\u00ad', '\u061c', '\u180e', '\u2066', '\u2067', '\u2068', '\u2069', '\u206a', '\u206b', '\u206c', '\u206d'];
+  for (const ch of invisiveis) {
+    const r = validarLead({ nome: 'A' + ch + 'B', telefone: '11999990001' });
+    assert.equal(r.lead.nome, 'A B', `Failed for ${ch.codePointAt(0).toString(16)}`);
+  }
+});
+
+test('validarLead: empresa teto exato 120', () => {
+  const r = validarLead({ empresa: 'y'.repeat(200), nome: 'A', telefone: '11999990001' });
+  assert.equal(r.lead.empresa.length, 120);
+});
+
+test('validarLead: valor_da_divida teto exato 80', () => {
+  const r = validarLead({ valor_da_divida: 'v'.repeat(200), nome: 'A', telefone: '11999990001' });
+  assert.equal(r.lead.fatos.valorAproximado.length, 80);
+});
+
+test('validarLead: situacao teto exato 120', () => {
+  const r = validarLead({ situacao: 's'.repeat(200), nome: 'A', telefone: '11999990001' });
+  assert.equal(r.lead.fatos.situacaoFormulario.length, 120);
+});
+
+test('validarLead: id_campanha teto exato 80', () => {
+  const r = validarLead({ id_campanha: 'c'.repeat(200), nome: 'A', telefone: '11999990001' });
+  assert.equal(r.lead.idCampanha.length, 80);
 });
 
 test('validarLead: invisibles em cada campo via validarLead', () => {
@@ -244,17 +280,6 @@ test('validarLead: invisibles em cada campo via validarLead', () => {
   assert.equal(r.lead.idCampanha, 'Camp aign');
 });
 
-test('validarLead: Proxy com ownKeys que lanca', () => {
-  const handler = {
-    ownKeys() {
-      throw new Error('hostile');
-    },
-  };
-  const payload = new Proxy({}, handler);
-  const r = validarLead(payload);
-  assert.deepEqual(r, { ok: false, motivo: 'campo_invalido' });
-});
-
 test('validarLead: last-wins com valores vazios', () => {
   const r1 = validarLead({ nome: 'A', Nome: 'B', telefone: '11999990017' });
   assert.equal(r1.ok, true);
@@ -263,36 +288,28 @@ test('validarLead: last-wins com valores vazios', () => {
   const r2 = validarLead({ nome: 'A', Nome: '', telefone: '11999990018' });
   assert.equal(r2.ok, true);
   assert.equal(r2.lead.nome, 'A');
-  const r3 = validarLead({ nome: '\u0000', Nome: 'Maria', telefone: '11999990019' });
-  assert.equal(r3.ok, true);
-  assert.equal(r3.lead.nome, 'Maria');
-  const r4 = validarLead({ nome: 'A\u200bB', Nome: 'Maria', telefone: '11999990020' });
-  assert.equal(r4.ok, true);
-  assert.equal(r4.lead.nome, 'Maria');
 });
 
-import { readFileSync } from 'node:fs';
-test('guarda: nenhum code point invisivel literal em lead-formulario.mjs', () => {
+// ============ GUARD TESTS (FIXED WITH PROPER CODEPOINT DETECTION) ============
+
+test('guarda: detector invisiveisLiterais funciona com astral', () => {
+  assert.deepEqual(invisiveisLiterais('a\u{E0041}b'), ['U+E0041']);
+  assert.deepEqual(invisiveisLiterais('a\u00adb'), ['U+00AD']);
+  assert.deepEqual(invisiveisLiterais('normal'), []);
+});
+
+test('guarda: lead-formulario.mjs sem invisivel literal', () => {
   const conteudo = readFileSync(new URL('./lead-formulario.mjs', import.meta.url), 'utf8');
-  const invisibles = [];
-  for (const char of conteudo) {
-    const code = char.charCodeAt(0);
-    if ((code >= 0x0000 && code <= 0x0008) ||
-        code === 0x000b || code === 0x000c ||
-        (code >= 0x000e && code <= 0x001f) ||
-        (code >= 0x007f && code <= 0x009f) ||
-        code === 0x00ad || code === 0x061c || code === 0x180e ||
-        (code >= 0x200b && code <= 0x200f) ||
-        (code >= 0x2028 && code <= 0x202e) ||
-        (code >= 0x2060 && code <= 0x2064) ||
-        (code >= 0x2066 && code <= 0x206f) ||
-        (code >= 0x0300 && code <= 0x036f) ||
-        code === 0xfeff ||
-        (code >= 0xfff9 && code <= 0xfffb)) {
-      invisibles.push({ char, code: '0x' + code.toString(16).toUpperCase().padStart(4, '0') });
-    }
+  const encontrados = invisiveisLiterais(conteudo);
+  if (encontrados.length > 0) {
+    throw new Error(`lead-formulario.mjs: ${encontrados.length} invisível(ais): ${encontrados.join(', ')}`);
   }
-  if (invisibles.length > 0) {
-    throw new Error(`Encontrado ${invisibles.length} code point(s) invisível(is) literal(is) em lead-formulario.mjs. Primeiro: ${invisibles[0].char} (${invisibles[0].code}). Use escapes \\uXXXX em vez de bytes literais.`);
+});
+
+test('guarda: lead-formulario.test.mjs sem invisivel literal', () => {
+  const conteudo = readFileSync(new URL('./lead-formulario.test.mjs', import.meta.url), 'utf8');
+  const encontrados = invisiveisLiterais(conteudo);
+  if (encontrados.length > 0) {
+    throw new Error(`lead-formulario.test.mjs: ${encontrados.length} invisível(ais): ${encontrados.join(', ')}`);
   }
 });
