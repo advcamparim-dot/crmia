@@ -1,0 +1,821 @@
+{
+  "name": "Mayara — Receber Lead do Formulário",
+  "nodes": [
+    {
+      "id": "c6000000-0000-4000-8000-000000000001",
+      "name": "Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        0,
+        0
+      ],
+      "webhookId": "c6000000-0000-4000-8000-0000000000a1",
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "lead-campanha-pj",
+        "authentication": "none",
+        "responseMode": "responseNode",
+        "options": {}
+      }
+    },
+    {
+      "id": "c6000000-0000-4000-8000-000000000002",
+      "name": "Validar e Normalizar",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        250,
+        0
+      ],
+      "parameters": {
+        "language": "javaScript",
+        "mode": "runOnceForAllItems",
+        "jsCode": "function chaveTelefone(telefone) {\n  const d = String(telefone ?? '').replace(/\\D/g, '');\n  return /^55\\d{10,11}$/.test(d) ? d.slice(2, 4) + d.slice(-8) : null;\n}\n\nfunction normalizarTelefone(bruto) {\n  const invalido = { ok: false, motivo: 'telefone_invalido' };\n  if (typeof bruto !== 'string' && typeof bruto !== 'number') return invalido;\n  const texto = String(bruto).trim();\n  let d = texto.replace(/\\D/g, '').replace(/^0+/, '');\n  if (texto.startsWith('+') && !d.startsWith('55')) return invalido;\n  if (d.startsWith('55') && (d.length === 12 || d.length === 13)) d = d.slice(2);\n  else if (d.length !== 10 && d.length !== 11) return invalido;\n  const ddd = d.slice(0, 2);\n  const numero = d.slice(2);\n  if (!/^[1-9][1-9]$/.test(ddd)) return invalido;\n  if (numero.length === 9 && !numero.startsWith('9')) return invalido;\n  if (numero.length === 8 && !/^[6-9]/.test(numero)) return invalido;\n  const telefone = '+55' + d;\n  return { ok: true, telefone, chave: chaveTelefone(telefone) };\n}\n\nfunction cortarAoMax(texto, max) {\n  texto = texto.slice(0, max);\n  return texto.replace(/[\\ud800-\\udbff]$/, '').trimEnd();\n}\n\nfunction sanitizarTexto(valor, max = 80) {\n  if (typeof valor === 'number') valor = Number.isFinite(valor) ? String(valor) : '';\n  if (typeof valor !== 'string') return '';\n  return valor\n    .replace(/[\\ud800-\\udbff](?![\\udc00-\\udfff])|(?<![\\ud800-\\udbff])[\\udc00-\\udfff]/g, ' ')\n    .replace(/[\\u0000-\\u001f\\u007f-\\u009f\\u00ad\\u061c\\u180e\\u200b-\\u200f\\u2028-\\u202e\\u2060-\\u2064\\u2066-\\u2069\\u206a-\\u206f\\ufff9-\\ufffb]/g, ' ')\n    .replace(/[\\u{E0000}-\\u{E007F}]/gu, ' ')\n    .replace(/\\s+/g, ' ')\n    .trim()\n    .slice(0, max)\n    .replace(/[\\ud800-\\udbff]$/, '')\n    .trimEnd();\n}\n\nfunction normalizarChave(chave) {\n  return String(chave)\n    .normalize('NFD')\n    .replace(/[\\u0300-\\u036f]/g, '')\n    .toLowerCase()\n    .replace(/[^a-z0-9]+/g, '_')\n    .replace(/^_+|_+$/g, '');\n}\n\nconst ALIASES = {\n  nome: ['nome', 'name', 'full_name', 'nome_completo'],\n  telefone: ['telefone', 'phone', 'celular', 'whatsapp', 'phone_number', 'fone', 'telefone_whatsapp'],\n  email: ['email', 'e_mail'],\n  empresa: ['empresa', 'company', 'razao_social', 'nome_da_empresa'],\n  idCampanha: ['id_campanha', 'campanha', 'campaign', 'campaign_id', 'utm_campaign'],\n  ondeDivida: ['onde_esta_a_divida', 'onde_esta_divida', 'divida_em'],\n  valor: ['valor_da_divida', 'valor', 'valor_divida'],\n  situacao: ['situacao'],\n  tipo: ['tipo', 'tipo_de_divida', 'tipo_divida'],\n};\n\nfunction extrairCampos(payload) {\n  const mapaListas = new Map();\n  for (const [chave, valor] of Object.entries(payload)) {\n    const chaveNorm = normalizarChave(chave);\n    if (!mapaListas.has(chaveNorm)) {\n      mapaListas.set(chaveNorm, []);\n    }\n    mapaListas.get(chaveNorm).push(valor);\n  }\n  const pegar = (aliases, max) => {\n    for (const alias of aliases) {\n      const valores = mapaListas.get(alias) || [];\n      for (let i = valores.length - 1; i >= 0; i--) {\n        const texto = sanitizarTexto(valores[i], max);\n        if (texto) return texto;\n      }\n    }\n    return '';\n  };\n  let telefoneSelecionado = '';\n  let primeiroNaoVazio = '';\n  for (const alias of ALIASES.telefone) {\n    const valores = mapaListas.get(alias) || [];\n    for (let i = valores.length - 1; i >= 0; i--) {\n      const valor = valores[i];\n      if (valor !== undefined && valor !== null && valor !== '') {\n        if (!primeiroNaoVazio) primeiroNaoVazio = valor;\n        const resultado = normalizarTelefone(valor);\n        if (resultado.ok) {\n          telefoneSelecionado = valor;\n          break;\n        }\n      }\n    }\n    if (telefoneSelecionado) break;\n  }\n  if (!telefoneSelecionado) telefoneSelecionado = primeiroNaoVazio;\n  return {\n    nome: pegar(ALIASES.nome, 120),\n    telefone: telefoneSelecionado,\n    email: pegar(ALIASES.email, 120),\n    empresa: pegar(ALIASES.empresa, 120),\n    idCampanha: pegar(ALIASES.idCampanha, 80),\n    ondeDivida: pegar(ALIASES.ondeDivida, 80),\n    valor: pegar(ALIASES.valor, 80),\n    situacao: pegar(ALIASES.situacao, 120),\n    tipo: pegar(ALIASES.tipo, 80),\n  };\n}\n\nfunction mapearDocumento(texto) {\n  const t = normalizarChave(texto);\n  if (t.includes('ambos') || (t.includes('cnpj') && t.includes('cpf')) || (t.includes('fisica') && t.includes('juridica'))) return 'ambos';\n  if (t.includes('cnpj') || t.includes('juridica')) return 'CNPJ';\n  if (t.includes('cpf') || t.includes('fisica')) return 'CPF';\n  return '';\n}\n\nfunction validarLead(payload) {\n  if (!payload || typeof payload !== 'object' || Array.isArray(payload)) return { ok: false, motivo: 'campo_invalido' };\n  let c;\n  try {\n    c = extrairCampos(payload);\n  } catch {\n    return { ok: false, motivo: 'campo_invalido' };\n  }\n  const tel = normalizarTelefone(c.telefone);\n  if (!tel.ok) return { ok: false, motivo: 'telefone_invalido' };\n  let email = sanitizarTexto(c.email, 120);\n  email = email.toLowerCase();\n  email = cortarAoMax(email, 120);\n  if (!email || !/^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/.test(email)) {\n    email = '';\n  }\n  const fatos = { telefone: tel.telefone, origemLead: 'formulario' };\n  if (c.nome) fatos.nomeCompleto = c.nome;\n  if (c.empresa) fatos.nomeEmpresa = c.empresa;\n  if (email) fatos.email = email;\n  if (c.tipo) fatos.tipoDivida = c.tipo;\n  if (c.valor) fatos.valorAproximado = c.valor;\n  const documento = mapearDocumento(c.ondeDivida);\n  if (documento) fatos.documento = documento;\n  if (c.situacao) fatos.situacaoFormulario = c.situacao;\n  return {\n    ok: true,\n    lead: {\n      telefone: tel.telefone,\n      telefoneChave: tel.chave,\n      nome: c.nome,\n      email,\n      empresa: c.empresa,\n      idCampanha: c.idCampanha,\n      fatos,\n    },\n  };\n}\n\n// ---- cola do Code node (gerada por gerar-node.mjs; nao editar o arquivo gerado) ----\n// O payloadBruto segue para colunas text/jsonb do Postgres, que recusam o caractere NUL e surrogate\n// solto. limparParaBanco devolve uma COPIA profunda segura:\n// - strings (e chaves) sem NUL e sem surrogate solto; o par valido fica;\n// - arrays e objetos comuns limpos recursivamente, com no maximo 200 itens/chaves cada;\n// - profundidade maxima 6 (a raiz e o nivel 0; qualquer valor no nivel 7 ou abaixo vira null);\n// - numero, booleano e null passam iguais; todo o resto (undefined, funcao, symbol, bigint, Date,\n//   Map...) vira null.\n// Nunca lanca excecao.\nfunction limparTextoParaBanco(texto) {\n  return texto\n    .replace(/\\u0000/g, '')\n    .replace(/[\\ud800-\\udbff](?![\\udc00-\\udfff])|(?<![\\ud800-\\udbff])[\\udc00-\\udfff]/g, '');\n}\n\nfunction limparParaBanco(valor, profundidade) {\n  try {\n    if (profundidade > 6) return null;\n    if (valor === null) return null;\n    if (typeof valor === 'string') return limparTextoParaBanco(valor);\n    if (typeof valor === 'number' || typeof valor === 'boolean') return valor;\n    if (typeof valor !== 'object') return null;\n    if (Array.isArray(valor)) {\n      const itens = [];\n      const total = Math.min(valor.length, 200);\n      for (let i = 0; i < total; i++) {\n        let item = null;\n        try {\n          item = valor[i];\n        } catch {\n          item = null;\n        }\n        itens.push(limparParaBanco(item, profundidade + 1));\n      }\n      return itens;\n    }\n    if (Object.prototype.toString.call(valor) !== '[object Object]') return null;\n    const pares = [];\n    for (const chave of Object.keys(valor).slice(0, 200)) {\n      let filho = null;\n      try {\n        filho = valor[chave];\n      } catch {\n        filho = null;\n      }\n      pares.push([limparTextoParaBanco(chave), limparParaBanco(filho, profundidade + 1)]);\n    }\n    return Object.fromEntries(pares);\n  } catch {\n    return null;\n  }\n}\n\nlet entrada;\nlet payloadBruto = null;\nlet r = { ok: false, motivo: 'campo_invalido' };\ntry {\n  // A leitura do item fica DENTRO do try: first() sem item, first() que lanca ou json em getter que\n  // lanca tambem viram campo_invalido com payloadBruto null, em vez de derrubar o node.\n  entrada = $input.first().json;\n  const corpo = entrada && typeof entrada === 'object' && 'body' in entrada ? entrada.body : entrada;\n  payloadBruto = limparParaBanco(corpo, 0);\n  r = validarLead(corpo);\n} catch {\n  // Item ou corpo hostil (getter ou proxy que lanca): segue como campo_invalido, sem lancar.\n}\nif (!r.ok) return [{ json: { ok: false, motivo: r.motivo, payloadBruto } }];\nreturn [{ json: { ok: true, ...r.lead, payloadBruto } }];\n"
+      }
+    },
+    {
+      "id": "c6000000-0000-4000-8000-000000000003",
+      "name": "Conferir Token",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        500,
+        0
+      ],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "select exists (select 1 from mayara.config where chave = 'webhook_lead_campanha_pj_sha256' and valor = encode(extensions.digest($1, 'sha256'), 'hex')) as ok",
+        "options": {
+          "queryReplacement": "={{ [String($('Webhook').item.json.query.token || '')] }}"
+        }
+      },
+      "credentials": {
+        "postgres": {
+          "id": "nNpCUIhnDuVvTApU",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "id": "c6000000-0000-4000-8000-000000000004",
+      "name": "Token OK?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        750,
+        0
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose"
+          },
+          "combinator": "and",
+          "conditions": [
+            {
+              "id": "c6-tok-1",
+              "leftValue": "={{ $json.ok }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ]
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "c6000000-0000-4000-8000-000000000005",
+      "name": "Responder 401",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.4,
+      "position": [
+        1000,
+        200
+      ],
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={\"ok\":false}",
+        "options": {
+          "responseCode": 401
+        }
+      }
+    },
+    {
+      "id": "c6000000-0000-4000-8000-000000000006",
+      "name": "Lead Válido?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        1000,
+        -100
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose"
+          },
+          "combinator": "and",
+          "conditions": [
+            {
+              "id": "c6-val-1",
+              "leftValue": "={{ $('Validar e Normalizar').item.json.ok }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ]
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "c6000000-0000-4000-8000-000000000007",
+      "name": "Registrar Rejeitado",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        1250,
+        -300
+      ],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "insert into mayara.leads_rejeitados (motivo, payload_bruto) values ($1, $2::jsonb)",
+        "options": {
+          "queryReplacement": "={{ [$('Validar e Normalizar').item.json.motivo, JSON.stringify($('Validar e Normalizar').item.json.payloadBruto ?? {})] }}"
+        }
+      },
+      "credentials": {
+        "postgres": {
+          "id": "nNpCUIhnDuVvTApU",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "id": "c6000000-0000-4000-8000-000000000008",
+      "name": "Alertar (rejeitado)",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.3,
+      "position": [
+        1500,
+        -300
+      ],
+      "parameters": {
+        "workflowId": {
+          "__rl": true,
+          "value": "FWSC1k1CBMWBtsNs",
+          "mode": "list",
+          "cachedResultName": "Mayara — Alertar Escritório [Sub-workflow]"
+        },
+        "workflowInputs": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "texto": "=\"Lead do formulário rejeitado: \" + $('Validar e Normalizar').item.json.motivo"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "texto",
+              "displayName": "texto",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string"
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": true
+        },
+        "options": {
+          "waitForSubWorkflow": true
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "id": "c6000000-0000-4000-8000-000000000009",
+      "name": "Responder 200 (registrado)",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.4,
+      "position": [
+        1750,
+        -200
+      ],
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={\"ok\":true,\"registrado\":false}",
+        "options": {
+          "responseCode": 200
+        }
+      }
+    },
+    {
+      "id": "c6000000-0000-4000-8000-00000000000a",
+      "name": "Dentro do Teto?",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        1250,
+        0
+      ],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "select mayara.dentro_do_teto_por_hora() as ok",
+        "options": {}
+      },
+      "credentials": {
+        "postgres": {
+          "id": "nNpCUIhnDuVvTApU",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "id": "c6000000-0000-4000-8000-00000000000b",
+      "name": "Teto OK?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        1500,
+        0
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose"
+          },
+          "combinator": "and",
+          "conditions": [
+            {
+              "id": "c6-teto-1",
+              "leftValue": "={{ $json.ok }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ]
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "c6000000-0000-4000-8000-00000000000c",
+      "name": "Registrar Teto Excedido",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        1750,
+        -100
+      ],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "insert into mayara.leads_rejeitados (motivo, payload_bruto) values ('acima_do_teto_por_hora', $1::jsonb)",
+        "options": {
+          "queryReplacement": "={{ [JSON.stringify($('Validar e Normalizar').item.json.payloadBruto ?? {})] }}"
+        }
+      },
+      "credentials": {
+        "postgres": {
+          "id": "nNpCUIhnDuVvTApU",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "id": "c6000000-0000-4000-8000-00000000000d",
+      "name": "Alertar (teto)",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.3,
+      "position": [
+        2000,
+        -100
+      ],
+      "parameters": {
+        "workflowId": {
+          "__rl": true,
+          "value": "FWSC1k1CBMWBtsNs",
+          "mode": "list",
+          "cachedResultName": "Mayara — Alertar Escritório [Sub-workflow]"
+        },
+        "workflowInputs": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "texto": "Teto de novos leads por hora atingido"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "texto",
+              "displayName": "texto",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string"
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": true
+        },
+        "options": {
+          "waitForSubWorkflow": true
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "id": "c6000000-0000-4000-8000-00000000000e",
+      "name": "Upsert Lead",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        1750,
+        100
+      ],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "select mayara.upsert_lead_autorizado($1,$2,$3,$4,$5,$6,$7::jsonb) as status",
+        "options": {
+          "queryReplacement": "={{ [$('Validar e Normalizar').item.json.telefone, $('Validar e Normalizar').item.json.nome, $('Validar e Normalizar').item.json.email, $('Validar e Normalizar').item.json.empresa, 'landing_campanha_pj', $('Validar e Normalizar').item.json.idCampanha, JSON.stringify($('Validar e Normalizar').item.json.payloadBruto ?? {})] }}"
+        }
+      },
+      "credentials": {
+        "postgres": {
+          "id": "nNpCUIhnDuVvTApU",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "id": "c6000000-0000-4000-8000-00000000000f",
+      "name": "Responder 200",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.4,
+      "position": [
+        2000,
+        100
+      ],
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={\"ok\":true,\"registrado\":true}",
+        "options": {
+          "responseCode": 200
+        }
+      }
+    },
+    {
+      "id": "c6000000-0000-4000-8000-000000000010",
+      "name": "Criar Sessão",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        2250,
+        0
+      ],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "insert into mayara.session_state (session_key, estado, fatos_json) values ($1, 'S0_NOVO', $2::jsonb) on conflict (session_key) do update set fatos_json = mayara.session_state.fatos_json || excluded.fatos_json",
+        "options": {
+          "queryReplacement": "={{ ['whatsapp:1365007506685934:' + $('Validar e Normalizar').item.json.telefone, JSON.stringify($('Validar e Normalizar').item.json.fatos)] }}"
+        }
+      },
+      "credentials": {
+        "postgres": {
+          "id": "nNpCUIhnDuVvTApU",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "id": "c6000000-0000-4000-8000-000000000011",
+      "name": "Criar Lead no EspoCRM",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        2500,
+        0
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "https://crm.camparimadvogados.com.br/api/v1/Lead",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "firstName",
+              "value": "={{ ($('Validar e Normalizar').item.json.nome || 'Lead').split(' ')[0] }}"
+            },
+            {
+              "name": "lastName",
+              "value": "={{ ($('Validar e Normalizar').item.json.nome || '').split(' ').slice(1).join(' ') || '' }}"
+            },
+            {
+              "name": "accountName",
+              "value": "={{ $('Validar e Normalizar').item.json.empresa || '' }}"
+            },
+            {
+              "name": "phoneNumber",
+              "value": "={{ $('Validar e Normalizar').item.json.telefone }}"
+            },
+            {
+              "name": "emailAddress",
+              "value": "={{ $('Validar e Normalizar').item.json.email }}"
+            },
+            {
+              "name": "description",
+              "value": "={{ 'Lead do formulário da campanha ' + ($('Validar e Normalizar').item.json.idCampanha || 'PJ') }}"
+            },
+            {
+              "name": "assignedUserId",
+              "value": "6a899d5f8a2b61a29"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "3CNvCGWMMDOyGD2n",
+          "name": "EspoCRM Integração n8n — Mayara"
+        }
+      },
+      "onError": "continueErrorOutput"
+    },
+    {
+      "id": "c6000000-0000-4000-8000-000000000012",
+      "name": "Guardar ID do Lead",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        2750,
+        -100
+      ],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "update mayara.leads_autorizados set espocrm_lead_id = $1 where telefone = $2",
+        "options": {
+          "queryReplacement": "={{ [$json.id, $('Validar e Normalizar').item.json.telefone] }}"
+        }
+      },
+      "credentials": {
+        "postgres": {
+          "id": "nNpCUIhnDuVvTApU",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "id": "c6000000-0000-4000-8000-000000000013",
+      "name": "Enfileirar Retry",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        2750,
+        100
+      ],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "select pgmq.send('mayara_crm_retry', $1::jsonb)",
+        "options": {
+          "queryReplacement": "={{ [JSON.stringify({ sessionKey: 'whatsapp:1365007506685934:' + $('Validar e Normalizar').item.json.telefone, nome: $('Validar e Normalizar').item.json.nome, telefone: $('Validar e Normalizar').item.json.telefone, email: $('Validar e Normalizar').item.json.email, empresa: $('Validar e Normalizar').item.json.empresa, descricaoLead: 'Lead do formulário da campanha ' + ($('Validar e Normalizar').item.json.idCampanha || 'PJ'), eventoCalendarioId: null, horarioInicio: null, horarioFim: null })] }}"
+        }
+      },
+      "credentials": {
+        "postgres": {
+          "id": "nNpCUIhnDuVvTApU",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "id": "c6000000-0000-4000-8000-000000000014",
+      "name": "Template Ativo?",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        2250,
+        250
+      ],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "select valor = 'true' as ativo from mayara.config where chave = 'envio_template_ativo'",
+        "options": {}
+      },
+      "credentials": {
+        "postgres": {
+          "id": "nNpCUIhnDuVvTApU",
+          "name": "Postgres account"
+        }
+      },
+      "alwaysOutputData": true
+    },
+    {
+      "id": "c6000000-0000-4000-8000-000000000015",
+      "name": "Template Ligado?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        2500,
+        250
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose"
+          },
+          "combinator": "and",
+          "conditions": [
+            {
+              "id": "c6-tpl-1",
+              "leftValue": "={{ $json.ativo }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ]
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "c6000000-0000-4000-8000-000000000016",
+      "name": "Enviar Template",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        2750,
+        250
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "https://graph.facebook.com/v25.0/1365007506685934/messages",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpBearerAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ ({ messaging_product: 'whatsapp', to: $('Validar e Normalizar').item.json.telefone.replace('+', ''), type: 'template', template: { name: 'primeiro_contato_campanha', language: { code: 'pt_BR' } } }) }}",
+        "options": {
+          "timeout": 15000
+        }
+      },
+      "credentials": {
+        "httpBearerAuth": {
+          "id": "SChAKcHay4ghJVwe",
+          "name": "Bearer Auth account"
+        }
+      },
+      "disabled": true,
+      "onError": "continueRegularOutput"
+    }
+  ],
+  "connections": {
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "Validar e Normalizar",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Validar e Normalizar": {
+      "main": [
+        [
+          {
+            "node": "Conferir Token",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Conferir Token": {
+      "main": [
+        [
+          {
+            "node": "Token OK?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Token OK?": {
+      "main": [
+        [
+          {
+            "node": "Lead Válido?",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Responder 401",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Lead Válido?": {
+      "main": [
+        [
+          {
+            "node": "Dentro do Teto?",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Registrar Rejeitado",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Registrar Rejeitado": {
+      "main": [
+        [
+          {
+            "node": "Alertar (rejeitado)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Alertar (rejeitado)": {
+      "main": [
+        [
+          {
+            "node": "Responder 200 (registrado)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Dentro do Teto?": {
+      "main": [
+        [
+          {
+            "node": "Teto OK?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Teto OK?": {
+      "main": [
+        [
+          {
+            "node": "Upsert Lead",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Registrar Teto Excedido",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Registrar Teto Excedido": {
+      "main": [
+        [
+          {
+            "node": "Alertar (teto)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Alertar (teto)": {
+      "main": [
+        [
+          {
+            "node": "Responder 200 (registrado)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Upsert Lead": {
+      "main": [
+        [
+          {
+            "node": "Responder 200",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Responder 200": {
+      "main": [
+        [
+          {
+            "node": "Criar Sessão",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Template Ativo?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Criar Sessão": {
+      "main": [
+        [
+          {
+            "node": "Criar Lead no EspoCRM",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Criar Lead no EspoCRM": {
+      "main": [
+        [
+          {
+            "node": "Guardar ID do Lead",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Enfileirar Retry",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Template Ativo?": {
+      "main": [
+        [
+          {
+            "node": "Template Ligado?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Template Ligado?": {
+      "main": [
+        [
+          {
+            "node": "Enviar Template",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  }
+}
