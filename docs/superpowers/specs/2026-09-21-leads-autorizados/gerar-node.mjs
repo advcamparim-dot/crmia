@@ -1,9 +1,9 @@
 import { readFileSync, writeFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 
-// Cola que fecha o corpo do Code node "Validar e Normalizar". Fica em String.raw para que os escapes
-// (barra-u-XXXX) cheguem ao arquivo gerado como texto, e nao como o caractere. Nao usar crase nem
-// dollar-chave dentro dela.
+// Cola que fecha o corpo do Code node "Validar e Normalizar". Nao usar crase nem dollar-chave dentro
+// dela. O codigo gerado nao pode ter escape barra-u de caractere nao ASCII nem caractere invisivel
+// literal (o transporte para o n8n corrompe os dois): as classes vem da biblioteca, montadas por numero.
 const COLA = String.raw`
 // ---- cola do Code node (gerada por gerar-node.mjs; nao editar o arquivo gerado) ----
 // O payloadBruto segue para colunas text/jsonb do Postgres, que recusam o caractere NUL e surrogate
@@ -16,8 +16,8 @@ const COLA = String.raw`
 // Nunca lanca excecao.
 function limparTextoParaBanco(texto) {
   return texto
-    .replace(/\u0000/g, '')
-    .replace(/[\ud800-\udbff](?![\udc00-\udfff])|(?<![\ud800-\udbff])[\udc00-\udfff]/g, '');
+    .replace(NUL, '')
+    .replace(SURROGATE_SOLTO, '');
 }
 
 function limparParaBanco(valor, profundidade) {

@@ -20,29 +20,58 @@ export function normalizarTelefone(bruto) {
   return { ok: true, telefone, chave: chaveTelefone(telefone) };
 }
 
+// As classes de caracteres abaixo sao montadas a partir de numeros (pares [inicio, fim] em hexadecimal)
+// para que o codigo gerado nao tenha escape barra-u nem caractere invisivel literal: os dois se perdem
+// ou se corrompem no transporte para o n8n.
+function classe(pares) {
+  return pares
+    .map(([ini, fim]) => String.fromCharCode(ini) + (fim === undefined ? '' : '-' + String.fromCharCode(fim)))
+    .join('');
+}
+
+const SURROGATE_ALTO = classe([[0xd800, 0xdbff]]);
+const SURROGATE_BAIXO = classe([[0xdc00, 0xdfff]]);
+const SURROGATE_SOLTO = new RegExp(
+  '[' + SURROGATE_ALTO + '](?![' + SURROGATE_BAIXO + '])|(?<![' + SURROGATE_ALTO + '])[' + SURROGATE_BAIXO + ']',
+  'g',
+);
+const ALTO_NO_FIM = new RegExp('[' + SURROGATE_ALTO + ']$');
+const INVISIVEIS = new RegExp(
+  '[' +
+    classe([
+      [0x0000, 0x001f], [0x007f, 0x009f], [0x00ad], [0x061c], [0x180e], [0x200b, 0x200f], [0x2028, 0x202e],
+      [0x2060, 0x2064], [0x2066, 0x2069], [0x206a, 0x206f], [0xfff9, 0xfffb],
+    ]) +
+    ']',
+  'g',
+);
+const TAGS = new RegExp('[' + String.fromCodePoint(0xe0000) + '-' + String.fromCodePoint(0xe007f) + ']', 'gu');
+const MARCAS_COMBINANTES = new RegExp('[' + classe([[0x0300, 0x036f]]) + ']', 'g');
+const NUL = new RegExp(classe([[0x0000]]), 'g');
+
 function cortarAoMax(texto, max) {
   texto = texto.slice(0, max);
-  return texto.replace(/[\ud800-\udbff]$/, '').trimEnd();
+  return texto.replace(ALTO_NO_FIM, '').trimEnd();
 }
 
 export function sanitizarTexto(valor, max = 80) {
   if (typeof valor === 'number') valor = Number.isFinite(valor) ? String(valor) : '';
   if (typeof valor !== 'string') return '';
   return valor
-    .replace(/[\ud800-\udbff](?![\udc00-\udfff])|(?<![\ud800-\udbff])[\udc00-\udfff]/g, ' ')
-    .replace(/[\u0000-\u001f\u007f-\u009f\u00ad\u061c\u180e\u200b-\u200f\u2028-\u202e\u2060-\u2064\u2066-\u2069\u206a-\u206f\ufff9-\ufffb]/g, ' ')
-    .replace(/[\u{E0000}-\u{E007F}]/gu, ' ')
+    .replace(SURROGATE_SOLTO, ' ')
+    .replace(INVISIVEIS, ' ')
+    .replace(TAGS, ' ')
     .replace(/\s+/g, ' ')
     .trim()
     .slice(0, max)
-    .replace(/[\ud800-\udbff]$/, '')
+    .replace(ALTO_NO_FIM, '')
     .trimEnd();
 }
 
 function normalizarChave(chave) {
   return String(chave)
     .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
+    .replace(MARCAS_COMBINANTES, '')
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, '_')
     .replace(/^_+|_+$/g, '');

@@ -56,6 +56,39 @@ test('o arquivo do node e exatamente o que o gerador produz (sem deriva)', () =>
   assert.equal(readFileSync(arquivo, 'utf8'), gerarCorpoDoNode());
 });
 
+// O transporte para o n8n corrompe escape barra-u de caractere nao ASCII e caractere invisivel literal.
+// O node gerado nao pode ter nenhum dos dois. As faixas abaixo sao numeros, nunca literais.
+const FAIXAS_PROIBIDAS = [
+  [0x00ad, 0x00ad], [0x061c, 0x061c], [0x180e, 0x180e], [0x200b, 0x200f], [0x2028, 0x202e],
+  [0x2060, 0x206f], [0xfff9, 0xfffb], [0x0300, 0x036f], [0xe0000, 0xe007f],
+];
+
+test('o node gerado nao tem caractere invisivel literal', () => {
+  const corpo = readFileSync(arquivo, 'utf8');
+  const achados = [];
+  for (const ch of corpo) {
+    const c = ch.codePointAt(0);
+    if (FAIXAS_PROIBIDAS.some(([ini, fim]) => c >= ini && c <= fim)) achados.push(c.toString(16));
+  }
+  assert.deepEqual(achados, []);
+});
+
+test('o node gerado nao tem escape barra-u de codepoint a partir de U+00A0', () => {
+  const corpo = readFileSync(arquivo, 'utf8');
+  const barraU = String.fromCharCode(0x5c) + 'u';
+  const achados = [];
+  let i = corpo.indexOf(barraU);
+  while (i !== -1) {
+    const resto = corpo.slice(i + 2);
+    const chaves = /^\{([0-9a-fA-F]+)\}/.exec(resto);
+    const quatro = /^([0-9a-fA-F]{4})/.exec(resto);
+    const valor = chaves ? parseInt(chaves[1], 16) : quatro ? parseInt(quatro[1], 16) : 0;
+    if (valor >= 0xa0) achados.push(valor.toString(16));
+    i = corpo.indexOf(barraU, i + 2);
+  }
+  assert.deepEqual(achados, []);
+});
+
 test('o node valido igual a biblioteca, com e sem o envelope body', () => {
   const payload = { Nome: 'Teste Silva', Telefone: '(11) 99999-0001', Tipo: 'Capital de Giro' };
   const esperado = validarLead(payload);
