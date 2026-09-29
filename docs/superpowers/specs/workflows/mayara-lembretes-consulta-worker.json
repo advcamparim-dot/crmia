@@ -1,0 +1,303 @@
+{
+  "name": "Mayara — Lembretes de Consulta [Worker]",
+  "nodes": [
+    {
+      "id": "93529bd8-91e3-42cc-a510-2af0f41b3fa8",
+      "name": "Agendamento Horario",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        0,
+        0
+      ],
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "minutes",
+              "minutesInterval": 5
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "7ad25bc1-a23f-4d17-acff-0dc75266ea21",
+      "name": "Teste Manual (Webhook)",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        0,
+        200
+      ],
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "lembretes-consulta-teste",
+        "options": {}
+      },
+      "webhookId": "25a235b4-b041-42c9-b5b0-6bf1d4787f97",
+      "disabled": true
+    },
+    {
+      "id": "c341a476-a291-4563-88ef-e459e1235457",
+      "name": "Segredo de Teste OK?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        220,
+        200
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "version": 2,
+            "leftValue": "",
+            "caseSensitive": true,
+            "typeValidation": "strict"
+          },
+          "combinator": "and",
+          "conditions": [
+            {
+              "leftValue": "={{ $json.headers['x-test-secret'] }}",
+              "rightValue": "<SEGREDO_DE_TESTE>",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              },
+              "id": "sc1"
+            }
+          ]
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "58276f7d-d13a-4916-90a3-fbc0e084af21",
+      "name": "Buscar e Reservar Lembretes",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        440,
+        0
+      ],
+      "onError": "continueRegularOutput",
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "with elegivel as (\n  select session_key,\n    case\n      when now() >= consulta_agendada_em - interval '15 minutes' and lembrete_consulta_estagio <> '15min' then '15min'\n      when now() >= consulta_agendada_em - interval '1 hour' and lembrete_consulta_estagio not in ('1h', '15min') then '1h'\n      when now() >= consulta_agendada_em - interval '1 day' and lembrete_consulta_estagio = 'nenhum' then '1dia'\n      else null\n    end as proximo_estagio\n  from mayara.session_state\n  where estado = 'S6_AGENDADO'\n    and follow_up_status not in ('excluido_seguranca')\n    and consulta_agendada_em is not null\n    and consulta_agendada_em > now()\n    and lembrete_consulta_estagio <> '15min'\n    and mayara.lead_ativo_da_sessao(session_key)\n  for update skip locked\n)\nupdate mayara.session_state s\nset lembrete_consulta_estagio = e.proximo_estagio,\n    follow_up_status = case when e.proximo_estagio = '15min' then 'transferido_consulta' else s.follow_up_status end\nfrom elegivel e\nwhere s.session_key = e.session_key\n  and e.proximo_estagio is not null\nreturning s.session_key, s.phone, s.phone_number_id, s.estado, s.fatos_json::text as \"fatosJson\", s.consulta_agendada_em, e.proximo_estagio;",
+        "options": {}
+      },
+      "credentials": {
+        "postgres": {
+          "id": "nNpCUIhnDuVvTApU",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "id": "5cd7f4c9-0198-4611-a2da-538bec9fdeed",
+      "name": "Reserva Valida?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        660,
+        0
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "version": 2,
+            "leftValue": "",
+            "caseSensitive": true,
+            "typeValidation": "loose"
+          },
+          "combinator": "and",
+          "conditions": [
+            {
+              "leftValue": "={{ $json.session_key }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "notEmpty"
+              },
+              "id": "v1"
+            },
+            {
+              "leftValue": "={{ $json.phone }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "notEmpty"
+              },
+              "id": "v2"
+            }
+          ]
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "bc2baea8-08f4-4758-b69b-1002a7c7c6c1",
+      "name": "Montar Template do Lembrete",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        880,
+        0
+      ],
+      "parameters": {
+        "jsCode": "const items = $input.all();\nconst out = [];\nfor (const entry of items) {\n  const item = entry.json;\n  const fatos = JSON.parse(item.fatosJson || '{}');\n  const nome = (fatos.nomeCompleto || fatos.nomeLead || fatos.nome || '').split(' ')[0] || 'tudo bem';\n  const dataHora = new Date(item.consulta_agendada_em).toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo', dateStyle: 'short', timeStyle: 'short' });\n  const horaCurta = new Date(item.consulta_agendada_em).toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo', hour: '2-digit', minute: '2-digit' });\n\n  const templates = {\n    '1dia': { nome: 'lembrete_consulta_1dia', variaveis: [nome, dataHora, horaCurta] },\n    '1h':   { nome: 'lembrete_consulta_1hora', variaveis: [nome, horaCurta] },\n    '15min':{ nome: 'lembrete_consulta_transferencia', variaveis: [nome] }\n  };\n\n  const escolhido = templates[item.proximo_estagio];\n  if (!escolhido) {\n    out.push({ json: { ...item, templateValido: false } });\n  } else {\n    out.push({ json: { ...item, templateValido: true, templateNome: escolhido.nome, templateVariaveis: escolhido.variaveis } });\n  }\n}\nreturn out;"
+      }
+    },
+    {
+      "id": "d88c70d6-ae0a-4320-9d7d-4178cd79cacb",
+      "name": "Template Valido?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        1100,
+        0
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "version": 2,
+            "leftValue": "",
+            "caseSensitive": true,
+            "typeValidation": "loose"
+          },
+          "combinator": "and",
+          "conditions": [
+            {
+              "leftValue": "={{ $json.templateValido }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              },
+              "id": "t1"
+            }
+          ]
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "5a577097-132d-4338-9516-1b914818198c",
+      "name": "Enviar Lembrete via Graph API",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        1320,
+        0
+      ],
+      "onError": "continueRegularOutput",
+      "parameters": {
+        "method": "POST",
+        "url": "=https://graph.facebook.com/v25.0/{{ $json.phone_number_id }}/messages",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpBearerAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ messaging_product: 'whatsapp', to: $json.phone.replace(/\\D/g, ''), type: 'template', template: { name: $json.templateNome, language: { code: 'pt_BR' }, components: [{ type: 'body', parameters: $json.templateVariaveis.map(v => ({ type: 'text', text: String(v) })) }] } }) }}",
+        "options": {
+          "timeout": 25000
+        }
+      },
+      "credentials": {
+        "httpBearerAuth": {
+          "id": "SChAKcHay4ghJVwe",
+          "name": "Bearer Auth account"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Agendamento Horario": {
+      "main": [
+        [
+          {
+            "node": "Buscar e Reservar Lembretes",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Teste Manual (Webhook)": {
+      "main": [
+        [
+          {
+            "node": "Segredo de Teste OK?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Segredo de Teste OK?": {
+      "main": [
+        [
+          {
+            "node": "Buscar e Reservar Lembretes",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Buscar e Reservar Lembretes": {
+      "main": [
+        [
+          {
+            "node": "Reserva Valida?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Reserva Valida?": {
+      "main": [
+        [
+          {
+            "node": "Montar Template do Lembrete",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Montar Template do Lembrete": {
+      "main": [
+        [
+          {
+            "node": "Template Valido?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Template Valido?": {
+      "main": [
+        [
+          {
+            "node": "Enviar Lembrete via Graph API",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "saveDataErrorExecution": "all",
+    "saveDataSuccessExecution": "all",
+    "saveManualExecutions": true,
+    "saveExecutionProgress": true,
+    "callerPolicy": "workflowsFromSameOwner",
+    "availableInMCP": false
+  }
+}

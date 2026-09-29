@@ -99,7 +99,7 @@
       "onError": "continueRegularOutput",
       "parameters": {
         "operation": "executeQuery",
-        "query": "with claimed as (\n  select session_key\n  from mayara.session_state\n  where follow_up_status = 'ativo'\n    and follow_up_stage = 'nenhum'\n    and phone is not null\n    and estado not in ('S6_AGENDADO', 'S7_HANDOFF_HUMANO', 'S3_PRIORIDADE_JURIDICA')\n    and coalesce(fatos_json->>'situacaoJudicial', 'nenhuma') not in ('execucao', 'execução', 'recuperacao_judicial', 'recuperação_judicial', 'falencia', 'falência')\n    and last_lead_message_at is not null\n    and now() - last_lead_message_at >= interval '4 hours'\n    and now() - last_lead_message_at < interval '24 hours'\n  order by last_lead_message_at\n  for update skip locked\n  limit 20\n)\nupdate mayara.session_state s\nset follow_up_stage = 'ia_sumiu_meio',\n    follow_up_last_sent_at = now(),\n    follow_up_tentativas = follow_up_tentativas + 1\nfrom claimed\nwhere s.session_key = claimed.session_key\nreturning s.session_key, s.phone, s.phone_number_id, s.estado, s.fatos_json;",
+        "query": "with claimed as (\n  select session_key\n  from mayara.session_state\n  where follow_up_status = 'ativo'\n    and follow_up_stage = 'nenhum'\n    and phone is not null\n    and estado not in ('S6_AGENDADO', 'S7_HANDOFF_HUMANO', 'S3_PRIORIDADE_JURIDICA')\n    and coalesce(fatos_json->>'situacaoJudicial', 'nenhuma') not in ('execucao', 'execução', 'recuperacao_judicial', 'recuperação_judicial', 'falencia', 'falência')\n    and last_lead_message_at is not null\n    and now() - last_lead_message_at >= interval '4 hours'\n    and now() - last_lead_message_at < interval '24 hours'\n    and mayara.lead_ativo_da_sessao(session_key)\n  order by last_lead_message_at\n  for update skip locked\n  limit 20\n)\nupdate mayara.session_state s\nset follow_up_stage = 'ia_sumiu_meio',\n    follow_up_last_sent_at = now(),\n    follow_up_tentativas = follow_up_tentativas + 1\nfrom claimed\nwhere s.session_key = claimed.session_key\nreturning s.session_key, s.phone, s.phone_number_id, s.estado, s.fatos_json;",
         "options": {}
       },
       "credentials": {
@@ -309,7 +309,7 @@
           "conditions": [
             {
               "leftValue": "={{ $json.headers['x-test-secret'] }}",
-              "rightValue": "REDACTED_SECRET_VER_NO_N8N",
+              "rightValue": "<SEGREDO_DE_TESTE>",
               "operator": {
                 "type": "string",
                 "operation": "equals"
