@@ -31,7 +31,7 @@
       "parameters": {
         "language": "javaScript",
         "mode": "runOnceForAllItems",
-        "jsCode": "function chaveTelefone(telefone) {\n  const d = String(telefone ?? '').replace(/\\D/g, '');\n  return /^55\\d{10,11}$/.test(d) ? d.slice(2, 4) + d.slice(-8) : null;\n}\n\nfunction normalizarTelefone(bruto) {\n  const invalido = { ok: false, motivo: 'telefone_invalido' };\n  if (typeof bruto !== 'string' && typeof bruto !== 'number') return invalido;\n  const texto = String(bruto).trim();\n  let d = texto.replace(/\\D/g, '').replace(/^0+/, '');\n  if (texto.startsWith('+') && !d.startsWith('55')) return invalido;\n  if (d.startsWith('55') && (d.length === 12 || d.length === 13)) d = d.slice(2);\n  else if (d.length !== 10 && d.length !== 11) return invalido;\n  const ddd = d.slice(0, 2);\n  const numero = d.slice(2);\n  if (!/^[1-9][1-9]$/.test(ddd)) return invalido;\n  if (numero.length === 9 && !numero.startsWith('9')) return invalido;\n  if (numero.length === 8 && !/^[6-9]/.test(numero)) return invalido;\n  const telefone = '+55' + d;\n  return { ok: true, telefone, chave: chaveTelefone(telefone) };\n}\n\nfunction cortarAoMax(texto, max) {\n  texto = texto.slice(0, max);\n  return texto.replace(/[\\ud800-\\udbff]$/, '').trimEnd();\n}\n\nfunction sanitizarTexto(valor, max = 80) {\n  if (typeof valor === 'number') valor = Number.isFinite(valor) ? String(valor) : '';\n  if (typeof valor !== 'string') return '';\n  return valor\n    .replace(/[\\ud800-\\udbff](?![\\udc00-\\udfff])|(?<![\\ud800-\\udbff])[\\udc00-\\udfff]/g, ' ')\n    .replace(/[\\u0000-\\u001f\\u007f-\\u009f\\u00ad\\u061c\\u180e\\u200b-\\u200f\\u2028-\\u202e\\u2060-\\u2064\\u2066-\\u2069\\u206a-\\u206f\\ufff9-\\ufffb]/g, ' ')\n    .replace(/[\\u{E0000}-\\u{E007F}]/gu, ' ')\n    .replace(/\\s+/g, ' ')\n    .trim()\n    .slice(0, max)\n    .replace(/[\\ud800-\\udbff]$/, '')\n    .trimEnd();\n}\n\nfunction normalizarChave(chave) {\n  return String(chave)\n    .normalize('NFD')\n    .replace(/[\\u0300-\\u036f]/g, '')\n    .toLowerCase()\n    .replace(/[^a-z0-9]+/g, '_')\n    .replace(/^_+|_+$/g, '');\n}\n\nconst ALIASES = {\n  nome: ['nome', 'name', 'full_name', 'nome_completo'],\n  telefone: ['telefone', 'phone', 'celular', 'whatsapp', 'phone_number', 'fone', 'telefone_whatsapp'],\n  email: ['email', 'e_mail'],\n  empresa: ['empresa', 'company', 'razao_social', 'nome_da_empresa'],\n  idCampanha: ['id_campanha', 'campanha', 'campaign', 'campaign_id', 'utm_campaign'],\n  ondeDivida: ['onde_esta_a_divida', 'onde_esta_divida', 'divida_em'],\n  valor: ['valor_da_divida', 'valor', 'valor_divida'],\n  situacao: ['situacao'],\n  tipo: ['tipo', 'tipo_de_divida', 'tipo_divida'],\n};\n\nfunction extrairCampos(payload) {\n  const mapaListas = new Map();\n  for (const [chave, valor] of Object.entries(payload)) {\n    const chaveNorm = normalizarChave(chave);\n    if (!mapaListas.has(chaveNorm)) {\n      mapaListas.set(chaveNorm, []);\n    }\n    mapaListas.get(chaveNorm).push(valor);\n  }\n  const pegar = (aliases, max) => {\n    for (const alias of aliases) {\n      const valores = mapaListas.get(alias) || [];\n      for (let i = valores.length - 1; i >= 0; i--) {\n        const texto = sanitizarTexto(valores[i], max);\n        if (texto) return texto;\n      }\n    }\n    return '';\n  };\n  let telefoneSelecionado = '';\n  let primeiroNaoVazio = '';\n  for (const alias of ALIASES.telefone) {\n    const valores = mapaListas.get(alias) || [];\n    for (let i = valores.length - 1; i >= 0; i--) {\n      const valor = valores[i];\n      if (valor !== undefined && valor !== null && valor !== '') {\n        if (!primeiroNaoVazio) primeiroNaoVazio = valor;\n        const resultado = normalizarTelefone(valor);\n        if (resultado.ok) {\n          telefoneSelecionado = valor;\n          break;\n        }\n      }\n    }\n    if (telefoneSelecionado) break;\n  }\n  if (!telefoneSelecionado) telefoneSelecionado = primeiroNaoVazio;\n  return {\n    nome: pegar(ALIASES.nome, 120),\n    telefone: telefoneSelecionado,\n    email: pegar(ALIASES.email, 120),\n    empresa: pegar(ALIASES.empresa, 120),\n    idCampanha: pegar(ALIASES.idCampanha, 80),\n    ondeDivida: pegar(ALIASES.ondeDivida, 80),\n    valor: pegar(ALIASES.valor, 80),\n    situacao: pegar(ALIASES.situacao, 120),\n    tipo: pegar(ALIASES.tipo, 80),\n  };\n}\n\nfunction mapearDocumento(texto) {\n  const t = normalizarChave(texto);\n  if (t.includes('ambos') || (t.includes('cnpj') && t.includes('cpf')) || (t.includes('fisica') && t.includes('juridica'))) return 'ambos';\n  if (t.includes('cnpj') || t.includes('juridica')) return 'CNPJ';\n  if (t.includes('cpf') || t.includes('fisica')) return 'CPF';\n  return '';\n}\n\nfunction validarLead(payload) {\n  if (!payload || typeof payload !== 'object' || Array.isArray(payload)) return { ok: false, motivo: 'campo_invalido' };\n  let c;\n  try {\n    c = extrairCampos(payload);\n  } catch {\n    return { ok: false, motivo: 'campo_invalido' };\n  }\n  const tel = normalizarTelefone(c.telefone);\n  if (!tel.ok) return { ok: false, motivo: 'telefone_invalido' };\n  let email = sanitizarTexto(c.email, 120);\n  email = email.toLowerCase();\n  email = cortarAoMax(email, 120);\n  if (!email || !/^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/.test(email)) {\n    email = '';\n  }\n  const fatos = { telefone: tel.telefone, origemLead: 'formulario' };\n  if (c.nome) fatos.nomeCompleto = c.nome;\n  if (c.empresa) fatos.nomeEmpresa = c.empresa;\n  if (email) fatos.email = email;\n  if (c.tipo) fatos.tipoDivida = c.tipo;\n  if (c.valor) fatos.valorAproximado = c.valor;\n  const documento = mapearDocumento(c.ondeDivida);\n  if (documento) fatos.documento = documento;\n  if (c.situacao) fatos.situacaoFormulario = c.situacao;\n  return {\n    ok: true,\n    lead: {\n      telefone: tel.telefone,\n      telefoneChave: tel.chave,\n      nome: c.nome,\n      email,\n      empresa: c.empresa,\n      idCampanha: c.idCampanha,\n      fatos,\n    },\n  };\n}\n\n// ---- cola do Code node (gerada por gerar-node.mjs; nao editar o arquivo gerado) ----\n// O payloadBruto segue para colunas text/jsonb do Postgres, que recusam o caractere NUL e surrogate\n// solto. limparParaBanco devolve uma COPIA profunda segura:\n// - strings (e chaves) sem NUL e sem surrogate solto; o par valido fica;\n// - arrays e objetos comuns limpos recursivamente, com no maximo 200 itens/chaves cada;\n// - profundidade maxima 6 (a raiz e o nivel 0; qualquer valor no nivel 7 ou abaixo vira null);\n// - numero, booleano e null passam iguais; todo o resto (undefined, funcao, symbol, bigint, Date,\n//   Map...) vira null.\n// Nunca lanca excecao.\nfunction limparTextoParaBanco(texto) {\n  return texto\n    .replace(/\\u0000/g, '')\n    .replace(/[\\ud800-\\udbff](?![\\udc00-\\udfff])|(?<![\\ud800-\\udbff])[\\udc00-\\udfff]/g, '');\n}\n\nfunction limparParaBanco(valor, profundidade) {\n  try {\n    if (profundidade > 6) return null;\n    if (valor === null) return null;\n    if (typeof valor === 'string') return limparTextoParaBanco(valor);\n    if (typeof valor === 'number' || typeof valor === 'boolean') return valor;\n    if (typeof valor !== 'object') return null;\n    if (Array.isArray(valor)) {\n      const itens = [];\n      const total = Math.min(valor.length, 200);\n      for (let i = 0; i < total; i++) {\n        let item = null;\n        try {\n          item = valor[i];\n        } catch {\n          item = null;\n        }\n        itens.push(limparParaBanco(item, profundidade + 1));\n      }\n      return itens;\n    }\n    if (Object.prototype.toString.call(valor) !== '[object Object]') return null;\n    const pares = [];\n    for (const chave of Object.keys(valor).slice(0, 200)) {\n      let filho = null;\n      try {\n        filho = valor[chave];\n      } catch {\n        filho = null;\n      }\n      pares.push([limparTextoParaBanco(chave), limparParaBanco(filho, profundidade + 1)]);\n    }\n    return Object.fromEntries(pares);\n  } catch {\n    return null;\n  }\n}\n\nlet entrada;\nlet payloadBruto = null;\nlet r = { ok: false, motivo: 'campo_invalido' };\ntry {\n  // A leitura do item fica DENTRO do try: first() sem item, first() que lanca ou json em getter que\n  // lanca tambem viram campo_invalido com payloadBruto null, em vez de derrubar o node.\n  entrada = $input.first().json;\n  const corpo = entrada && typeof entrada === 'object' && 'body' in entrada ? entrada.body : entrada;\n  payloadBruto = limparParaBanco(corpo, 0);\n  r = validarLead(corpo);\n} catch {\n  // Item ou corpo hostil (getter ou proxy que lanca): segue como campo_invalido, sem lancar.\n}\nif (!r.ok) return [{ json: { ok: false, motivo: r.motivo, payloadBruto } }];\nreturn [{ json: { ok: true, ...r.lead, payloadBruto } }];\n"
+        "jsCode": "function chaveTelefone(telefone) {\n  const d = String(telefone ?? '').replace(/\\D/g, '');\n  return /^55\\d{10,11}$/.test(d) ? d.slice(2, 4) + d.slice(-8) : null;\n}\n\nfunction normalizarTelefone(bruto) {\n  const invalido = { ok: false, motivo: 'telefone_invalido' };\n  if (typeof bruto !== 'string' && typeof bruto !== 'number') return invalido;\n  const texto = String(bruto).trim();\n  let d = texto.replace(/\\D/g, '').replace(/^0+/, '');\n  if (texto.startsWith('+') && !d.startsWith('55')) return invalido;\n  if (d.startsWith('55') && (d.length === 12 || d.length === 13)) d = d.slice(2);\n  else if (d.length !== 10 && d.length !== 11) return invalido;\n  const ddd = d.slice(0, 2);\n  const numero = d.slice(2);\n  if (!/^[1-9][1-9]$/.test(ddd)) return invalido;\n  if (numero.length === 9 && !numero.startsWith('9')) return invalido;\n  if (numero.length === 8 && !/^[6-9]/.test(numero)) return invalido;\n  const telefone = '+55' + d;\n  return { ok: true, telefone, chave: chaveTelefone(telefone) };\n}\n\n// As classes de caracteres abaixo sao montadas a partir de numeros (pares [inicio, fim] em hexadecimal)\n// para que o codigo gerado nao tenha escape barra-u nem caractere invisivel literal: os dois se perdem\n// ou se corrompem no transporte para o n8n.\nfunction classe(pares) {\n  return pares\n    .map(([ini, fim]) => String.fromCharCode(ini) + (fim === undefined ? '' : '-' + String.fromCharCode(fim)))\n    .join('');\n}\n\nconst SURROGATE_ALTO = classe([[0xd800, 0xdbff]]);\nconst SURROGATE_BAIXO = classe([[0xdc00, 0xdfff]]);\nconst SURROGATE_SOLTO = new RegExp(\n  '[' + SURROGATE_ALTO + '](?![' + SURROGATE_BAIXO + '])|(?<![' + SURROGATE_ALTO + '])[' + SURROGATE_BAIXO + ']',\n  'g',\n);\nconst ALTO_NO_FIM = new RegExp('[' + SURROGATE_ALTO + ']$');\nconst INVISIVEIS = new RegExp(\n  '[' +\n    classe([\n      [0x0000, 0x001f], [0x007f, 0x009f], [0x00ad], [0x061c], [0x180e], [0x200b, 0x200f], [0x2028, 0x202e],\n      [0x2060, 0x2064], [0x2066, 0x2069], [0x206a, 0x206f], [0xfff9, 0xfffb],\n    ]) +\n    ']',\n  'g',\n);\nconst TAGS = new RegExp('[' + String.fromCodePoint(0xe0000) + '-' + String.fromCodePoint(0xe007f) + ']', 'gu');\nconst MARCAS_COMBINANTES = new RegExp('[' + classe([[0x0300, 0x036f]]) + ']', 'g');\nconst NUL = new RegExp(classe([[0x0000]]), 'g');\n\nfunction cortarAoMax(texto, max) {\n  texto = texto.slice(0, max);\n  return texto.replace(ALTO_NO_FIM, '').trimEnd();\n}\n\nfunction sanitizarTexto(valor, max = 80) {\n  if (typeof valor === 'number') valor = Number.isFinite(valor) ? String(valor) : '';\n  if (typeof valor !== 'string') return '';\n  return valor\n    .replace(SURROGATE_SOLTO, ' ')\n    .replace(INVISIVEIS, ' ')\n    .replace(TAGS, ' ')\n    .replace(/\\s+/g, ' ')\n    .trim()\n    .slice(0, max)\n    .replace(ALTO_NO_FIM, '')\n    .trimEnd();\n}\n\nfunction normalizarChave(chave) {\n  return String(chave)\n    .normalize('NFD')\n    .replace(MARCAS_COMBINANTES, '')\n    .toLowerCase()\n    .replace(/[^a-z0-9]+/g, '_')\n    .replace(/^_+|_+$/g, '');\n}\n\nconst ALIASES = {\n  nome: ['nome', 'name', 'full_name', 'nome_completo'],\n  telefone: ['telefone', 'phone', 'celular', 'whatsapp', 'phone_number', 'fone', 'telefone_whatsapp'],\n  email: ['email', 'e_mail'],\n  empresa: ['empresa', 'company', 'razao_social', 'nome_da_empresa'],\n  idCampanha: ['id_campanha', 'campanha', 'campaign', 'campaign_id', 'utm_campaign'],\n  ondeDivida: ['onde_esta_a_divida', 'onde_esta_divida', 'divida_em'],\n  valor: ['valor_da_divida', 'valor', 'valor_divida'],\n  situacao: ['situacao'],\n  tipo: ['tipo', 'tipo_de_divida', 'tipo_divida'],\n};\n\nfunction extrairCampos(payload) {\n  const mapaListas = new Map();\n  for (const [chave, valor] of Object.entries(payload)) {\n    const chaveNorm = normalizarChave(chave);\n    if (!mapaListas.has(chaveNorm)) {\n      mapaListas.set(chaveNorm, []);\n    }\n    mapaListas.get(chaveNorm).push(valor);\n  }\n  const pegar = (aliases, max) => {\n    for (const alias of aliases) {\n      const valores = mapaListas.get(alias) || [];\n      for (let i = valores.length - 1; i >= 0; i--) {\n        const texto = sanitizarTexto(valores[i], max);\n        if (texto) return texto;\n      }\n    }\n    return '';\n  };\n  let telefoneSelecionado = '';\n  let primeiroNaoVazio = '';\n  for (const alias of ALIASES.telefone) {\n    const valores = mapaListas.get(alias) || [];\n    for (let i = valores.length - 1; i >= 0; i--) {\n      const valor = valores[i];\n      if (valor !== undefined && valor !== null && valor !== '') {\n        if (!primeiroNaoVazio) primeiroNaoVazio = valor;\n        const resultado = normalizarTelefone(valor);\n        if (resultado.ok) {\n          telefoneSelecionado = valor;\n          break;\n        }\n      }\n    }\n    if (telefoneSelecionado) break;\n  }\n  if (!telefoneSelecionado) telefoneSelecionado = primeiroNaoVazio;\n  return {\n    nome: pegar(ALIASES.nome, 120),\n    telefone: telefoneSelecionado,\n    email: pegar(ALIASES.email, 120),\n    empresa: pegar(ALIASES.empresa, 120),\n    idCampanha: pegar(ALIASES.idCampanha, 80),\n    ondeDivida: pegar(ALIASES.ondeDivida, 80),\n    valor: pegar(ALIASES.valor, 80),\n    situacao: pegar(ALIASES.situacao, 120),\n    tipo: pegar(ALIASES.tipo, 80),\n  };\n}\n\nfunction mapearDocumento(texto) {\n  const t = normalizarChave(texto);\n  if (t.includes('ambos') || (t.includes('cnpj') && t.includes('cpf')) || (t.includes('fisica') && t.includes('juridica'))) return 'ambos';\n  if (t.includes('cnpj') || t.includes('juridica')) return 'CNPJ';\n  if (t.includes('cpf') || t.includes('fisica')) return 'CPF';\n  return '';\n}\n\nfunction validarLead(payload) {\n  if (!payload || typeof payload !== 'object' || Array.isArray(payload)) return { ok: false, motivo: 'campo_invalido' };\n  let c;\n  try {\n    c = extrairCampos(payload);\n  } catch {\n    return { ok: false, motivo: 'campo_invalido' };\n  }\n  const tel = normalizarTelefone(c.telefone);\n  if (!tel.ok) return { ok: false, motivo: 'telefone_invalido' };\n  let email = sanitizarTexto(c.email, 120);\n  email = email.toLowerCase();\n  email = cortarAoMax(email, 120);\n  if (!email || !/^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/.test(email)) {\n    email = '';\n  }\n  const fatos = { telefone: tel.telefone, origemLead: 'formulario' };\n  if (c.nome) fatos.nomeCompleto = c.nome;\n  if (c.empresa) fatos.nomeEmpresa = c.empresa;\n  if (email) fatos.email = email;\n  if (c.tipo) fatos.tipoDivida = c.tipo;\n  if (c.valor) fatos.valorAproximado = c.valor;\n  const documento = mapearDocumento(c.ondeDivida);\n  if (documento) fatos.documento = documento;\n  if (c.situacao) fatos.situacaoFormulario = c.situacao;\n  return {\n    ok: true,\n    lead: {\n      telefone: tel.telefone,\n      telefoneChave: tel.chave,\n      nome: c.nome,\n      email,\n      empresa: c.empresa,\n      idCampanha: c.idCampanha,\n      fatos,\n    },\n  };\n}\n\n// ---- cola do Code node (gerada por gerar-node.mjs; nao editar o arquivo gerado) ----\n// O payloadBruto segue para colunas text/jsonb do Postgres, que recusam o caractere NUL e surrogate\n// solto. limparParaBanco devolve uma COPIA profunda segura:\n// - strings (e chaves) sem NUL e sem surrogate solto; o par valido fica;\n// - arrays e objetos comuns limpos recursivamente, com no maximo 200 itens/chaves cada;\n// - profundidade maxima 6 (a raiz e o nivel 0; qualquer valor no nivel 7 ou abaixo vira null);\n// - numero, booleano e null passam iguais; todo o resto (undefined, funcao, symbol, bigint, Date,\n//   Map...) vira null.\n// Nunca lanca excecao.\nfunction limparTextoParaBanco(texto) {\n  return texto\n    .replace(NUL, '')\n    .replace(SURROGATE_SOLTO, '');\n}\n\nfunction limparParaBanco(valor, profundidade) {\n  try {\n    if (profundidade > 6) return null;\n    if (valor === null) return null;\n    if (typeof valor === 'string') return limparTextoParaBanco(valor);\n    if (typeof valor === 'number' || typeof valor === 'boolean') return valor;\n    if (typeof valor !== 'object') return null;\n    if (Array.isArray(valor)) {\n      const itens = [];\n      const total = Math.min(valor.length, 200);\n      for (let i = 0; i < total; i++) {\n        let item = null;\n        try {\n          item = valor[i];\n        } catch {\n          item = null;\n        }\n        itens.push(limparParaBanco(item, profundidade + 1));\n      }\n      return itens;\n    }\n    if (Object.prototype.toString.call(valor) !== '[object Object]') return null;\n    const pares = [];\n    for (const chave of Object.keys(valor).slice(0, 200)) {\n      let filho = null;\n      try {\n        filho = valor[chave];\n      } catch {\n        filho = null;\n      }\n      pares.push([limparTextoParaBanco(chave), limparParaBanco(filho, profundidade + 1)]);\n    }\n    return Object.fromEntries(pares);\n  } catch {\n    return null;\n  }\n}\n\nlet entrada;\nlet payloadBruto = null;\nlet r = { ok: false, motivo: 'campo_invalido' };\ntry {\n  // A leitura do item fica DENTRO do try: first() sem item, first() que lanca ou json em getter que\n  // lanca tambem viram campo_invalido com payloadBruto null, em vez de derrubar o node.\n  entrada = $input.first().json;\n  const corpo = entrada && typeof entrada === 'object' && 'body' in entrada ? entrada.body : entrada;\n  payloadBruto = limparParaBanco(corpo, 0);\n  r = validarLead(corpo);\n} catch {\n  // Item ou corpo hostil (getter ou proxy que lanca): segue como campo_invalido, sem lancar.\n}\nif (!r.ok) return [{ json: { ok: false, motivo: r.motivo, payloadBruto } }];\nreturn [{ json: { ok: true, ...r.lead, payloadBruto } }];\n"
       }
     },
     {
@@ -69,8 +69,9 @@
       "parameters": {
         "conditions": {
           "options": {
-            "caseSensitive": true,
+            "version": 2,
             "leftValue": "",
+            "caseSensitive": true,
             "typeValidation": "loose"
           },
           "combinator": "and",
@@ -119,8 +120,9 @@
       "parameters": {
         "conditions": {
           "options": {
-            "caseSensitive": true,
+            "version": 2,
             "leftValue": "",
+            "caseSensitive": true,
             "typeValidation": "loose"
           },
           "combinator": "and",
@@ -182,7 +184,7 @@
         "workflowInputs": {
           "mappingMode": "defineBelow",
           "value": {
-            "texto": "=\"Lead do formulário rejeitado: \" + $('Validar e Normalizar').item.json.motivo"
+            "texto": "=Lead do formulário rejeitado: {{ $('Validar e Normalizar').item.json.motivo }}"
           },
           "matchingColumns": [],
           "schema": [
@@ -255,8 +257,9 @@
       "parameters": {
         "conditions": {
           "options": {
-            "caseSensitive": true,
+            "version": 2,
             "leftValue": "",
+            "caseSensitive": true,
             "typeValidation": "loose"
           },
           "combinator": "and",
@@ -485,29 +488,6 @@
       }
     },
     {
-      "id": "c6000000-0000-4000-8000-000000000013",
-      "name": "Enfileirar Retry",
-      "type": "n8n-nodes-base.postgres",
-      "typeVersion": 2.6,
-      "position": [
-        2750,
-        100
-      ],
-      "parameters": {
-        "operation": "executeQuery",
-        "query": "select pgmq.send('mayara_crm_retry', $1::jsonb)",
-        "options": {
-          "queryReplacement": "={{ [JSON.stringify({ sessionKey: 'whatsapp:1365007506685934:' + $('Validar e Normalizar').item.json.telefone, nome: $('Validar e Normalizar').item.json.nome, telefone: $('Validar e Normalizar').item.json.telefone, email: $('Validar e Normalizar').item.json.email, empresa: $('Validar e Normalizar').item.json.empresa, descricaoLead: 'Lead do formulário da campanha ' + ($('Validar e Normalizar').item.json.idCampanha || 'PJ'), eventoCalendarioId: null, horarioInicio: null, horarioFim: null })] }}"
-        }
-      },
-      "credentials": {
-        "postgres": {
-          "id": "nNpCUIhnDuVvTApU",
-          "name": "Postgres account"
-        }
-      }
-    },
-    {
       "id": "c6000000-0000-4000-8000-000000000014",
       "name": "Template Ativo?",
       "type": "n8n-nodes-base.postgres",
@@ -541,8 +521,9 @@
       "parameters": {
         "conditions": {
           "options": {
-            "caseSensitive": true,
+            "version": 2,
             "leftValue": "",
+            "caseSensitive": true,
             "typeValidation": "loose"
           },
           "combinator": "and",
@@ -555,6 +536,15 @@
                 "type": "boolean",
                 "operation": "true",
                 "singleValue": true
+              }
+            },
+            {
+              "id": "c6-tpl-2",
+              "leftValue": "={{ $('Upsert Lead').item.json.status }}",
+              "rightValue": "ativo",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
               }
             }
           ]
@@ -590,6 +580,48 @@
         }
       },
       "disabled": true,
+      "onError": "continueRegularOutput"
+    },
+    {
+      "id": "c6000000-0000-4000-8000-000000000017",
+      "name": "Alertar (CRM falhou)",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.3,
+      "position": [
+        2750,
+        100
+      ],
+      "parameters": {
+        "workflowId": {
+          "__rl": true,
+          "value": "FWSC1k1CBMWBtsNs",
+          "mode": "list",
+          "cachedResultName": "Mayara — Alertar Escritório [Sub-workflow]"
+        },
+        "workflowInputs": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "texto": "=Falha ao criar o lead do formulário no EspoCRM (criar manualmente): {{ $('Validar e Normalizar').item.json.nome }}"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "texto",
+              "displayName": "texto",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string"
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": true
+        },
+        "options": {
+          "waitForSubWorkflow": true
+        }
+      },
       "onError": "continueRegularOutput"
     }
   ],
@@ -785,7 +817,7 @@
         ],
         [
           {
-            "node": "Enfileirar Retry",
+            "node": "Alertar (CRM falhou)",
             "type": "main",
             "index": 0
           }
@@ -816,6 +848,8 @@
     }
   },
   "settings": {
-    "executionOrder": "v1"
+    "executionOrder": "v1",
+    "callerPolicy": "workflowsFromSameOwner",
+    "availableInMCP": false
   }
 }
