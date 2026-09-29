@@ -1,0 +1,472 @@
+{
+  "name": "WhatsApp - Gateway Seguro",
+  "nodes": [
+    {
+      "parameters": {
+        "path": "whatsapp-mayara",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        432,
+        240
+      ],
+      "id": "8c01bb4d-baa7-4683-b08f-8f9456814702",
+      "name": "Meta - Verificar Webhook",
+      "webhookId": "whatsapp-mayara-verificacao"
+    },
+    {
+      "parameters": {
+        "jsCode": "const q = $input.first().json.query || {};\nconst mode = String(q['hub.mode'] || '');\nconst token = String(q['hub.verify_token'] || '');\nconst challenge = String(q['hub.challenge'] || '');\nconst configuredToken = '<VERIFY_TOKEN>';\nconst valid = mode === 'subscribe' && token === configuredToken && challenge.length > 0;\nreturn [{ json: { valid, challenge: valid ? challenge : 'Verificacao recusada', statusCode: valid ? 200 : 403 } }];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        672,
+        240
+      ],
+      "id": "bb2730d4-d5fe-4dbe-b41f-05769771aec9",
+      "name": "Validar Desafio Meta"
+    },
+    {
+      "parameters": {
+        "respondWith": "text",
+        "responseBody": "={{ $json.challenge }}",
+        "options": {
+          "responseCode": "={{ $json.statusCode }}",
+          "responseHeaders": {
+            "entries": [
+              {
+                "name": "Content-Type",
+                "value": "text/plain; charset=utf-8"
+              },
+              {
+                "name": "Cache-Control",
+                "value": "no-store"
+              },
+              {
+                "name": "X-Content-Type-Options",
+                "value": "nosniff"
+              }
+            ]
+          }
+        }
+      },
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.4,
+      "position": [
+        912,
+        240
+      ],
+      "id": "5f521c82-0bd2-4202-81c5-b8cc71ec3aca",
+      "name": "Responder Desafio Meta"
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "whatsapp-mayara",
+        "options": {
+          "rawBody": true
+        }
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        432,
+        560
+      ],
+      "id": "1dacca52-36f8-4c7f-8faf-8251bcb1830f",
+      "name": "Meta - Receber Eventos",
+      "webhookId": "whatsapp-mayara-eventos"
+    },
+    {
+      "parameters": {
+        "jsCode": "const input = $input.first().json;\nconst body = input.body || {};\nconst value = body.entry?.[0]?.changes?.[0]?.value || {};\nconst message = value.messages?.[0] || null;\nconst contact = value.contacts?.[0] || {};\nconst metadata = value.metadata || {};\n\nif (!message) {\n  return [{ json: { accepted: false, reason: 'EVENTO_SEM_MENSAGEM', eventType: value.statuses?.length ? 'status' : 'unknown' } }];\n}\n\nconst digits = String(message.from || '').replace(/\\D/g, '');\nconst phone = digits ? `+${digits}` : '';\nconst type = String(message.type || 'unknown');\nconst text = String(\n  message.text?.body ||\n  message.button?.text ||\n  message.interactive?.button_reply?.title ||\n  message.interactive?.list_reply?.title ||\n  ''\n).trim();\nconst referral = message.referral || value.referral || null;\n\nconst approvedReferralSourceIds = ['CONFIGURAR_ID_CAMPANHA'];\nconst allowedTestNumbers = ['<TELEFONE_DE_TESTE>'];\nconst referralSourceId = String(referral?.source_id || '');\nconst authorizedByCampaign = referralSourceId.length > 0 && approvedReferralSourceIds.includes(referralSourceId);\nconst authorizedForTest = allowedTestNumbers.includes(phone);\nconst supportedType = ['text', 'interactive', 'button'].includes(type);\nconst accepted = Boolean(phone && message.id && text && supportedType && (authorizedByCampaign || authorizedForTest));\n\nlet reason = 'ACEITO';\nif (!supportedType) reason = 'TIPO_REQUER_HUMANO';\nelse if (!phone || !message.id || !text) reason = 'PAYLOAD_INCOMPLETO';\nelse if (!authorizedByCampaign && !authorizedForTest) reason = 'FORA_DO_ESCOPO_CONTROLADO';\n\nreturn [{ json: {\n  accepted,\n  reason,\n  channel: 'WhatsApp',\n  phone,\n  profileName: String(contact.profile?.name || ''),\n  message: text,\n  messageType: type,\n  messageId: String(message.id || ''),\n  timestamp: message.timestamp ? new Date(Number(message.timestamp) * 1000).toISOString() : new Date().toISOString(),\n  phoneNumberId: String(metadata.phone_number_id || ''),\n  displayPhoneNumber: String(metadata.display_phone_number || ''),\n  sessionKey: phone ? `whatsapp:${String(metadata.phone_number_id || 'unknown')}:${phone}` : '',\n  dedupeKey: String(message.id || ''),\n  campaignSourceId: referralSourceId,\n  campaignSourceUrl: String(referral?.source_url || ''),\n  campaignHeadline: String(referral?.headline || ''),\n  requiresHuman: !supportedType,\n  processingBlocked: true\n} }];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        672,
+        560
+      ],
+      "id": "266cec51-f7f4-4349-8b02-a344930094d2",
+      "name": "Normalizar e Filtrar Evento"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "whatsapp-evento-aceito",
+              "leftValue": "={{ $json.accepted }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        912,
+        560
+      ],
+      "id": "84fb9a1f-2a40-428f-abce-2dbb4d2a773d",
+      "name": "Evento Autorizado?"
+    },
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        1184,
+        640
+      ],
+      "id": "c5b72426-b3fd-4481-ac03-2fe68f037135",
+      "name": "Ignorar Evento com Seguranca"
+    },
+    {
+      "parameters": {
+        "workflowId": {
+          "__rl": true,
+          "value": "B1xdt1WotCQE3NOb",
+          "mode": "list",
+          "cachedResultUrl": "/workflow/B1xdt1WotCQE3NOb",
+          "cachedResultName": "Mayara — Ponte WhatsApp"
+        },
+        "workflowInputs": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "sessionKey": "={{ $json.sessionKey }}",
+            "messageId": "={{ $json.messageId }}",
+            "phone": "={{ $json.phone }}",
+            "message": "={{ $json.message }}",
+            "timestamp": "={{ $json.timestamp }}",
+            "channel": "={{ $json.channel }}",
+            "phoneNumberId": "={{ $json.phoneNumberId }}",
+            "requiresHuman": "={{ $json.requiresHuman }}"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "sessionKey",
+              "displayName": "sessionKey",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "messageId",
+              "displayName": "messageId",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "phone",
+              "displayName": "phone",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "message",
+              "displayName": "message",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "timestamp",
+              "displayName": "timestamp",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "channel",
+              "displayName": "channel",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "phoneNumberId",
+              "displayName": "phoneNumberId",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "requiresHuman",
+              "displayName": "requiresHuman",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "boolean",
+              "readOnly": false,
+              "removed": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {
+          "waitForSubWorkflow": true
+        }
+      },
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.3,
+      "position": [
+        1136,
+        496
+      ],
+      "id": "a4614e10-346a-466b-a376-11f52a0b30a9",
+      "name": "Chamar Mayara — Ponte WhatsApp",
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "1191dbb5-d2c6-43cc-9cec-982a49e972d1",
+              "leftValue": "={{ $json.requiresHuman === true }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        1136,
+        656
+      ],
+      "id": "3b961573-3244-4ba1-a445-225201fd71b5",
+      "name": "Requer Atendimento Humano?"
+    },
+    {
+      "id": "1832f91a-abbf-4ab2-9484-75fdead5a443",
+      "name": "Calcular HMAC Meta",
+      "type": "n8n-nodes-base.crypto",
+      "typeVersion": 2,
+      "position": [
+        552,
+        460
+      ],
+      "parameters": {
+        "action": "hmac",
+        "type": "SHA256",
+        "binaryData": true,
+        "binaryPropertyName": "data",
+        "dataPropertyName": "computedHmac",
+        "encoding": "hex"
+      },
+      "credentials": {
+        "crypto": {
+          "id": "6xadXa83zqtBoDSA",
+          "name": "Meta App Secret"
+        }
+      }
+    },
+    {
+      "id": "cef716e6-42f6-4c79-b033-a2d0cfe4efd1",
+      "name": "Assinatura Válida?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        780,
+        460
+      ],
+      "parameters": {
+        "conditions": {
+          "combinator": "and",
+          "conditions": [
+            {
+              "leftValue": "={{ 'sha256=' + $json.computedHmac }}",
+              "rightValue": "={{ $('Meta - Receber Eventos').item.json.headers['x-hub-signature-256'] }}",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              },
+              "id": "condition-1788682493567-chfhk5q49"
+            }
+          ],
+          "options": {
+            "version": 2,
+            "leftValue": "",
+            "caseSensitive": true,
+            "typeValidation": "strict"
+          }
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Meta - Verificar Webhook": {
+      "main": [
+        [
+          {
+            "node": "Validar Desafio Meta",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Validar Desafio Meta": {
+      "main": [
+        [
+          {
+            "node": "Responder Desafio Meta",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Normalizar e Filtrar Evento": {
+      "main": [
+        [
+          {
+            "node": "Evento Autorizado?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Evento Autorizado?": {
+      "main": [
+        [
+          {
+            "node": "Chamar Mayara — Ponte WhatsApp",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Requer Atendimento Humano?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Requer Atendimento Humano?": {
+      "main": [
+        [
+          {
+            "node": "Chamar Mayara — Ponte WhatsApp",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Ignorar Evento com Seguranca",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Meta - Receber Eventos": {
+      "main": [
+        [
+          {
+            "node": "Calcular HMAC Meta",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Calcular HMAC Meta": {
+      "main": [
+        [
+          {
+            "node": "Assinatura Válida?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Assinatura Válida?": {
+      "main": [
+        [
+          {
+            "node": "Normalizar e Filtrar Evento",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Ignorar Evento com Seguranca",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate",
+    "availableInMCP": false,
+    "callerPolicy": "workflowsFromSameOwner",
+    "errorWorkflow": "CQyjBKLX0UheNh1q"
+  }
+}
