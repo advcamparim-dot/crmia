@@ -177,8 +177,12 @@ Recebe o evento de estado da conexão da Evolution. Se o estado não for "conect
 3. **Banimento do número** (aceito pelo usuário): reduzido por política reativa, janela, teto e chip descartável antes de qualquer decisão.
 4. **Lembretes e follow-up** são mensagens iniciadas pela Mayara e aumentam o risco de banimento. Ficam desligados no provedor `evolution` até a decisão da fase 3.
 
-## Questões em aberto (decisão do usuário antes do plano)
+## Decisões do usuário (03/10/2026)
 
-1. **Por onde avisar o administrador quando a linha da Evolution cair?** Opções: o número oficial de teste da Meta (+1 555 656 6060), e-mail ou outro canal. Não pode ser a própria linha caída.
-2. O usuário tem um **chip descartável** disponível e onde a Evolution será hospedada (mesmo servidor do n8n ou outro)?
-3. **Política dos lembretes de consulta** no provedor não oficial: manter desligados na fase 2 (recomendado) ou enviar como texto comum apenas a quem escreveu nas últimas 48 h?
+1. **Aviso de linha caída: por e-mail.** O n8n não tem hoje nenhuma credencial de e-mail (SMTP ou Gmail). Criar uma é pré-requisito da fase 2 e é ação do usuário. `Canal: Estado` envia o e-mail e, em paralelo, grava em `mayara.avisos_admin`.
+2. **Hospedagem: no mesmo servidor do n8n**, mas como serviço separado (a Evolution precisa de Postgres e Redis próprios). Verificar memória e disco do servidor antes da fase 2.
+3. **Lembretes de consulta: desligados** no provedor não oficial. O follow-up "sumiu no meio" também fica desligado na fase 2. As duas políticas são `evolution_*` configuráveis e não exigem mudar workflow.
+
+## Ainda em aberto
+
+- **Chip descartável:** número novo, exclusivo para os testes da fase 2, que o usuário aceita perder.
