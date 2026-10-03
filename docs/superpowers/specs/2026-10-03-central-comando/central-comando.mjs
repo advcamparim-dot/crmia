@@ -2,8 +2,10 @@
 // Biblioteca da Central de Comando. Sem import e sem dependencias: o corpo e copiado
 // para Code nodes do n8n (gerar-node.mjs remove o "export ").
 
+const MARCAS_COMBINANTES = new RegExp('[' + String.fromCharCode(0x300) + '-' + String.fromCharCode(0x36f) + ']', 'g');
+
 export function semAcento(s) {
-  return String(s ?? '').normalize('NFD').replace(/[̀-ͯ]/g, '');
+  return String(s ?? '').normalize('NFD').replace(MARCAS_COMBINANTES, '');
 }
 
 export function normalizarTelefone(texto) {

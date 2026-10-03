@@ -121,3 +121,16 @@ test('montarResultadoEnsino', () => {
   assert.equal(montarResultadoEnsino({ tipo: 'pergunta' }, 'x').acao, 'ensino_ignorado');
   assert.equal(semAcento('ação'), 'acao');
 });
+
+test('o codigo-fonte nao tem caracteres invisiveis ou combinantes literais (nao sobrevivem ao transporte para o n8n)', async () => {
+  const { readFileSync } = await import('node:fs');
+  const fonte = readFileSync(new URL('./central-comando.mjs', import.meta.url), 'utf8');
+  const proibido = (c) => (c >= 0x300 && c <= 0x36f) || (c >= 0x200b && c <= 0x200f) || c === 0x2028 || c === 0x2029 || c === 0xfeff;
+  const achados = [];
+  for (let i = 0; i < fonte.length; i++) if (proibido(fonte.charCodeAt(i))) achados.push(i);
+  assert.deepEqual(achados, []);
+});
+
+test('semAcento remove acentos de verdade', () => {
+  assert.equal(semAcento('Não é ação, êxito'), 'Nao e acao, exito');
+});
