@@ -1,0 +1,874 @@
+{
+  "name": "Mayara — Central de Comando",
+  "nodes": [
+    {
+      "id": "c8000000-0000-4000-8000-000000000001",
+      "name": "Execute Workflow Trigger",
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1.1,
+      "position": [
+        0,
+        300
+      ],
+      "parameters": {
+        "inputSource": "workflowInputs",
+        "workflowInputs": {
+          "values": [
+            {
+              "name": "phone",
+              "type": "string"
+            },
+            {
+              "name": "message",
+              "type": "string"
+            },
+            {
+              "name": "messageId",
+              "type": "string"
+            },
+            {
+              "name": "phoneNumberId",
+              "type": "string"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "c8000000-0000-4000-8000-000000000002",
+      "name": "Registrar Comando",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        220,
+        300
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "nNpCUIhnDuVvTApU",
+          "name": "Postgres account"
+        }
+      },
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "select mayara.registrar_comando($1, $2, $3) as novo",
+        "options": {
+          "queryReplacement": "={{ [$json.messageId, $json.phone, $json.message] }}"
+        }
+      }
+    },
+    {
+      "id": "c8000000-0000-4000-8000-000000000003",
+      "name": "Novo?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        440,
+        300
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "novo",
+              "leftValue": "={{ $json.novo === true }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "c8000000-0000-4000-8000-000000000004",
+      "name": "Duplicado",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        660,
+        460
+      ],
+      "parameters": {}
+    },
+    {
+      "id": "c8000000-0000-4000-8000-000000000005",
+      "name": "Contexto",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        660,
+        300
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "nNpCUIhnDuVvTApU",
+          "name": "Postgres account"
+        }
+      },
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "select mayara.contexto_central($1) as ctx",
+        "options": {
+          "queryReplacement": "={{ [$('Execute Workflow Trigger').first().json.phone] }}"
+        }
+      }
+    },
+    {
+      "id": "c8000000-0000-4000-8000-000000000006",
+      "name": "Classificar",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        880,
+        300
+      ],
+      "parameters": {
+        "jsCode": "// central-comando.mjs\n// Biblioteca da Central de Comando. Sem import e sem dependencias: o corpo e copiado\n// para Code nodes do n8n (gerar-node.mjs remove o \"export \").\n\nfunction semAcento(s) {\n  return String(s ?? '').normalize('NFD').replace(/[̀-ͯ]/g, '');\n}\n\nfunction normalizarTelefone(texto) {\n  const d = String(texto ?? '').replace(/\\D/g, '');\n  if (/^55\\d{10,11}$/.test(d)) return '+' + d;\n  if (/^\\d{10,11}$/.test(d)) return '+55' + d;\n  return null;\n}\n\nconst AJUDA = [\n  'Comandos:',\n  '/status: situação da Mayara',\n  '/ligar e /desligar: liga ou desliga a Mayara para todos os leads',\n  '/assumir +5514999990000: a Mayara para de responder esse lead',\n  '/devolver +5514999990000: a Mayara volta a atender esse lead',\n  '/regras: instruções ativas',\n  '/desfazer 3: desativa a instrução 3',\n  '/reativar 3: reativa a instrução 3',\n  '/ajuda: esta lista',\n  'No modo exclusivo, escreva livremente para ensinar a Mayara e responda sim ou não para confirmar.',\n].join('\\n');\n\nconst COMANDOS = ['status', 'ligar', 'desligar', 'assumir', 'devolver', 'regras', 'desfazer', 'reativar', 'ajuda'];\nconst SIM = ['sim', 's', 'confirmo', 'confirma', 'confirmar', 'pode', 'isso'];\nconst NAO = ['nao', 'n', 'cancela', 'cancelar', 'descarta', 'descartar'];\n\nfunction sql(acao, arg = '') {\n  return { tipo: 'sql', acao, fn: acao, arg, arg2: '' };\n}\n\nfunction comando(cmd, args) {\n  switch (cmd) {\n    case 'ajuda': return { tipo: 'texto', acao: 'ajuda', resposta: AJUDA };\n    case 'status': return { tipo: 'status', acao: 'status' };\n    case 'ligar': return { tipo: 'modo', acao: 'ligar', aiMode: 'active' };\n    case 'desligar': return { tipo: 'modo', acao: 'desligar', aiMode: 'paused' };\n    case 'regras': return sql('regras');\n    case 'assumir':\n    case 'devolver': {\n      const tel = normalizarTelefone(args);\n      if (!tel) return { tipo: 'texto', acao: cmd + '_invalido', resposta: 'Número inválido. Use /' + cmd + ' +5514999990000 (com DDD).' };\n      return sql(cmd, tel);\n    }\n    case 'desfazer':\n    case 'reativar': {\n      if (!/^\\d{1,9}$/.test(args)) return { tipo: 'texto', acao: cmd + '_invalido', resposta: 'Use /' + cmd + ' <número>. Veja os números em /regras.' };\n      return sql(cmd, args);\n    }\n    default: return { tipo: 'texto', acao: 'comando_desconhecido', resposta: 'Não conheci esse comando.\\n\\n' + AJUDA };\n  }\n}\n\nfunction classificarMensagem(texto, { exclusivo = false } = {}) {\n  const t = String(texto ?? '').trim();\n  if (t.startsWith('/')) {\n    const m = t.match(/^\\/([^\\s]*)\\s*([\\s\\S]*)$/);\n    const cmd = semAcento(m ? m[1] : '').toLowerCase();\n    const args = m ? m[2].trim() : '';\n    if (!COMANDOS.includes(cmd)) {\n      return { tipo: 'texto', acao: 'comando_desconhecido', resposta: 'Não conheci esse comando.\\n\\n' + AJUDA };\n    }\n    return comando(cmd, args);\n  }\n  const norm = semAcento(t).toLowerCase().replace(/[^a-z\\s]/g, '').trim();\n  if (SIM.includes(norm)) return sql('confirmar_sim');\n  if (NAO.includes(norm)) return sql('confirmar_nao');\n  if (exclusivo && t) return { tipo: 'livre', acao: 'ensino', texto: t };\n  return { tipo: 'texto', acao: 'ignorado', resposta: 'Esse canal aceita comandos que começam com /. Envie /ajuda.' };\n}\n\nconst CONFLITOS = [\n  { motivo: 'prometer resultado, desconto ou êxito',\n    re: /\\b(prometa|garanta|assegure)\\b|desconto\\s+(de\\s+)?\\d+\\s*%|\\d+\\s*%\\s+de\\s+desconto|garantia\\s+de\\s+(resultado|[eê]xito)/i },\n  { motivo: 'dar opinião jurídica sobre o caso',\n    re: /opini[aã]o\\s+jur[ií]dica|diga\\s+(ao|para\\s+o|pro)\\s+cliente\\s+que\\s+(ele\\s+)?(tem|vai\\s+ter)\\s+(direito|chance)|cl[aá]usulas?\\s+abusivas?|juros\\s+abusivos/i },\n  { motivo: 'esconder que é um atendimento automático',\n    re: /\\bfinja\\b|diga\\s+que\\s+(voc[eê]\\s+)?(é|e)\\s+(uma\\s+)?(pessoa|humana|humano|advogada|advogado)|n[aã]o\\s+(diga|revele|conte)\\s+que\\s+(voc[eê]\\s+)?(é|e)\\s+(uma\\s+)?(ia|rob[oô]|intelig[eê]ncia\\s+artificial)/i },\n  { motivo: 'contrariar as regras fixas de segurança',\n    re: /\\b(ignore|desconsidere|esque[cç]a)\\b\\s+(todas\\s+)?(as\\s+)?(regras|proibi[cç][oõ]es|instru[cç][oõ]es|orienta[cç][oõ]es)/i },\n  { motivo: 'orientar movimentação de patrimônio',\n    re: /\\b(oriente|ajude|sugira|ensine|aconselhe)\\b.{0,60}\\b(ocultar|esconder|transferir|passar)\\b.{0,40}\\b(bens|patrim[oô]nio)/i },\n  { motivo: 'pedir documentos sensíveis na triagem',\n    re: /\\b(pe[cç]a|solicite|exija)\\b.{0,40}\\b(contrato|extratos?|cnpj\\s+completo|senha)/i },\n  { motivo: 'orientar sobre recuperação judicial ou falência',\n    re: /\\b(oriente|aconselhe|explique|ensine)\\b.{0,60}\\b(recupera[cç][aã]o\\s+judicial|fal[eê]ncia)/i },\n  { motivo: 'ignorar o protocolo de risco pessoal',\n    re: /\\b(ignore|desconsidere|n[aã]o\\s+(fale|mencione))\\b.{0,40}\\b(cvv|risco\\s+pessoal|suic[ií]dio)/i },\n];\n\nfunction negadoAntes(texto, idx) {\n  const antes = texto.slice(Math.max(0, idx - 25), idx);\n  return /\\b(n[aã]o|nunca|jamais|evite|proibido)\\b/i.test(antes);\n}\n\nfunction checarConflito(regra) {\n  const t = String(regra ?? '');\n  for (const c of CONFLITOS) {\n    const re = new RegExp(c.re.source, 'gi');\n    let m;\n    while ((m = re.exec(t)) !== null) {\n      if (!negadoAntes(t, m.index)) return { conflito: true, motivo: c.motivo };\n      if (m[0].length === 0) re.lastIndex++;\n    }\n  }\n  return { conflito: false };\n}\n\nfunction limparRegra(texto) {\n  return String(texto ?? '').replace(/\\{\\{|\\}\\}/g, '').replace(/\\s+/g, ' ').trim();\n}\n\nfunction interpretarRespostaIA(texto) {\n  const duvida = { tipo: 'duvida', pergunta: 'Não consegui entender. Pode escrever a instrução de outro jeito?' };\n  const bruto = String(texto ?? '').replace(/```(?:json)?/gi, '').trim();\n  const ini = bruto.indexOf('{');\n  const fim = bruto.lastIndexOf('}');\n  if (ini < 0 || fim <= ini) return duvida;\n  try {\n    const o = JSON.parse(bruto.slice(ini, fim + 1));\n    if (['instrucao', 'duvida', 'pergunta'].includes(o.tipo)) return o;\n  } catch (e) { /* cai na duvida */ }\n  return duvida;\n}\n\nfunction montarResultadoEnsino(saida, original) {\n  const orig = String(original ?? '').trim();\n  if (saida.tipo === 'instrucao') {\n    const regra = limparRegra(saida.regra);\n    if (!regra) {\n      return { tipo: 'texto', acao: 'ensino_duvida', resposta: 'Não consegui entender a instrução. Pode escrever de outro jeito?' };\n    }\n    const c = checarConflito(regra + ' ' + orig);\n    if (c.conflito) {\n      return { tipo: 'texto', acao: 'ensino_recusado',\n        resposta: 'Não posso ativar isso: ' + c.motivo + '. Essas regras ficam fixas por segurança. Se quiser, reescreva a instrução sem esse ponto.' };\n    }\n    return { tipo: 'sql', acao: 'ensino', fn: 'criar_pendente', arg: regra, arg2: orig.slice(0, 1000) };\n  }\n  if (saida.tipo === 'duvida') {\n    return { tipo: 'texto', acao: 'ensino_duvida', resposta: String(saida.pergunta || 'Pode explicar melhor o que você quer que eu mude?') };\n  }\n  return { tipo: 'texto', acao: 'ensino_ignorado', resposta: 'Por enquanto só entendo comandos e instruções de atendimento. Envie /ajuda.' };\n}\n\n\nconst entrada = $('Execute Workflow Trigger').first().json;\nconst ctx = $input.first().json.ctx || {};\nconst r = classificarMensagem(entrada.message, { exclusivo: ctx.exclusivo === true });\nreturn [{ json: { ...r, phone: entrada.phone, message: entrada.message, messageId: entrada.messageId, phoneNumberId: entrada.phoneNumberId } }];\n"
+      }
+    },
+    {
+      "id": "c8000000-0000-4000-8000-000000000007",
+      "name": "Roteador",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.2,
+      "position": [
+        1100,
+        300
+      ],
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "r-sql",
+                    "leftValue": "={{ $json.tipo }}",
+                    "rightValue": "sql",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "sql"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "r-texto",
+                    "leftValue": "={{ $json.tipo }}",
+                    "rightValue": "texto",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "texto"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "r-modo",
+                    "leftValue": "={{ $json.tipo }}",
+                    "rightValue": "modo",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "modo"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "r-status",
+                    "leftValue": "={{ $json.tipo }}",
+                    "rightValue": "status",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "status"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "r-livre",
+                    "leftValue": "={{ $json.tipo }}",
+                    "rightValue": "livre",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "livre"
+            }
+          ]
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "c8000000-0000-4000-8000-000000000008",
+      "name": "Executar SQL",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        1400,
+        40
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "nNpCUIhnDuVvTApU",
+          "name": "Postgres account"
+        }
+      },
+      "onError": "continueErrorOutput",
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "select mayara.executar_central($1, $2, $3, $4) as resposta",
+        "options": {
+          "queryReplacement": "={{ [$json.fn, $json.arg || '', $json.arg2 || '', $('Classificar').first().json.phone] }}"
+        }
+      }
+    },
+    {
+      "id": "c8000000-0000-4000-8000-000000000009",
+      "name": "Atualizar Modo",
+      "type": "n8n-nodes-base.dataTable",
+      "typeVersion": 1.1,
+      "position": [
+        1400,
+        400
+      ],
+      "parameters": {
+        "operation": "update",
+        "dataTableId": {
+          "__rl": true,
+          "value": "8zkrH8xVko73LXAd",
+          "mode": "list",
+          "cachedResultName": "Mayara Control",
+          "cachedResultUrl": "/projects/lmefImJvOTxhjDPR/datatables/8zkrH8xVko73LXAd"
+        },
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "controlKey",
+              "keyValue": "global"
+            }
+          ]
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "controlKey": "global",
+            "aiMode": "={{ $('Classificar').first().json.aiMode }}",
+            "updatedBy": "central-comando",
+            "reason": "Comando pelo WhatsApp"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "controlKey",
+              "displayName": "controlKey",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "aiMode",
+              "displayName": "aiMode",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "updatedBy",
+              "displayName": "updatedBy",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "reason",
+              "displayName": "reason",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "c8000000-0000-4000-8000-000000000010",
+      "name": "Resposta Modo",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1620,
+        400
+      ],
+      "parameters": {
+        "jsCode": "const c = $('Classificar').first().json;\nconst texto = c.aiMode === 'active'\n  ? 'Mayara ligada. Ela volta a responder os leads agora.'\n  : 'Mayara desligada. Os leads recebem o aviso de pausa e a equipe atende. Atenção: cada mensagem de lead durante a pausa cria uma Task no CRM.';\nreturn [{ json: { resposta: texto } }];"
+      }
+    },
+    {
+      "id": "c8000000-0000-4000-8000-000000000011",
+      "name": "Ler Modo",
+      "type": "n8n-nodes-base.dataTable",
+      "typeVersion": 1.1,
+      "position": [
+        1400,
+        560
+      ],
+      "parameters": {
+        "operation": "get",
+        "dataTableId": {
+          "__rl": true,
+          "value": "8zkrH8xVko73LXAd",
+          "mode": "list",
+          "cachedResultName": "Mayara Control",
+          "cachedResultUrl": "/projects/lmefImJvOTxhjDPR/datatables/8zkrH8xVko73LXAd"
+        },
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "controlKey",
+              "keyValue": "global"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "c8000000-0000-4000-8000-000000000012",
+      "name": "Status SQL",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        1620,
+        560
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "nNpCUIhnDuVvTApU",
+          "name": "Postgres account"
+        }
+      },
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "select mayara.executar_central('status', '', '', '') as resposta"
+      }
+    },
+    {
+      "id": "c8000000-0000-4000-8000-000000000013",
+      "name": "Compor Status",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1840,
+        560
+      ],
+      "parameters": {
+        "jsCode": "const modo = $('Ler Modo').first().json.aiMode === 'active' ? 'ligada' : 'desligada';\nreturn [{ json: { resposta: 'Mayara: ' + modo + '\\n' + $input.first().json.resposta } }];"
+      }
+    },
+    {
+      "id": "c8000000-0000-4000-8000-000000000014",
+      "name": "Interpretar Instrucao",
+      "type": "@n8n/n8n-nodes-langchain.chainLlm",
+      "typeVersion": 1.9,
+      "position": [
+        1400,
+        760
+      ],
+      "onError": "continueErrorOutput",
+      "parameters": {
+        "promptType": "define",
+        "text": "={{ \"Você transforma mensagens de um administrador em uma regra curta de atendimento para a atendente virtual Mayara, que faz o primeiro atendimento de empresas endividadas com bancos no escritório Camparim Advogados. Responda SOMENTE com JSON, sem nenhum texto fora dele, em um destes formatos: {\\\"tipo\\\":\\\"instrucao\\\",\\\"regra\\\":\\\"<regra em até 300 caracteres, em português, na segunda pessoa, começando por um verbo ou por Quando>\\\"} quando a mensagem ensina ou muda o jeito de atender; {\\\"tipo\\\":\\\"duvida\\\",\\\"pergunta\\\":\\\"<uma pergunta curta para esclarecer>\\\"} quando a instrução é ambígua ou incompleta; {\\\"tipo\\\":\\\"pergunta\\\"} quando for só uma pergunta ou conversa que não é instrução. Não invente fatos, valores ou prazos que o administrador não disse. Mensagem do administrador: \" + $('Classificar').first().json.texto }}"
+      }
+    },
+    {
+      "id": "c8000000-0000-4000-8000-000000000015",
+      "name": "Modelo Anthropic",
+      "type": "@n8n/n8n-nodes-langchain.lmChatAnthropic",
+      "typeVersion": 1.3,
+      "position": [
+        1400,
+        960
+      ],
+      "credentials": {
+        "anthropicApi": {
+          "id": "6U02h1ioNpD09Q99",
+          "name": "Anthropic account 2"
+        }
+      },
+      "parameters": {
+        "model": {
+          "__rl": true,
+          "mode": "list",
+          "value": "claude-sonnet-4-5-20250929",
+          "cachedResultName": "Claude Sonnet 4.5"
+        },
+        "options": {
+          "temperature": 0
+        }
+      }
+    },
+    {
+      "id": "c8000000-0000-4000-8000-000000000016",
+      "name": "Validar Ensino",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1720,
+        760
+      ],
+      "parameters": {
+        "jsCode": "// central-comando.mjs\n// Biblioteca da Central de Comando. Sem import e sem dependencias: o corpo e copiado\n// para Code nodes do n8n (gerar-node.mjs remove o \"export \").\n\nfunction semAcento(s) {\n  return String(s ?? '').normalize('NFD').replace(/[̀-ͯ]/g, '');\n}\n\nfunction normalizarTelefone(texto) {\n  const d = String(texto ?? '').replace(/\\D/g, '');\n  if (/^55\\d{10,11}$/.test(d)) return '+' + d;\n  if (/^\\d{10,11}$/.test(d)) return '+55' + d;\n  return null;\n}\n\nconst AJUDA = [\n  'Comandos:',\n  '/status: situação da Mayara',\n  '/ligar e /desligar: liga ou desliga a Mayara para todos os leads',\n  '/assumir +5514999990000: a Mayara para de responder esse lead',\n  '/devolver +5514999990000: a Mayara volta a atender esse lead',\n  '/regras: instruções ativas',\n  '/desfazer 3: desativa a instrução 3',\n  '/reativar 3: reativa a instrução 3',\n  '/ajuda: esta lista',\n  'No modo exclusivo, escreva livremente para ensinar a Mayara e responda sim ou não para confirmar.',\n].join('\\n');\n\nconst COMANDOS = ['status', 'ligar', 'desligar', 'assumir', 'devolver', 'regras', 'desfazer', 'reativar', 'ajuda'];\nconst SIM = ['sim', 's', 'confirmo', 'confirma', 'confirmar', 'pode', 'isso'];\nconst NAO = ['nao', 'n', 'cancela', 'cancelar', 'descarta', 'descartar'];\n\nfunction sql(acao, arg = '') {\n  return { tipo: 'sql', acao, fn: acao, arg, arg2: '' };\n}\n\nfunction comando(cmd, args) {\n  switch (cmd) {\n    case 'ajuda': return { tipo: 'texto', acao: 'ajuda', resposta: AJUDA };\n    case 'status': return { tipo: 'status', acao: 'status' };\n    case 'ligar': return { tipo: 'modo', acao: 'ligar', aiMode: 'active' };\n    case 'desligar': return { tipo: 'modo', acao: 'desligar', aiMode: 'paused' };\n    case 'regras': return sql('regras');\n    case 'assumir':\n    case 'devolver': {\n      const tel = normalizarTelefone(args);\n      if (!tel) return { tipo: 'texto', acao: cmd + '_invalido', resposta: 'Número inválido. Use /' + cmd + ' +5514999990000 (com DDD).' };\n      return sql(cmd, tel);\n    }\n    case 'desfazer':\n    case 'reativar': {\n      if (!/^\\d{1,9}$/.test(args)) return { tipo: 'texto', acao: cmd + '_invalido', resposta: 'Use /' + cmd + ' <número>. Veja os números em /regras.' };\n      return sql(cmd, args);\n    }\n    default: return { tipo: 'texto', acao: 'comando_desconhecido', resposta: 'Não conheci esse comando.\\n\\n' + AJUDA };\n  }\n}\n\nfunction classificarMensagem(texto, { exclusivo = false } = {}) {\n  const t = String(texto ?? '').trim();\n  if (t.startsWith('/')) {\n    const m = t.match(/^\\/([^\\s]*)\\s*([\\s\\S]*)$/);\n    const cmd = semAcento(m ? m[1] : '').toLowerCase();\n    const args = m ? m[2].trim() : '';\n    if (!COMANDOS.includes(cmd)) {\n      return { tipo: 'texto', acao: 'comando_desconhecido', resposta: 'Não conheci esse comando.\\n\\n' + AJUDA };\n    }\n    return comando(cmd, args);\n  }\n  const norm = semAcento(t).toLowerCase().replace(/[^a-z\\s]/g, '').trim();\n  if (SIM.includes(norm)) return sql('confirmar_sim');\n  if (NAO.includes(norm)) return sql('confirmar_nao');\n  if (exclusivo && t) return { tipo: 'livre', acao: 'ensino', texto: t };\n  return { tipo: 'texto', acao: 'ignorado', resposta: 'Esse canal aceita comandos que começam com /. Envie /ajuda.' };\n}\n\nconst CONFLITOS = [\n  { motivo: 'prometer resultado, desconto ou êxito',\n    re: /\\b(prometa|garanta|assegure)\\b|desconto\\s+(de\\s+)?\\d+\\s*%|\\d+\\s*%\\s+de\\s+desconto|garantia\\s+de\\s+(resultado|[eê]xito)/i },\n  { motivo: 'dar opinião jurídica sobre o caso',\n    re: /opini[aã]o\\s+jur[ií]dica|diga\\s+(ao|para\\s+o|pro)\\s+cliente\\s+que\\s+(ele\\s+)?(tem|vai\\s+ter)\\s+(direito|chance)|cl[aá]usulas?\\s+abusivas?|juros\\s+abusivos/i },\n  { motivo: 'esconder que é um atendimento automático',\n    re: /\\bfinja\\b|diga\\s+que\\s+(voc[eê]\\s+)?(é|e)\\s+(uma\\s+)?(pessoa|humana|humano|advogada|advogado)|n[aã]o\\s+(diga|revele|conte)\\s+que\\s+(voc[eê]\\s+)?(é|e)\\s+(uma\\s+)?(ia|rob[oô]|intelig[eê]ncia\\s+artificial)/i },\n  { motivo: 'contrariar as regras fixas de segurança',\n    re: /\\b(ignore|desconsidere|esque[cç]a)\\b\\s+(todas\\s+)?(as\\s+)?(regras|proibi[cç][oõ]es|instru[cç][oõ]es|orienta[cç][oõ]es)/i },\n  { motivo: 'orientar movimentação de patrimônio',\n    re: /\\b(oriente|ajude|sugira|ensine|aconselhe)\\b.{0,60}\\b(ocultar|esconder|transferir|passar)\\b.{0,40}\\b(bens|patrim[oô]nio)/i },\n  { motivo: 'pedir documentos sensíveis na triagem',\n    re: /\\b(pe[cç]a|solicite|exija)\\b.{0,40}\\b(contrato|extratos?|cnpj\\s+completo|senha)/i },\n  { motivo: 'orientar sobre recuperação judicial ou falência',\n    re: /\\b(oriente|aconselhe|explique|ensine)\\b.{0,60}\\b(recupera[cç][aã]o\\s+judicial|fal[eê]ncia)/i },\n  { motivo: 'ignorar o protocolo de risco pessoal',\n    re: /\\b(ignore|desconsidere|n[aã]o\\s+(fale|mencione))\\b.{0,40}\\b(cvv|risco\\s+pessoal|suic[ií]dio)/i },\n];\n\nfunction negadoAntes(texto, idx) {\n  const antes = texto.slice(Math.max(0, idx - 25), idx);\n  return /\\b(n[aã]o|nunca|jamais|evite|proibido)\\b/i.test(antes);\n}\n\nfunction checarConflito(regra) {\n  const t = String(regra ?? '');\n  for (const c of CONFLITOS) {\n    const re = new RegExp(c.re.source, 'gi');\n    let m;\n    while ((m = re.exec(t)) !== null) {\n      if (!negadoAntes(t, m.index)) return { conflito: true, motivo: c.motivo };\n      if (m[0].length === 0) re.lastIndex++;\n    }\n  }\n  return { conflito: false };\n}\n\nfunction limparRegra(texto) {\n  return String(texto ?? '').replace(/\\{\\{|\\}\\}/g, '').replace(/\\s+/g, ' ').trim();\n}\n\nfunction interpretarRespostaIA(texto) {\n  const duvida = { tipo: 'duvida', pergunta: 'Não consegui entender. Pode escrever a instrução de outro jeito?' };\n  const bruto = String(texto ?? '').replace(/```(?:json)?/gi, '').trim();\n  const ini = bruto.indexOf('{');\n  const fim = bruto.lastIndexOf('}');\n  if (ini < 0 || fim <= ini) return duvida;\n  try {\n    const o = JSON.parse(bruto.slice(ini, fim + 1));\n    if (['instrucao', 'duvida', 'pergunta'].includes(o.tipo)) return o;\n  } catch (e) { /* cai na duvida */ }\n  return duvida;\n}\n\nfunction montarResultadoEnsino(saida, original) {\n  const orig = String(original ?? '').trim();\n  if (saida.tipo === 'instrucao') {\n    const regra = limparRegra(saida.regra);\n    if (!regra) {\n      return { tipo: 'texto', acao: 'ensino_duvida', resposta: 'Não consegui entender a instrução. Pode escrever de outro jeito?' };\n    }\n    const c = checarConflito(regra + ' ' + orig);\n    if (c.conflito) {\n      return { tipo: 'texto', acao: 'ensino_recusado',\n        resposta: 'Não posso ativar isso: ' + c.motivo + '. Essas regras ficam fixas por segurança. Se quiser, reescreva a instrução sem esse ponto.' };\n    }\n    return { tipo: 'sql', acao: 'ensino', fn: 'criar_pendente', arg: regra, arg2: orig.slice(0, 1000) };\n  }\n  if (saida.tipo === 'duvida') {\n    return { tipo: 'texto', acao: 'ensino_duvida', resposta: String(saida.pergunta || 'Pode explicar melhor o que você quer que eu mude?') };\n  }\n  return { tipo: 'texto', acao: 'ensino_ignorado', resposta: 'Por enquanto só entendo comandos e instruções de atendimento. Envie /ajuda.' };\n}\n\n\nconst c = $('Classificar').first().json;\nconst bruto = $input.first().json;\nconst saida = interpretarRespostaIA(bruto.text !== undefined ? bruto.text : bruto.output);\nreturn [{ json: montarResultadoEnsino(saida, c.texto) }];\n"
+      }
+    },
+    {
+      "id": "c8000000-0000-4000-8000-000000000017",
+      "name": "E SQL?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        1940,
+        760
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "c1989972025",
+              "leftValue": "={{ $json.tipo }}",
+              "rightValue": "sql",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "c8000000-0000-4000-8000-000000000018",
+      "name": "Falha",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1940,
+        160
+      ],
+      "parameters": {
+        "jsCode": "return [{ json: { resposta: 'Não consegui executar agora. Nada foi alterado.' } }];"
+      }
+    },
+    {
+      "id": "c8000000-0000-4000-8000-000000000019",
+      "name": "Finalizar",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        2200,
+        300
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "nNpCUIhnDuVvTApU",
+          "name": "Postgres account"
+        }
+      },
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "select mayara.finalizar_comando($1, $2, $3) as resposta",
+        "options": {
+          "queryReplacement": "={{ [$('Classificar').first().json.messageId, $('Classificar').first().json.acao, $json.resposta] }}"
+        }
+      }
+    },
+    {
+      "id": "c8000000-0000-4000-8000-000000000020",
+      "name": "Responder",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        2420,
+        300
+      ],
+      "credentials": {
+        "httpBearerAuth": {
+          "id": "SChAKcHay4ghJVwe",
+          "name": "Bearer Auth account"
+        }
+      },
+      "onError": "continueRegularOutput",
+      "parameters": {
+        "method": "POST",
+        "url": "=https://graph.facebook.com/v25.0/{{ $('Classificar').first().json.phoneNumberId }}/messages",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpBearerAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ ({ messaging_product: 'whatsapp', to: $('Classificar').first().json.phone.replace(/\\D/g, ''), type: 'text', text: { body: $json.resposta } }) }}",
+        "options": {
+          "timeout": 25000
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Execute Workflow Trigger": {
+      "main": [
+        [
+          {
+            "node": "Registrar Comando",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Registrar Comando": {
+      "main": [
+        [
+          {
+            "node": "Novo?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Novo?": {
+      "main": [
+        [
+          {
+            "node": "Contexto",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Duplicado",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Contexto": {
+      "main": [
+        [
+          {
+            "node": "Classificar",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Classificar": {
+      "main": [
+        [
+          {
+            "node": "Roteador",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Roteador": {
+      "main": [
+        [
+          {
+            "node": "Executar SQL",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Finalizar",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Atualizar Modo",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Ler Modo",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Interpretar Instrucao",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Executar SQL": {
+      "main": [
+        [
+          {
+            "node": "Finalizar",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Falha",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Atualizar Modo": {
+      "main": [
+        [
+          {
+            "node": "Resposta Modo",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Resposta Modo": {
+      "main": [
+        [
+          {
+            "node": "Finalizar",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Ler Modo": {
+      "main": [
+        [
+          {
+            "node": "Status SQL",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Status SQL": {
+      "main": [
+        [
+          {
+            "node": "Compor Status",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Compor Status": {
+      "main": [
+        [
+          {
+            "node": "Finalizar",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Interpretar Instrucao": {
+      "main": [
+        [
+          {
+            "node": "Validar Ensino",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Falha",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Modelo Anthropic": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Interpretar Instrucao",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Validar Ensino": {
+      "main": [
+        [
+          {
+            "node": "E SQL?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "E SQL?": {
+      "main": [
+        [
+          {
+            "node": "Executar SQL",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Finalizar",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Falha": {
+      "main": [
+        [
+          {
+            "node": "Responder",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Finalizar": {
+      "main": [
+        [
+          {
+            "node": "Responder",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "errorWorkflow": "CQyjBKLX0UheNh1q",
+    "callerPolicy": "workflowsFromSameOwner"
+  }
+}
