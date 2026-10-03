@@ -218,3 +218,24 @@ Quando não há instruções, o bloco fica vazio e o comportamento é o de hoje.
 4. Ramo de administrador no Gateway, no modo não exclusivo (só mensagens com `/`).
 5. Aceitação no celular dos comandos e do ensino.
 6. Virada para o modo exclusivo, quando houver outro número de teste.
+
+## Conclusão (03/10/2026)
+
+**Entregue e em produção.** Migration `0011` aplicada (tabelas `administradores`, `instrucoes`, `comandos_log`, 17 funções, chaves `canal_comando_exclusivo` e `instrucoes_max_ativas`); biblioteca JS com 27 testes; workflow `Mayara — Central de Comando` (`jNhj68Ee7i3w8dey`, ativo, 20 nós); ramo de administrador no Gateway (`FV0PEtEcTFbuoRaO`); bloco `INSTRUÇÕES DO ESCRITÓRIO` no Núcleo V3 (`aULd8QZQ3OVFhoRg`). O número `+5514997022609` está cadastrado como administrador. O modo exclusivo está **desligado**.
+
+**Testado pelo WhatsApp:** `/ajuda`, `/status`, `/regras`, `/assumir` com número fora da lista, `/desligar` (a Data Table passou a `paused`), `/ligar`; ensino com reescrita, confirmação por *sim* e ativação; *sim* sem instrução pendente; recusa de instrução proibida; injeção da instrução no prompt (a resposta da Mayara obedeceu a uma regra de teste). Regressão de lead: o número de teste, como lead, continua sendo atendido normalmente.
+
+**Defeitos achados na aceitação e na revisão final, e corrigidos (cada um com teste que falhou antes):**
+1. Caracteres combinantes literais no código gerado, que o n8n não preserva.
+2. "Prometa 50% de desconto" escapava da recusa quando a IA o classificava como dúvida; a checagem passou a olhar o texto original.
+3. A negação ("Não…", "Nunca…") valia por 25 caracteres e escondia uma ordem proibida em outra frase; passou a valer só colada ao verbo e na mesma frase. Isso também corrigiu um falso positivo ("Nunca prometa desconto nem garanta resultado").
+
+**Não testado pelo WhatsApp (decisão do usuário: fica para depois da camada de canal):** `/desfazer`, `/reativar` e `/devolver` pelo celular; uma pergunta de lead com o modo exclusivo desligado depois de ensinar uma regra. Essas funções têm cobertura nos testes SQL e a classificação dos comandos tem cobertura nos testes JS.
+
+**Limitações conhecidas:**
+- A instrução nº 6 ("informe que a consulta é gratuita"), criada no teste, **continua ativa**.
+- O nó `Classificar` do workflow vivo mantém uma cópia antiga e não usada de `montarResultadoEnsino` e da checagem de negação; só o `Validar Ensino` é usado. Recriar o workflow a partir do JSON versionado elimina a diferença.
+- Se o banco cair antes de `Registrar Comando`, o administrador não recebe resposta (o workflow de erros avisa).
+- Retenção do `comandos_log` (90 dias) e a fila de avisos ao administrador (fase 2) não foram implementadas.
+- Com a Mayara desligada, a Ponte cria uma Task de prioridade alta no CRM por mensagem de lead; recomenda-se corrigir antes de usar `/desligar` com leads reais.
+- A ferramenta de edição do n8n é instável; ver as regras registradas na memória do projeto.
