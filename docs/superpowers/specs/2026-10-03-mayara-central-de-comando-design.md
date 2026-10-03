@@ -202,6 +202,14 @@ Quando não há instruções, o bloco fica vazio e o comportamento é o de hoje.
 3. **Custo do prompt.** O bloco cresce com as regras (limite de 30 × 400 caracteres, cerca de 3 mil tokens no pior caso).
 4. **Instabilidade da ferramenta do n8n.** Cada edição será feita em passos curtos, com leitura de volta e rollback (`n8n_workflow_versions`) pronto.
 
+## Atualização de 03/10 (depois da escrita)
+
+1. **Aviso de falha de agendamento já existe** (workflow `2Z3f0Ka1aOsuRwr8`, commit `b3f199f3`): alerta no número do administrador e Task de reserva no EspoCRM. A Central o reaproveita e não o recria.
+2. **Prefixo "*Mayara:*"** já é aplicado no envio da Ponte e no follow-up. As respostas da Central **não** levam esse prefixo: vão sem identificação de remetente, pois quem lê é o administrador.
+3. **Fase 2, avisos ao administrador com fila.** Mensagem de texto livre só chega dentro de 24 h da última mensagem do administrador. Para não perder avisos, uma tabela `mayara.avisos_admin` (texto, criado_em, entregue_em) guarda os pendentes, que a Central entrega na hora quando a janela está aberta ou na próxima mensagem do administrador, mais o comando `/pendencias`. Não faz parte da primeira entrega.
+4. **Limitações da ferramenta de edição do n8n (observadas em 02 e 03/10):** nós de Postgres com operação `upsert` (`Salvar Estado da Conversa`, `Upsert row(s)`) não podem ser editados; `addNode` de `IF` ou `executeWorkflow` falha no Núcleo V3; edições com SQL de escrita não aplicam. Regras para o plano: lógica nova entra em **workflows novos e pequenos**; nós novos no workflow grande entram como `noOp` ligado ao ponto certo e depois são convertidos com `updateNode`; todo passo termina com leitura de volta.
+5. **Lembretes de consulta** usam template da Meta, fora do alcance do prefixo e dos comandos desta spec.
+
 ## Ordem de execução
 
 1. Migration `0011` (tabelas, funções, testes SQL) e carga do seu número em `administradores`.
