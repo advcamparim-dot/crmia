@@ -18,7 +18,7 @@ Sucesso:
 1. O usuário quer avaliar sair da API oficial para conectar o número do escritório. A API oficial continua como plano B.
 2. Arquitetura-alvo: **Evolution API auto-hospedada em serviço separado no Coolify** (volume persistente e backup), webhook para o n8n, EspoCRM como registro de negócio (lead, consulta, tarefa) e **Supabase como estado operacional** (sessão, memória, lista de leads, instruções, log de comandos). Conector desacoplado para poder trocar depois.
 3. Começar **reativo**: só responder a quem iniciou a conversa, sem disparos em massa, com monitoramento de reconexão, pendências e erros.
-4. O primeiro teste é feito com **um número descartável (chip novo)**, nunca com o número do escritório.
+4. **Atualizado em 03/10:** o usuário decidiu conectar **o número do escritório diretamente**, sem chip descartável, por não haver disparo em massa. O chip descartável passa a ser opcional. Para compensar, a fase 2 roda em **modo de observação**: a Evolution recebe tudo, mas o portão de leads continua liberando só os números cadastrados (hoje, os de teste), então a Mayara **não responde a clientes reais** até o usuário decidir abrir.
 
 ## Riscos aceitos (decisão do usuário, registrada)
 
@@ -148,8 +148,8 @@ Recebe o evento de estado da conexão da Evolution. Se o estado não for "conect
 ## Migração por fases
 
 1. **Fase 1, sem risco, só com a Meta:** migration `0012`; criar `Canal: Enviar` (provedor `meta`) e trocar os 8 pontos de envio por uma chamada a ele, um de cada vez; extrair `Canal: Processar Evento` do Gateway. Resultado: comportamento idêntico ao de hoje, já desacoplado.
-2. **Fase 2, chip descartável:** subir a Evolution no Coolify, criar `Canal: Receber Evolution`, o provedor `evolution` em `Canal: Enviar` e `Canal: Estado`. Testar durante 2 a 4 semanas com política conservadora (janela de 48 h, teto por minuto, follow-up e lembretes desligados).
-3. **Fase 3, decisão:** só então decidir sobre o número do escritório.
+2. **Fase 2, número do escritório em modo de observação:** subir a Evolution no Coolify, criar `Canal: Receber Evolution`, o provedor `evolution` em `Canal: Enviar` e `Canal: Estado`, e conectar o número do escritório. Antes da conexão: ativar o backup de conversas do WhatsApp Business. Durante 2 a 4 semanas a Mayara só conversa com os números de teste cadastrados (as mensagens de clientes reais chegam, são registradas e ignoradas pelo portão), com janela de 48 h, teto por minuto e follow-up e lembretes desligados. Isso valida filtros, `@lid`, estabilidade da conexão e reconexão com tráfego real, sem a Mayara falar com ninguém de fora. Um chip descartável continua sendo uma alternativa para quem preferir testar antes.
+3. **Fase 3, abrir para leads reais:** só depois da observação, cadastrar leads reais no portão (ou abrir o modo de formulário), com a política reativa.
 
 ## Erros e segurança
 
@@ -185,4 +185,4 @@ Recebe o evento de estado da conexão da Evolution. Se o estado não for "conect
 
 ## Ainda em aberto
 
-- **Chip descartável:** número novo, exclusivo para os testes da fase 2, que o usuário aceita perder.
+- **Chip descartável:** dispensado pelo usuário em 03/10 (conecta-se o número do escritório). Continua possível como etapa opcional antes da fase 2.
