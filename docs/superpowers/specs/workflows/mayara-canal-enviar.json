@@ -1,0 +1,492 @@
+{
+  "name": "Mayara — Canal: Enviar [Sub-workflow]",
+  "nodes": [
+    {
+      "id": "c9000000-0000-4000-8000-000000000001",
+      "name": "Execute Workflow Trigger",
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1.1,
+      "position": [
+        0,
+        300
+      ],
+      "parameters": {
+        "inputSource": "workflowInputs",
+        "workflowInputs": {
+          "values": [
+            {
+              "name": "canalId",
+              "type": "string"
+            },
+            {
+              "name": "para",
+              "type": "string"
+            },
+            {
+              "name": "tipo",
+              "type": "string"
+            },
+            {
+              "name": "texto",
+              "type": "string"
+            },
+            {
+              "name": "templateNome",
+              "type": "string"
+            },
+            {
+              "name": "templateVariaveis",
+              "type": "string"
+            },
+            {
+              "name": "identificarMayara",
+              "type": "string"
+            },
+            {
+              "name": "origem",
+              "type": "string"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "c9000000-0000-4000-8000-000000000002",
+      "name": "Preparar",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        220,
+        300
+      ],
+      "parameters": {
+        "jsCode": "// canal.mjs\n// Biblioteca da camada de canal. Sem import e sem dependencias: o corpo e copiado\n// para Code nodes do n8n (gerar-enviar.mjs remove o \"export \").\n\nconst PREFIXO = '*Mayara:*\\n';\n\nfunction soDigitos(t) {\n  return String(t ?? '').replace(/\\D/g, '');\n}\n\nfunction aplicarPrefixo(texto) {\n  const t = String(texto ?? '');\n  return t.startsWith(PREFIXO) ? t : PREFIXO + t;\n}\n\nfunction lerVariaveis(v) {\n  if (Array.isArray(v)) return v;\n  if (v === undefined || v === null || String(v).trim() === '') return [];\n  try {\n    const o = JSON.parse(String(v));\n    return Array.isArray(o) ? o : null;\n  } catch (e) {\n    return null;\n  }\n}\n\nfunction validarPedido(entrada) {\n  const e = entrada || {};\n  const canalId = String(e.canalId ?? '').trim();\n  if (!canalId) return { ok: false, erro: 'canalId ausente' };\n  const para = soDigitos(e.para);\n  if (para.length < 10 || para.length > 15) return { ok: false, erro: 'para invalido' };\n  const tipo = String(e.tipo ?? '');\n  if (tipo !== 'texto' && tipo !== 'template') return { ok: false, erro: 'tipo invalido' };\n  const texto = String(e.texto ?? '').trim();\n  const templateNome = String(e.templateNome ?? '').trim();\n  const variaveis = lerVariaveis(e.templateVariaveis);\n  if (tipo === 'texto' && (texto === '' || texto.length > 4096)) return { ok: false, erro: 'texto invalido' };\n  if (tipo === 'template' && templateNome === '') return { ok: false, erro: 'templateNome ausente' };\n  if (variaveis === null) return { ok: false, erro: 'templateVariaveis invalido' };\n  return { ok: true, pedido: {\n    canalId, para, tipo, texto, templateNome, templateVariaveis: variaveis,\n    identificar: e.identificarMayara === true || e.identificarMayara === 'true',\n    origem: String(e.origem ?? ''),\n  } };\n}\n\nfunction montarCorpoMeta(p) {\n  if (p.tipo === 'texto') {\n    return { messaging_product: 'whatsapp', to: p.para, type: 'text', text: { body: p.identificar ? aplicarPrefixo(p.texto) : p.texto } };\n  }\n  const template = { name: p.templateNome, language: { code: 'pt_BR' } };\n  if (p.templateVariaveis.length > 0) {\n    template.components = [{ type: 'body', parameters: p.templateVariaveis.map((v) => ({ type: 'text', text: String(v) })) }];\n  }\n  return { messaging_product: 'whatsapp', to: p.para, type: 'template', template };\n}\n\nfunction renderTemplate(corpo, variaveis) {\n  const v = Array.isArray(variaveis) ? variaveis : [];\n  return String(corpo ?? '').replace(/\\{\\{(\\d+)\\}\\}/g, (_, n) => (v[Number(n) - 1] === undefined ? '' : String(v[Number(n) - 1])));\n}\n\nfunction montarEvolution(p, corpoTemplate) {\n  let texto = p.texto;\n  if (p.tipo === 'template') {\n    if (corpoTemplate === undefined || corpoTemplate === null) throw new Error('template sem texto equivalente cadastrado');\n    texto = renderTemplate(corpoTemplate, p.templateVariaveis);\n  }\n  return { caminho: '/message/sendText/' + p.canalId, corpo: { number: p.para, text: p.identificar ? aplicarPrefixo(texto) : texto } };\n}\n\nfunction atrasoHumanoMs(texto) {\n  const n = String(texto ?? '').length;\n  return Math.min(4000, Math.max(1000, 1000 + n * 20));\n}\n\nfunction interpretarRespostaMeta(resposta) {\n  const r = resposta && typeof resposta === 'object' ? resposta : {};\n  const id = Array.isArray(r.messages) && r.messages[0] ? r.messages[0].id : undefined;\n  if (!r.error && id) return { ok: true, ...r };\n  let msg = 'erro_desconhecido';\n  if (r.error) msg = typeof r.error === 'string' ? r.error : String(r.error.message ?? JSON.stringify(r.error));\n  else if (!id) msg = 'resposta_sem_id_de_mensagem';\n  return { ok: false, error: { message: msg } };\n}\n\n\nconst v = validarPedido($input.first().json);\nif (!v.ok) return [{ json: { valido: false, resultado: { ok: false, error: { message: v.erro } } } }];\nreturn [{ json: { valido: true, pedido: v.pedido } }];\n"
+      }
+    },
+    {
+      "id": "c9000000-0000-4000-8000-000000000003",
+      "name": "Valido?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        440,
+        300
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "valido",
+              "leftValue": "={{ $json.valido === true }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "c9000000-0000-4000-8000-000000000004",
+      "name": "Retorno Invalido",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        660,
+        460
+      ],
+      "parameters": {
+        "jsCode": "return [{ json: $input.first().json.resultado }];"
+      }
+    },
+    {
+      "id": "c9000000-0000-4000-8000-000000000005",
+      "name": "Pode Enviar",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        660,
+        300
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "nNpCUIhnDuVvTApU",
+          "name": "Postgres account"
+        }
+      },
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "select mayara.pode_enviar($1, $2, $3) as r",
+        "options": {
+          "queryReplacement": "={{ [$json.pedido.canalId, $json.pedido.para, $json.pedido.tipo] }}"
+        }
+      }
+    },
+    {
+      "id": "c9000000-0000-4000-8000-000000000006",
+      "name": "Decidir",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        880,
+        300
+      ],
+      "parameters": {
+        "jsCode": "const r = $input.first().json.r;\nconst p = $('Preparar').first().json.pedido;\nif (!r || r.ok !== true) return [{ json: { rota: 'negado', pedido: p, resultado: { ok: false, error: { message: (r && r.motivo) || 'sem_resposta_da_politica' } } } }];\nreturn [{ json: { rota: r.provedor, pedido: p } }];"
+      }
+    },
+    {
+      "id": "c9000000-0000-4000-8000-000000000007",
+      "name": "Roteador",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.2,
+      "position": [
+        1100,
+        300
+      ],
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "r-meta",
+                    "leftValue": "={{ $json.rota }}",
+                    "rightValue": "meta",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "meta"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "r-evolution",
+                    "leftValue": "={{ $json.rota }}",
+                    "rightValue": "evolution",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "evolution"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "r-negado",
+                    "leftValue": "={{ $json.rota }}",
+                    "rightValue": "negado",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "negado"
+            }
+          ]
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "c9000000-0000-4000-8000-000000000008",
+      "name": "Corpo Meta",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1320,
+        140
+      ],
+      "parameters": {
+        "jsCode": "// canal.mjs\n// Biblioteca da camada de canal. Sem import e sem dependencias: o corpo e copiado\n// para Code nodes do n8n (gerar-enviar.mjs remove o \"export \").\n\nconst PREFIXO = '*Mayara:*\\n';\n\nfunction soDigitos(t) {\n  return String(t ?? '').replace(/\\D/g, '');\n}\n\nfunction aplicarPrefixo(texto) {\n  const t = String(texto ?? '');\n  return t.startsWith(PREFIXO) ? t : PREFIXO + t;\n}\n\nfunction lerVariaveis(v) {\n  if (Array.isArray(v)) return v;\n  if (v === undefined || v === null || String(v).trim() === '') return [];\n  try {\n    const o = JSON.parse(String(v));\n    return Array.isArray(o) ? o : null;\n  } catch (e) {\n    return null;\n  }\n}\n\nfunction validarPedido(entrada) {\n  const e = entrada || {};\n  const canalId = String(e.canalId ?? '').trim();\n  if (!canalId) return { ok: false, erro: 'canalId ausente' };\n  const para = soDigitos(e.para);\n  if (para.length < 10 || para.length > 15) return { ok: false, erro: 'para invalido' };\n  const tipo = String(e.tipo ?? '');\n  if (tipo !== 'texto' && tipo !== 'template') return { ok: false, erro: 'tipo invalido' };\n  const texto = String(e.texto ?? '').trim();\n  const templateNome = String(e.templateNome ?? '').trim();\n  const variaveis = lerVariaveis(e.templateVariaveis);\n  if (tipo === 'texto' && (texto === '' || texto.length > 4096)) return { ok: false, erro: 'texto invalido' };\n  if (tipo === 'template' && templateNome === '') return { ok: false, erro: 'templateNome ausente' };\n  if (variaveis === null) return { ok: false, erro: 'templateVariaveis invalido' };\n  return { ok: true, pedido: {\n    canalId, para, tipo, texto, templateNome, templateVariaveis: variaveis,\n    identificar: e.identificarMayara === true || e.identificarMayara === 'true',\n    origem: String(e.origem ?? ''),\n  } };\n}\n\nfunction montarCorpoMeta(p) {\n  if (p.tipo === 'texto') {\n    return { messaging_product: 'whatsapp', to: p.para, type: 'text', text: { body: p.identificar ? aplicarPrefixo(p.texto) : p.texto } };\n  }\n  const template = { name: p.templateNome, language: { code: 'pt_BR' } };\n  if (p.templateVariaveis.length > 0) {\n    template.components = [{ type: 'body', parameters: p.templateVariaveis.map((v) => ({ type: 'text', text: String(v) })) }];\n  }\n  return { messaging_product: 'whatsapp', to: p.para, type: 'template', template };\n}\n\nfunction renderTemplate(corpo, variaveis) {\n  const v = Array.isArray(variaveis) ? variaveis : [];\n  return String(corpo ?? '').replace(/\\{\\{(\\d+)\\}\\}/g, (_, n) => (v[Number(n) - 1] === undefined ? '' : String(v[Number(n) - 1])));\n}\n\nfunction montarEvolution(p, corpoTemplate) {\n  let texto = p.texto;\n  if (p.tipo === 'template') {\n    if (corpoTemplate === undefined || corpoTemplate === null) throw new Error('template sem texto equivalente cadastrado');\n    texto = renderTemplate(corpoTemplate, p.templateVariaveis);\n  }\n  return { caminho: '/message/sendText/' + p.canalId, corpo: { number: p.para, text: p.identificar ? aplicarPrefixo(texto) : texto } };\n}\n\nfunction atrasoHumanoMs(texto) {\n  const n = String(texto ?? '').length;\n  return Math.min(4000, Math.max(1000, 1000 + n * 20));\n}\n\nfunction interpretarRespostaMeta(resposta) {\n  const r = resposta && typeof resposta === 'object' ? resposta : {};\n  const id = Array.isArray(r.messages) && r.messages[0] ? r.messages[0].id : undefined;\n  if (!r.error && id) return { ok: true, ...r };\n  let msg = 'erro_desconhecido';\n  if (r.error) msg = typeof r.error === 'string' ? r.error : String(r.error.message ?? JSON.stringify(r.error));\n  else if (!id) msg = 'resposta_sem_id_de_mensagem';\n  return { ok: false, error: { message: msg } };\n}\n\n\nconst p = $('Decidir').first().json.pedido;\nreturn [{ json: { pedido: p, corpo: montarCorpoMeta(p) } }];\n"
+      }
+    },
+    {
+      "id": "c9000000-0000-4000-8000-000000000009",
+      "name": "Enviar Meta",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        1540,
+        140
+      ],
+      "credentials": {
+        "httpBearerAuth": {
+          "id": "SChAKcHay4ghJVwe",
+          "name": "Bearer Auth account"
+        }
+      },
+      "onError": "continueRegularOutput",
+      "parameters": {
+        "method": "POST",
+        "url": "=https://graph.facebook.com/v25.0/{{ $json.pedido.canalId }}/messages",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpBearerAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json.corpo) }}",
+        "options": {
+          "timeout": 25000
+        }
+      }
+    },
+    {
+      "id": "c9000000-0000-4000-8000-000000000010",
+      "name": "Interpretar Meta",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1760,
+        140
+      ],
+      "parameters": {
+        "jsCode": "// canal.mjs\n// Biblioteca da camada de canal. Sem import e sem dependencias: o corpo e copiado\n// para Code nodes do n8n (gerar-enviar.mjs remove o \"export \").\n\nconst PREFIXO = '*Mayara:*\\n';\n\nfunction soDigitos(t) {\n  return String(t ?? '').replace(/\\D/g, '');\n}\n\nfunction aplicarPrefixo(texto) {\n  const t = String(texto ?? '');\n  return t.startsWith(PREFIXO) ? t : PREFIXO + t;\n}\n\nfunction lerVariaveis(v) {\n  if (Array.isArray(v)) return v;\n  if (v === undefined || v === null || String(v).trim() === '') return [];\n  try {\n    const o = JSON.parse(String(v));\n    return Array.isArray(o) ? o : null;\n  } catch (e) {\n    return null;\n  }\n}\n\nfunction validarPedido(entrada) {\n  const e = entrada || {};\n  const canalId = String(e.canalId ?? '').trim();\n  if (!canalId) return { ok: false, erro: 'canalId ausente' };\n  const para = soDigitos(e.para);\n  if (para.length < 10 || para.length > 15) return { ok: false, erro: 'para invalido' };\n  const tipo = String(e.tipo ?? '');\n  if (tipo !== 'texto' && tipo !== 'template') return { ok: false, erro: 'tipo invalido' };\n  const texto = String(e.texto ?? '').trim();\n  const templateNome = String(e.templateNome ?? '').trim();\n  const variaveis = lerVariaveis(e.templateVariaveis);\n  if (tipo === 'texto' && (texto === '' || texto.length > 4096)) return { ok: false, erro: 'texto invalido' };\n  if (tipo === 'template' && templateNome === '') return { ok: false, erro: 'templateNome ausente' };\n  if (variaveis === null) return { ok: false, erro: 'templateVariaveis invalido' };\n  return { ok: true, pedido: {\n    canalId, para, tipo, texto, templateNome, templateVariaveis: variaveis,\n    identificar: e.identificarMayara === true || e.identificarMayara === 'true',\n    origem: String(e.origem ?? ''),\n  } };\n}\n\nfunction montarCorpoMeta(p) {\n  if (p.tipo === 'texto') {\n    return { messaging_product: 'whatsapp', to: p.para, type: 'text', text: { body: p.identificar ? aplicarPrefixo(p.texto) : p.texto } };\n  }\n  const template = { name: p.templateNome, language: { code: 'pt_BR' } };\n  if (p.templateVariaveis.length > 0) {\n    template.components = [{ type: 'body', parameters: p.templateVariaveis.map((v) => ({ type: 'text', text: String(v) })) }];\n  }\n  return { messaging_product: 'whatsapp', to: p.para, type: 'template', template };\n}\n\nfunction renderTemplate(corpo, variaveis) {\n  const v = Array.isArray(variaveis) ? variaveis : [];\n  return String(corpo ?? '').replace(/\\{\\{(\\d+)\\}\\}/g, (_, n) => (v[Number(n) - 1] === undefined ? '' : String(v[Number(n) - 1])));\n}\n\nfunction montarEvolution(p, corpoTemplate) {\n  let texto = p.texto;\n  if (p.tipo === 'template') {\n    if (corpoTemplate === undefined || corpoTemplate === null) throw new Error('template sem texto equivalente cadastrado');\n    texto = renderTemplate(corpoTemplate, p.templateVariaveis);\n  }\n  return { caminho: '/message/sendText/' + p.canalId, corpo: { number: p.para, text: p.identificar ? aplicarPrefixo(texto) : texto } };\n}\n\nfunction atrasoHumanoMs(texto) {\n  const n = String(texto ?? '').length;\n  return Math.min(4000, Math.max(1000, 1000 + n * 20));\n}\n\nfunction interpretarRespostaMeta(resposta) {\n  const r = resposta && typeof resposta === 'object' ? resposta : {};\n  const id = Array.isArray(r.messages) && r.messages[0] ? r.messages[0].id : undefined;\n  if (!r.error && id) return { ok: true, ...r };\n  let msg = 'erro_desconhecido';\n  if (r.error) msg = typeof r.error === 'string' ? r.error : String(r.error.message ?? JSON.stringify(r.error));\n  else if (!id) msg = 'resposta_sem_id_de_mensagem';\n  return { ok: false, error: { message: msg } };\n}\n\n\nconst p = $('Corpo Meta').first().json.pedido;\nreturn [{ json: { pedido: p, resultado: interpretarRespostaMeta($input.first().json) } }];\n"
+      }
+    },
+    {
+      "id": "c9000000-0000-4000-8000-000000000011",
+      "name": "Evolution Indisponivel",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1320,
+        300
+      ],
+      "parameters": {
+        "jsCode": "const p = $input.first().json.pedido;\nreturn [{ json: { pedido: p, resultado: { ok: false, error: { message: 'provedor_evolution_nao_disponivel_nesta_fase' } } } }];"
+      }
+    },
+    {
+      "id": "c9000000-0000-4000-8000-000000000012",
+      "name": "Registrar Envio",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        1980,
+        300
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "nNpCUIhnDuVvTApU",
+          "name": "Postgres account"
+        }
+      },
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "select mayara.registrar_envio($1, $2, $3, $4::jsonb) as r",
+        "options": {
+          "queryReplacement": "={{ [$json.pedido.canalId, $json.pedido.para, $json.pedido.tipo, JSON.stringify($json.resultado)] }}"
+        }
+      }
+    },
+    {
+      "id": "c9000000-0000-4000-8000-000000000013",
+      "name": "Retorno",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2200,
+        300
+      ],
+      "parameters": {
+        "jsCode": "return [{ json: $input.first().json.r }];"
+      }
+    }
+  ],
+  "connections": {
+    "Execute Workflow Trigger": {
+      "main": [
+        [
+          {
+            "node": "Preparar",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Preparar": {
+      "main": [
+        [
+          {
+            "node": "Valido?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Valido?": {
+      "main": [
+        [
+          {
+            "node": "Pode Enviar",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Retorno Invalido",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Pode Enviar": {
+      "main": [
+        [
+          {
+            "node": "Decidir",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Decidir": {
+      "main": [
+        [
+          {
+            "node": "Roteador",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Roteador": {
+      "main": [
+        [
+          {
+            "node": "Corpo Meta",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Evolution Indisponivel",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Registrar Envio",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Corpo Meta": {
+      "main": [
+        [
+          {
+            "node": "Enviar Meta",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Enviar Meta": {
+      "main": [
+        [
+          {
+            "node": "Interpretar Meta",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Interpretar Meta": {
+      "main": [
+        [
+          {
+            "node": "Registrar Envio",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Evolution Indisponivel": {
+      "main": [
+        [
+          {
+            "node": "Registrar Envio",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Registrar Envio": {
+      "main": [
+        [
+          {
+            "node": "Retorno",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "errorWorkflow": "CQyjBKLX0UheNh1q",
+    "callerPolicy": "workflowsFromSameOwner"
+  }
+}
