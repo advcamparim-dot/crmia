@@ -1,0 +1,187 @@
+{
+  "id": "2Z3f0Ka1aOsuRwr8",
+  "name": "Mayara — Avisar Falha de Agendamento [Sub-workflow]",
+  "nodes": [
+    {
+      "id": "b7000000-0000-4000-8000-000000000001",
+      "name": "Execute Workflow Trigger",
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1.1,
+      "position": [
+        0,
+        0
+      ],
+      "parameters": {
+        "inputSource": "workflowInputs",
+        "workflowInputs": {
+          "values": [
+            {
+              "name": "sessionId",
+              "type": "string"
+            },
+            {
+              "name": "motivoFalha",
+              "type": "string"
+            },
+            {
+              "name": "nomeLead",
+              "type": "string"
+            },
+            {
+              "name": "email",
+              "type": "string"
+            },
+            {
+              "name": "diaDaSemana",
+              "type": "string"
+            },
+            {
+              "name": "hora",
+              "type": "string"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "b7000000-0000-4000-8000-000000000002",
+      "name": "Falha Tecnica?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        224,
+        0
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "motivo-tecnico",
+              "leftValue": "={{ $json.motivoFalha === 'erro_desconhecido' }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "b7000000-0000-4000-8000-000000000003",
+      "name": "Avisar Administrador",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.3,
+      "position": [
+        480,
+        -100
+      ],
+      "onError": "continueRegularOutput",
+      "parameters": {
+        "workflowId": {
+          "__rl": true,
+          "value": "FWSC1k1CBMWBtsNs",
+          "mode": "list",
+          "cachedResultName": "Mayara — Alertar Escritório [Sub-workflow]"
+        },
+        "workflowInputs": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "texto": "={{ (() => { const t = ($json.sessionId || '').split(':')[2] || 'telefone desconhecido'; return '⚠️ Agendamento falhou (erro técnico).\\nLead: ' + ($json.nomeLead || 'sem nome') + ' · ' + ($json.email || 'sem e-mail') + ' · ' + t + '\\nPediu ' + ($json.diaDaSemana || '?') + ' às ' + ($json.hora || '?') + '.\\nEntre em contato para confirmar.'; })() }}"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "texto",
+              "displayName": "texto",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {
+          "waitForSubWorkflow": true
+        }
+      }
+    },
+    {
+      "id": "b7000000-0000-4000-8000-000000000004",
+      "name": "Criar Task de Reserva",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        480,
+        100
+      ],
+      "onError": "continueRegularOutput",
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "myYur8JVp4IuNL3w",
+          "name": "EspoCRM Alertas API"
+        }
+      },
+      "parameters": {
+        "method": "POST",
+        "url": "https://crm.camparimadvogados.com.br/api/v1/Task",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ ({ name: 'Agendamento falhou - confirmar consulta com o lead', status: 'Not Started', priority: 'High', dateStart: $now.toUTC().toFormat('yyyy-MM-dd HH:mm:ss'), assignedUserId: '6a899b5713e9849fa', description: 'Falha tecnica ao agendar a consulta pela Mayara (agenda indisponivel). Consultar a sessao terminada em ' + (($json.sessionId || '').slice(-4)) + ' em mayara.session_state e contatar o lead para confirmar o horario.', cAlertOrigin: 'WhatsApp', cAlertSeverity: 'Alta', cAlertKey: 'AGENDAMENTO_FALHOU_V1:' + (($json.sessionId || '').slice(-4)) + ':' + $now.toUTC().toFormat('yyyyMMddHH'), cSourceEntityType: 'WhatsAppMessage', cSourceRecordId: (($json.sessionId || '').slice(-4)) + ':' + $now.toUTC().toFormat('yyyyMMddHHmm'), cDetectedAt: $now.toUTC().toFormat('yyyy-MM-dd HH:mm:ss'), cAlertRule: 'WHATSAPP_HUMAN_HANDOFF_V1' }) }}",
+        "options": {
+          "timeout": 20000
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Execute Workflow Trigger": {
+      "main": [
+        [
+          {
+            "node": "Falha Tecnica?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Falha Tecnica?": {
+      "main": [
+        [
+          {
+            "node": "Avisar Administrador",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Criar Task de Reserva",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        []
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "errorWorkflow": "CQyjBKLX0UheNh1q",
+    "callerPolicy": "workflowsFromSameOwner"
+  }
+}
