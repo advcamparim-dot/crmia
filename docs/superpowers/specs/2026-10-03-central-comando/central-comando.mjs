@@ -96,8 +96,9 @@ const CONFLITOS = [
 ];
 
 function negadoAntes(texto, idx) {
-  const antes = texto.slice(Math.max(0, idx - 25), idx);
-  return /\b(n[aã]o|nunca|jamais|evite|proibido)\b/i.test(antes);
+  // A negacao so vale se estiver colada ao verbo (no maximo uma palavra no meio) e na mesma frase.
+  const antes = texto.slice(0, idx);
+  return /(?:^|[\s,;:.!?])(?:n[aã]o|nunca|jamais|evite|proibido|nem)\s+(?:[^\s,;:.!?]+\s+)?$/i.test(antes);
 }
 
 export function checarConflito(regra) {
