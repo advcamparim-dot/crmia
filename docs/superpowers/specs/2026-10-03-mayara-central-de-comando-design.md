@@ -221,7 +221,7 @@ Quando não há instruções, o bloco fica vazio e o comportamento é o de hoje.
 
 ## Conclusão (03/10/2026)
 
-**Entregue e em produção.** Migration `0011` aplicada (tabelas `administradores`, `instrucoes`, `comandos_log`, 17 funções, chaves `canal_comando_exclusivo` e `instrucoes_max_ativas`); biblioteca JS com 27 testes; workflow `Mayara — Central de Comando` (`jNhj68Ee7i3w8dey`, ativo, 20 nós); ramo de administrador no Gateway (`FV0PEtEcTFbuoRaO`); bloco `INSTRUÇÕES DO ESCRITÓRIO` no Núcleo V3 (`aULd8QZQ3OVFhoRg`). O número `+5514997022609` está cadastrado como administrador. O modo exclusivo está **desligado**.
+**Entregue e em produção.** Migration `0011` aplicada (tabelas `administradores`, `instrucoes`, `comandos_log`, 17 funções, chaves `canal_comando_exclusivo` e `instrucoes_max_ativas`); biblioteca JS com 17 testes (25 com os do gerador de workflow); workflow `Mayara — Central de Comando` (`jNhj68Ee7i3w8dey`, ativo, 20 nós); ramo de administrador no Gateway (`FV0PEtEcTFbuoRaO`); bloco `INSTRUÇÕES DO ESCRITÓRIO` no Núcleo V3 (`aULd8QZQ3OVFhoRg`). O número `+5514997022609` está cadastrado como administrador. O modo exclusivo está **desligado**.
 
 **Testado pelo WhatsApp:** `/ajuda`, `/status`, `/regras`, `/assumir` com número fora da lista, `/desligar` (a Data Table passou a `paused`), `/ligar`; ensino com reescrita, confirmação por *sim* e ativação; *sim* sem instrução pendente; recusa de instrução proibida; injeção da instrução no prompt (a resposta da Mayara obedeceu a uma regra de teste). Regressão de lead: o número de teste, como lead, continua sendo atendido normalmente.
 
