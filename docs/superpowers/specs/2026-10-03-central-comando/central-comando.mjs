@@ -130,18 +130,22 @@ export function interpretarRespostaIA(texto) {
   return duvida;
 }
 
+function recusarEnsino(motivo) {
+  return { tipo: 'texto', acao: 'ensino_recusado',
+    resposta: 'Não posso ativar isso: ' + motivo + '. Essas regras ficam fixas por segurança. Se quiser, reescreva a instrução sem esse ponto.' };
+}
+
 export function montarResultadoEnsino(saida, original) {
   const orig = String(original ?? '').trim();
+  const previo = checarConflito(orig);
+  if (previo.conflito) return recusarEnsino(previo.motivo);
   if (saida.tipo === 'instrucao') {
     const regra = limparRegra(saida.regra);
     if (!regra) {
       return { tipo: 'texto', acao: 'ensino_duvida', resposta: 'Não consegui entender a instrução. Pode escrever de outro jeito?' };
     }
     const c = checarConflito(regra + ' ' + orig);
-    if (c.conflito) {
-      return { tipo: 'texto', acao: 'ensino_recusado',
-        resposta: 'Não posso ativar isso: ' + c.motivo + '. Essas regras ficam fixas por segurança. Se quiser, reescreva a instrução sem esse ponto.' };
-    }
+    if (c.conflito) return recusarEnsino(c.motivo);
     return { tipo: 'sql', acao: 'ensino', fn: 'criar_pendente', arg: regra, arg2: orig.slice(0, 1000) };
   }
   if (saida.tipo === 'duvida') {

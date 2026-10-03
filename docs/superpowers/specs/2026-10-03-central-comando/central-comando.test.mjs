@@ -134,3 +134,21 @@ test('o codigo-fonte nao tem caracteres invisiveis ou combinantes literais (nao 
 test('semAcento remove acentos de verdade', () => {
   assert.equal(semAcento('Não é ação, êxito'), 'Nao e acao, exito');
 });
+
+test('a recusa vale para a mensagem original, mesmo quando a IA classifica como duvida ou pergunta', () => {
+  const proibida = 'Prometa 50% de desconto para fechar';
+  for (const saida of [
+    { tipo: 'duvida', pergunta: '50% de desconto em quê?' },
+    { tipo: 'pergunta' },
+    { tipo: 'instrucao', regra: 'Ofereça desconto de 50%.' },
+  ]) {
+    const r = montarResultadoEnsino(saida, proibida);
+    assert.equal(r.acao, 'ensino_recusado', JSON.stringify(saida));
+    assert.match(r.resposta, /Não posso ativar isso/);
+  }
+});
+
+test('duvida legitima continua sendo duvida e negacao no original nao recusa', () => {
+  assert.equal(montarResultadoEnsino({ tipo: 'duvida', pergunta: 'Em quais casos?' }, 'seja mais direta').acao, 'ensino_duvida');
+  assert.equal(montarResultadoEnsino({ tipo: 'duvida', pergunta: 'Para quais?' }, 'Nunca prometa desconto').acao, 'ensino_duvida');
+});
