@@ -40,8 +40,7 @@ end $$;
 
 alter table mayara.envios_log add column origem text;
 
-drop function mayara.registrar_envio(text, text, text, jsonb);
-create or replace function mayara.registrar_envio(p_canal_id text, p_destino text, p_tipo text, p_resultado jsonb, p_origem text default null)
+create or replace function mayara.registrar_envio_com_origem(p_canal_id text, p_destino text, p_tipo text, p_resultado jsonb, p_origem text)
 returns jsonb language plpgsql set search_path = '' as $$
 begin
   insert into mayara.envios_log (canal_id, destino_chave, tipo, ok, erro, provedor_message_id, origem)
@@ -67,5 +66,5 @@ begin
 end $$;
 
 revoke all on function mayara.registrar_estado_canal(text, text) from public, anon, authenticated;
-revoke all on function mayara.registrar_envio(text, text, text, jsonb, text) from public, anon, authenticated;
+revoke all on function mayara.registrar_envio_com_origem(text, text, text, jsonb, text) from public, anon, authenticated;
 revoke all on function mayara.limpar_eventos_canal(int) from public, anon, authenticated;

@@ -39,11 +39,11 @@ begin
   r := mayara.registrar_estado_canal('t-estado', 'CLOSE');
   assert (r ->> 'estado') = 'close', 'normaliza caixa: ' || r::text;
 
-  -- origem no log de envios (funcao antiga de 4 argumentos continua valendo)
+  -- origem no log de envios (a funcao antiga de 4 argumentos fica intacta)
   perform mayara.registrar_envio('t-estado', '5511999990501', 'texto', '{"ok":true,"messages":[{"id":"x1"}]}'::jsonb);
-  perform mayara.registrar_envio('t-estado', '5511999990502', 'texto', '{"ok":true,"messages":[{"id":"x2"}]}'::jsonb, 'ponte');
+  perform mayara.registrar_envio_com_origem('t-estado', '5511999990502', 'texto', '{"ok":true,"messages":[{"id":"x2"}]}'::jsonb, 'ponte');
   assert (select origem from mayara.envios_log where provedor_message_id = 'x2') = 'ponte', 'grava a origem';
-  assert (select origem from mayara.envios_log where provedor_message_id = 'x1') is null, 'origem opcional';
+  assert (select origem from mayara.envios_log where provedor_message_id = 'x1') is null, 'funcao antiga continua sem origem';
 
   -- retencao: remove so o que passou do prazo
   insert into mayara.canal_eventos (canal_id, provedor, resultado, motivo, criado_em) values

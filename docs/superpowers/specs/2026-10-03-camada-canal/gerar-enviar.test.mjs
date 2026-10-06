@@ -89,6 +89,12 @@ test('Enviar Evolution: credencial, URL do servico e unico no ramo', () => {
   assert.ok(e.parameters.options.timeout >= 25000, 'o delay de ate 4 s cabe no timeout');
 });
 
+test('Registrar Envio grava a origem do pedido', () => {
+  const r = no('Registrar Envio').parameters;
+  assert.match(r.query, /registrar_envio_com_origem\(\$1, \$2, \$3, \$4::jsonb, \$5\)/);
+  assert.match(r.options.queryReplacement, /\$json\.pedido\.origem/);
+});
+
 test('configuracao: credenciais, workflow de erro e envios por provedor', () => {
   assert.equal(wf.settings.errorWorkflow, 'CQyjBKLX0UheNh1q');
   const json = JSON.stringify(wf);

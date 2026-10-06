@@ -92,8 +92,8 @@ export function montarWorkflow() {
         jsonBody: '={{ JSON.stringify($json.evo.corpo) }}', options: { timeout: 30000 } } },
     { id: id(17), name: 'Interpretar Evolution', type: 'n8n-nodes-base.code', typeVersion: 2, position: [2200, 240], parameters: { jsCode: corpoNode(RODAPE_INTERPRETAR_EVOLUTION) } },
     { id: id(12), name: 'Registrar Envio', type: 'n8n-nodes-base.postgres', typeVersion: 2.6, position: [2420, 300], credentials: PG,
-      parameters: { operation: 'executeQuery', query: 'select mayara.registrar_envio($1, $2, $3, $4::jsonb) as r',
-        options: { queryReplacement: '={{ [$json.pedido.canalId, $json.pedido.para, $json.pedido.tipo, JSON.stringify($json.resultado)] }}' } } },
+      parameters: { operation: 'executeQuery', query: 'select mayara.registrar_envio_com_origem($1, $2, $3, $4::jsonb, $5) as r',
+        options: { queryReplacement: '={{ [$json.pedido.canalId, $json.pedido.para, $json.pedido.tipo, JSON.stringify($json.resultado), $json.pedido.origem || \'\'] }}' } } },
     { id: id(13), name: 'Retorno', type: 'n8n-nodes-base.code', typeVersion: 2, position: [2640, 300],
       parameters: { jsCode: 'return [{ json: $input.first().json.r }];' } },
   ];

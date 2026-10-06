@@ -419,9 +419,9 @@
       },
       "parameters": {
         "operation": "executeQuery",
-        "query": "select mayara.registrar_envio($1, $2, $3, $4::jsonb) as r",
+        "query": "select mayara.registrar_envio_com_origem($1, $2, $3, $4::jsonb, $5) as r",
         "options": {
-          "queryReplacement": "={{ [$json.pedido.canalId, $json.pedido.para, $json.pedido.tipo, JSON.stringify($json.resultado)] }}"
+          "queryReplacement": "={{ [$json.pedido.canalId, $json.pedido.para, $json.pedido.tipo, JSON.stringify($json.resultado), $json.pedido.origem || ''] }}"
         }
       }
     },
