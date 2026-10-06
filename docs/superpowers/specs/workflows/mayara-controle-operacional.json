@@ -1,0 +1,451 @@
+{
+  "name": "Mayara — Controle Operacional",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "mayara-control",
+        "authentication": "basicAuth",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        0,
+        0
+      ],
+      "id": "df62f486-93ca-422c-8499-baaf05226f3f",
+      "name": "Webhook",
+      "webhookId": "33d7eacd-3e93-4254-b8bd-7096430cc22c",
+      "credentials": {
+        "httpBasicAuth": {
+          "id": "b3j6WkkyY38fKEBl",
+          "name": "Painel Executivo - Basic Auth"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "get",
+        "dataTableId": {
+          "__rl": true,
+          "value": "8zkrH8xVko73LXAd",
+          "mode": "list",
+          "cachedResultName": "Mayara Control",
+          "cachedResultUrl": "/projects/lmefImJvOTxhjDPR/datatables/8zkrH8xVko73LXAd"
+        },
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "controlKey",
+              "keyValue": "global"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.dataTable",
+      "typeVersion": 1.1,
+      "position": [
+        144,
+        48
+      ],
+      "id": "e8d8d01c-18fb-48cb-bf54-1696aa29a59f",
+      "name": "Get row(s)"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "e47b566f-cf15-4ecb-828a-096232177c03",
+              "leftValue": "={{$('Webhook').first().json.body?.action || $('Webhook').first().json.action || 'status'}}",
+              "rightValue": "pause",
+              "operator": {
+                "type": "string",
+                "operation": "equals",
+                "name": "filter.operator.equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        288,
+        96
+      ],
+      "id": "2587bdc8-a0c2-493b-8a94-32cda85c5268",
+      "name": "If"
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "dataTableId": {
+          "__rl": true,
+          "value": "8zkrH8xVko73LXAd",
+          "mode": "list",
+          "cachedResultName": "Mayara Control",
+          "cachedResultUrl": "/projects/lmefImJvOTxhjDPR/datatables/8zkrH8xVko73LXAd"
+        },
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "controlKey",
+              "keyValue": "global"
+            }
+          ]
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "controlKey": "global",
+            "aiMode": "paused",
+            "updatedBy": "painel-executivo",
+            "reason": "={{ $('Webhook').first().json.body?.reason || 'Pausa operacional' }}"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "controlKey",
+              "displayName": "controlKey",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "aiMode",
+              "displayName": "aiMode",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "updatedBy",
+              "displayName": "updatedBy",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "reason",
+              "displayName": "reason",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.dataTable",
+      "typeVersion": 1.1,
+      "position": [
+        320,
+        -48
+      ],
+      "id": "27f4c0ba-55fc-42d4-b39d-386ecd8934da",
+      "name": "Update row(s)"
+    },
+    {
+      "parameters": {
+        "respondWith": "text",
+        "responseBody": "<!doctype html><html lang=\"pt-BR\"><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width,initial-scale=1\"><title>Mayara pausada</title><style>body{margin:0;background:#090907;color:#f6f1e7;font:16px system-ui;padding:32px}.card{max-width:620px;margin:10vh auto;background:#15140f;border:1px solid #4b4126;border-radius:14px;padding:28px}h1{font-family:Georgia,serif;color:#e8c764}.tag{color:#f0b0b0;font-weight:800}.btn{display:inline-block;margin-top:18px;padding:12px 16px;border:1px solid #66552d;border-radius:8px;color:#e8c764;text-decoration:none}</style></head><body><main class=\"card\"><div class=\"tag\">PAUSADA</div><h1>Mayara pausada com sucesso</h1><p>Novas mensagens serão encaminhadas para atendimento humano enquanto o controle estiver pausado.</p><a class=\"btn\" href=\"/webhook/mayara-status\">Voltar ao controle</a></main></body></html>",
+        "options": {
+          "responseHeaders": {
+            "entries": [
+              {
+                "name": "Content-Type",
+                "value": "text/html; charset=utf-8"
+              }
+            ]
+          }
+        }
+      },
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.5,
+      "position": [
+        528,
+        -48
+      ],
+      "id": "675225fe-b61f-42c6-98d2-d5855a1b34c2",
+      "name": "Respond to Webhook1"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "c820625f-c71e-4fba-9a2e-1928fdb6600d",
+              "leftValue": "={{$('Webhook').first().json.body?.action || $('Webhook').first().json.action || 'status'}}",
+              "rightValue": "resume",
+              "operator": {
+                "type": "string",
+                "operation": "equals",
+                "name": "filter.operator.equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        400,
+        240
+      ],
+      "id": "6442c01c-e40f-4d78-b1d9-98e7bc7ec3c7",
+      "name": "If1"
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "dataTableId": {
+          "__rl": true,
+          "value": "8zkrH8xVko73LXAd",
+          "mode": "list",
+          "cachedResultName": "Mayara Control",
+          "cachedResultUrl": "/projects/lmefImJvOTxhjDPR/datatables/8zkrH8xVko73LXAd"
+        },
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "controlKey",
+              "keyValue": "global"
+            }
+          ]
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "controlKey": "global",
+            "aiMode": "active",
+            "updatedBy": "painel-executivo",
+            "reason": "={{ $('Webhook').first().json.body?.reason || 'Reativação operacional' }}"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "controlKey",
+              "displayName": "controlKey",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "aiMode",
+              "displayName": "aiMode",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "updatedBy",
+              "displayName": "updatedBy",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "reason",
+              "displayName": "reason",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.dataTable",
+      "typeVersion": 1.1,
+      "position": [
+        608,
+        144
+      ],
+      "id": "3f32ce19-4b59-4ce6-853f-0e5eb90e78f3",
+      "name": "Update row(s)1"
+    },
+    {
+      "parameters": {
+        "respondWith": "text",
+        "responseBody": "<!doctype html><html lang=\"pt-BR\"><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width,initial-scale=1\"><title>Mayara ativa</title><style>body{margin:0;background:#090907;color:#f6f1e7;font:16px system-ui;padding:32px}.card{max-width:620px;margin:10vh auto;background:#15140f;border:1px solid #4b4126;border-radius:14px;padding:28px}h1{font-family:Georgia,serif;color:#e8c764}.tag{color:#a9e0bc;font-weight:800}.btn{display:inline-block;margin-top:18px;padding:12px 16px;border:1px solid #66552d;border-radius:8px;color:#e8c764;text-decoration:none}</style></head><body><main class=\"card\"><div class=\"tag\">ATIVA</div><h1>Mayara reativada com sucesso</h1><p>O atendimento automatizado voltou ao modo normal.</p><a class=\"btn\" href=\"/webhook/mayara-status\">Voltar ao controle</a></main></body></html>",
+        "options": {
+          "responseHeaders": {
+            "entries": [
+              {
+                "name": "Content-Type",
+                "value": "text/html; charset=utf-8"
+              }
+            ]
+          }
+        }
+      },
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.5,
+      "position": [
+        640,
+        144
+      ],
+      "id": "968456ba-3c0a-4d14-92e3-24e500828fa1",
+      "name": "Respond to Webhook2"
+    },
+    {
+      "parameters": {
+        "respondWith": "text",
+        "responseBody": "<!doctype html><html lang=\"pt-BR\"><head><meta charset=\"utf-8\"><title>Ação inválida</title><style>body{margin:0;background:#090907;color:#f6f1e7;font:16px system-ui;padding:32px}.card{max-width:620px;margin:10vh auto;background:#15140f;border:1px solid #4b4126;border-radius:14px;padding:28px}h1{font-family:Georgia,serif;color:#e8c764}a{color:#e8c764}</style></head><body><main class=\"card\"><h1>Ação inválida</h1><p>Use apenas os botões Pausar Mayara ou Reativar Mayara.</p><a href=\"/webhook/mayara-status\">Voltar ao controle</a></main></body></html>",
+        "options": {
+          "responseHeaders": {
+            "entries": [
+              {
+                "name": "Content-Type",
+                "value": "text/html; charset=utf-8"
+              }
+            ]
+          },
+          "responseCode": 400
+        }
+      },
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.5,
+      "position": [
+        608,
+        336
+      ],
+      "id": "20921b4a-66bf-4405-81ac-443de6f1c1c5",
+      "name": "Respond to Webhook3"
+    }
+  ],
+  "connections": {
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "Get row(s)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get row(s)": {
+      "main": [
+        [
+          {
+            "node": "If",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "If": {
+      "main": [
+        [
+          {
+            "node": "Update row(s)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "If1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Update row(s)": {
+      "main": [
+        [
+          {
+            "node": "Respond to Webhook1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "If1": {
+      "main": [
+        [
+          {
+            "node": "Update row(s)1",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Respond to Webhook3",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Update row(s)1": {
+      "main": [
+        [
+          {
+            "node": "Respond to Webhook2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate",
+    "availableInMCP": false
+  }
+}

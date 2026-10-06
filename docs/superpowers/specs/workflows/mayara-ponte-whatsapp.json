@@ -200,87 +200,12 @@
     },
     {
       "parameters": {
-        "operation": "upsert",
-        "dataTableId": {
-          "__rl": true,
-          "value": "cu3Re5w6bzVT41j4",
-          "mode": "list",
-          "cachedResultName": "WhatsApp Sessao Lock",
-          "cachedResultUrl": "/projects/lmefImJvOTxhjDPR/datatables/cu3Re5w6bzVT41j4"
-        },
-        "matchType": "allConditions",
-        "filters": {
-          "conditions": [
-            {
-              "keyName": "sessionKey",
-              "keyValue": "={{ $(\"Entrada\").item.json.sessionKey }}"
-            }
-          ]
-        },
-        "columns": {
-          "mappingMode": "defineBelow",
-          "value": {
-            "sessionKey": "={{ $(\"Entrada\").item.json.sessionKey }}",
-            "lockedAt": "={{ $now.toISO() }}",
-            "status": "processando"
-          },
-          "matchingColumns": [
-            "sessionKey"
-          ],
-          "schema": [
-            {
-              "id": "sessionKey",
-              "displayName": "sessionKey",
-              "required": false,
-              "defaultMatch": false,
-              "display": true,
-              "type": "string",
-              "readOnly": false,
-              "removed": false
-            },
-            {
-              "id": "lockedAt",
-              "displayName": "lockedAt",
-              "required": false,
-              "defaultMatch": false,
-              "display": true,
-              "type": "date",
-              "readOnly": false,
-              "removed": false
-            },
-            {
-              "id": "status",
-              "displayName": "status",
-              "required": false,
-              "defaultMatch": false,
-              "display": true,
-              "type": "string",
-              "readOnly": false,
-              "removed": false
-            }
-          ],
-          "attemptToConvertTypes": false,
-          "convertFieldsToString": false
-        },
-        "options": {}
-      },
-      "type": "n8n-nodes-base.dataTable",
-      "typeVersion": 1.1,
-      "position": [
-        896,
-        96
-      ],
-      "id": "67bd894c-5043-426e-82f6-5d77998cfdcf",
-      "name": "Obter Lock de Sessão"
-    },
-    {
-      "parameters": {
         "workflowId": {
           "__rl": true,
-          "value": "GWvEz64JQfI2Nij4",
+          "value": "yWPXunb0uMWjFaDz",
           "mode": "list",
-          "cachedResultUrl": "/workflow/GWvEz64JQfI2Nij4",
-          "cachedResultName": "My workflow"
+          "cachedResultUrl": "/workflow/aULd8QZQ3OVFhoRg",
+          "cachedResultName": "Mayara — Núcleo do Agente [V3.1 LAB]"
         },
         "workflowInputs": {
           "mappingMode": "defineBelow",
@@ -365,19 +290,108 @@
     },
     {
       "parameters": {
-        "method": "POST",
-        "url": "=https://graph.facebook.com/v25.0/{{ $(\"Entrada\").item.json.phoneNumberId }}/messages",
-        "authentication": "genericCredentialType",
-        "genericAuthType": "httpBearerAuth",
-        "sendBody": true,
-        "specifyBody": "json",
-        "jsonBody": "={{ ({ messaging_product: 'whatsapp', to: $('Entrada').item.json.phone.replace(/\\D/g, ''), type: 'text', text: { body: (typeof $('Chamar Mayara').item.json.output === 'string' && $('Chamar Mayara').item.json.output.trim()) ? $('Chamar Mayara').item.json.output : 'Tivemos uma instabilidade no atendimento. Sua mensagem foi encaminhada para nossa equipe, que continuará o contato por este WhatsApp.' } }) }}",
+        "workflowId": {
+          "__rl": true,
+          "value": "SHLZkNqfbCrs2OSQ",
+          "mode": "list",
+          "cachedResultName": "Mayara — Canal: Enviar [Sub-workflow]"
+        },
+        "workflowInputs": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "canalId": "={{ $('Entrada').item.json.phoneNumberId }}",
+            "para": "={{ $('Entrada').item.json.phone }}",
+            "tipo": "texto",
+            "texto": "={{ (typeof $('Chamar Mayara').item.json.output === 'string' && $('Chamar Mayara').item.json.output.trim()) ? $('Chamar Mayara').item.json.output : 'Tivemos uma instabilidade no atendimento. Sua mensagem foi encaminhada para nossa equipe, que continuará o contato por este WhatsApp.' }}",
+            "templateNome": "",
+            "templateVariaveis": "",
+            "identificarMayara": "true",
+            "origem": "ponte"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "canalId",
+              "displayName": "canalId",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string"
+            },
+            {
+              "id": "para",
+              "displayName": "para",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string"
+            },
+            {
+              "id": "tipo",
+              "displayName": "tipo",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string"
+            },
+            {
+              "id": "texto",
+              "displayName": "texto",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string"
+            },
+            {
+              "id": "templateNome",
+              "displayName": "templateNome",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string"
+            },
+            {
+              "id": "templateVariaveis",
+              "displayName": "templateVariaveis",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string"
+            },
+            {
+              "id": "identificarMayara",
+              "displayName": "identificarMayara",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string"
+            },
+            {
+              "id": "origem",
+              "displayName": "origem",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string"
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": true
+        },
         "options": {
-          "timeout": 25000
+          "waitForSubWorkflow": true
         }
       },
-      "type": "n8n-nodes-base.httpRequest",
-      "typeVersion": 4.4,
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.3,
       "position": [
         1568,
         96
@@ -385,12 +399,6 @@
       "id": "dc2e5af8-3aae-493b-9994-5b55692842b9",
       "name": "Enviar via Graph API",
       "alwaysOutputData": true,
-      "credentials": {
-        "httpBearerAuth": {
-          "id": "SChAKcHay4ghJVwe",
-          "name": "Bearer Auth account"
-        }
-      },
       "onError": "continueRegularOutput"
     },
     {
@@ -635,78 +643,6 @@
     },
     {
       "parameters": {
-        "operation": "update",
-        "dataTableId": {
-          "__rl": true,
-          "value": "cu3Re5w6bzVT41j4",
-          "mode": "list",
-          "cachedResultName": "WhatsApp Sessao Lock",
-          "cachedResultUrl": "/projects/lmefImJvOTxhjDPR/datatables/cu3Re5w6bzVT41j4"
-        },
-        "matchType": "allConditions",
-        "filters": {
-          "conditions": [
-            {
-              "keyName": "sessionKey",
-              "keyValue": "={{ $(\"Entrada\").item.json.sessionKey }}"
-            }
-          ]
-        },
-        "columns": {
-          "mappingMode": "defineBelow",
-          "value": {
-            "status": "livre"
-          },
-          "matchingColumns": [],
-          "schema": [
-            {
-              "id": "sessionKey",
-              "displayName": "sessionKey",
-              "required": false,
-              "defaultMatch": false,
-              "display": true,
-              "type": "string",
-              "readOnly": false,
-              "removed": false
-            },
-            {
-              "id": "lockedAt",
-              "displayName": "lockedAt",
-              "required": false,
-              "defaultMatch": false,
-              "display": true,
-              "type": "date",
-              "readOnly": false,
-              "removed": false
-            },
-            {
-              "id": "status",
-              "displayName": "status",
-              "required": false,
-              "defaultMatch": false,
-              "display": true,
-              "type": "string",
-              "readOnly": false,
-              "removed": false
-            }
-          ],
-          "attemptToConvertTypes": false,
-          "convertFieldsToString": false
-        },
-        "options": {}
-      },
-      "type": "n8n-nodes-base.dataTable",
-      "typeVersion": 1.1,
-      "position": [
-        2240,
-        96
-      ],
-      "id": "e9b19338-d580-440f-a370-c551992af5d6",
-      "name": "Liberar Lock de Sessão",
-      "onError": "continueRegularOutput"
-    },
-    {
-      "parameters": {
         "method": "POST",
         "url": "https://crm.camparimadvogados.com.br/api/v1/Task",
         "authentication": "genericCredentialType",
@@ -796,28 +732,111 @@
     {
       "id": "a0c78c89-2d7d-4d4f-a8f7-b15b46ab36d0",
       "name": "Enviar Pausa via Graph API",
-      "type": "n8n-nodes-base.httpRequest",
-      "typeVersion": 4.4,
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.3,
       "position": [
         1250,
         400
       ],
       "parameters": {
-        "method": "POST",
-        "url": "=https://graph.facebook.com/v25.0/{{ $(\"Entrada\").item.json.phoneNumberId }}/messages",
-        "authentication": "genericCredentialType",
-        "genericAuthType": "httpBearerAuth",
-        "sendBody": true,
-        "specifyBody": "json",
-        "jsonBody": "={{ ({ messaging_product: 'whatsapp', to: $('Entrada').item.json.phone.replace(/\\D/g, ''), type: 'text', text: { body: 'No momento, o atendimento automático está temporariamente pausado. Nossa equipe vai continuar o seu atendimento por este WhatsApp.' } }) }}",
+        "workflowId": {
+          "__rl": true,
+          "value": "SHLZkNqfbCrs2OSQ",
+          "mode": "list",
+          "cachedResultName": "Mayara — Canal: Enviar [Sub-workflow]"
+        },
+        "workflowInputs": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "canalId": "={{ $('Entrada').item.json.phoneNumberId }}",
+            "para": "={{ $('Entrada').item.json.phone }}",
+            "tipo": "texto",
+            "texto": "No momento, o atendimento automático está temporariamente pausado. Nossa equipe vai continuar o seu atendimento por este WhatsApp.",
+            "templateNome": "",
+            "templateVariaveis": "",
+            "identificarMayara": "true",
+            "origem": "ponte_pausa"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "canalId",
+              "displayName": "canalId",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string"
+            },
+            {
+              "id": "para",
+              "displayName": "para",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string"
+            },
+            {
+              "id": "tipo",
+              "displayName": "tipo",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string"
+            },
+            {
+              "id": "texto",
+              "displayName": "texto",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string"
+            },
+            {
+              "id": "templateNome",
+              "displayName": "templateNome",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string"
+            },
+            {
+              "id": "templateVariaveis",
+              "displayName": "templateVariaveis",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string"
+            },
+            {
+              "id": "identificarMayara",
+              "displayName": "identificarMayara",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string"
+            },
+            {
+              "id": "origem",
+              "displayName": "origem",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string"
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": true
+        },
         "options": {
-          "timeout": 25000
-        }
-      },
-      "credentials": {
-        "httpBearerAuth": {
-          "id": "SChAKcHay4ghJVwe",
-          "name": "Bearer Auth account"
+          "waitForSubWorkflow": true
         }
       },
       "onError": "continueRegularOutput"
@@ -1034,6 +1053,11 @@
             "node": "Enviar via Graph API",
             "type": "main",
             "index": 0
+          },
+          {
+            "node": "Transferência Humana",
+            "type": "main",
+            "index": 0
           }
         ]
       ]
@@ -1067,44 +1091,11 @@
         ]
       ]
     },
-    "Atualizar Status: Enviado": {
-      "main": [
-        [
-          {
-            "node": "Liberar Lock de Sessão",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
     "Atualizar Status: Falhou + Task": {
       "main": [
         [
           {
             "node": "Transferência Humana",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Transferência Humana": {
-      "main": [
-        [
-          {
-            "node": "Liberar Lock de Sessão",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Obter Lock de Sessão": {
-      "main": [
-        [
-          {
-            "node": "Verificar Status da Mayara",
             "type": "main",
             "index": 0
           }
@@ -1192,8 +1183,7 @@
             "type": "main",
             "index": 0
           }
-        ],
-        []
+        ]
       ]
     },
     "Buscar e Marcar Buffer Processado": {
@@ -1211,7 +1201,7 @@
       "main": [
         [
           {
-            "node": "Obter Lock de Sessão",
+            "node": "Verificar Status da Mayara",
             "type": "main",
             "index": 0
           }
