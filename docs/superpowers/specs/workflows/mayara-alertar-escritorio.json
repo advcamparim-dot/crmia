@@ -25,29 +25,112 @@
     {
       "id": "a5000000-0000-4000-8000-000000000002",
       "name": "Enviar Alerta",
-      "type": "n8n-nodes-base.httpRequest",
-      "typeVersion": 4.4,
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.3,
       "position": [
         224,
         0
       ],
       "onError": "continueRegularOutput",
       "parameters": {
-        "method": "POST",
-        "url": "https://graph.facebook.com/v25.0/1365007506685934/messages",
-        "authentication": "genericCredentialType",
-        "genericAuthType": "httpBearerAuth",
-        "sendBody": true,
-        "specifyBody": "json",
-        "jsonBody": "={{ ({ messaging_product: 'whatsapp', to: '<DESTINATARIO_DOS_ALERTAS>', type: 'text', text: { body: $json.texto } }) }}",
+        "workflowId": {
+          "__rl": true,
+          "value": "SHLZkNqfbCrs2OSQ",
+          "mode": "list",
+          "cachedResultName": "Mayara — Canal: Enviar [Sub-workflow]"
+        },
+        "workflowInputs": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "canalId": "escritorio",
+            "para": "<DESTINATARIO_DOS_ALERTAS>",
+            "tipo": "texto",
+            "texto": "={{ $json.texto }}",
+            "templateNome": "",
+            "templateVariaveis": "",
+            "identificarMayara": "false",
+            "origem": "alerta_escritorio"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "canalId",
+              "displayName": "canalId",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "para",
+              "displayName": "para",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "tipo",
+              "displayName": "tipo",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "texto",
+              "displayName": "texto",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "templateNome",
+              "displayName": "templateNome",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "templateVariaveis",
+              "displayName": "templateVariaveis",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "identificarMayara",
+              "displayName": "identificarMayara",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "origem",
+              "displayName": "origem",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": true
+        },
         "options": {
-          "timeout": 15000
-        }
-      },
-      "credentials": {
-        "httpBearerAuth": {
-          "id": "SChAKcHay4ghJVwe",
-          "name": "Bearer Auth account"
+          "waitForSubWorkflow": true
         }
       }
     }
@@ -66,6 +149,7 @@
     }
   },
   "settings": {
-    "executionOrder": "v1"
+    "executionOrder": "v1",
+    "callerPolicy": "workflowsFromSameOwner"
   }
 }

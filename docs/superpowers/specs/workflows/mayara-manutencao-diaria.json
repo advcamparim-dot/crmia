@@ -1,0 +1,64 @@
+{
+  "name": "Mayara — Manutenção Diária [Retenção]",
+  "nodes": [
+    {
+      "id": "d1000000-0000-4000-8000-000000000001",
+      "name": "Todo Dia 03:30",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        0,
+        300
+      ],
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "30 3 * * *"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "d1000000-0000-4000-8000-000000000002",
+      "name": "Rodar Manutenção",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        240,
+        300
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "nNpCUIhnDuVvTApU",
+          "name": "Postgres account"
+        }
+      },
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "select mayara.manutencao_diaria() as r",
+        "options": {}
+      }
+    }
+  ],
+  "connections": {
+    "Todo Dia 03:30": {
+      "main": [
+        [
+          {
+            "node": "Rodar Manutenção",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "errorWorkflow": "CQyjBKLX0UheNh1q",
+    "timezone": "America/Sao_Paulo"
+  }
+}
