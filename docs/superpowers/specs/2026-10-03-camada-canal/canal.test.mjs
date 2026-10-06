@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import {
   PREFIXO, soDigitos, aplicarPrefixo, validarPedido, montarCorpoMeta,
-  renderTemplate, montarEvolution, atrasoHumanoMs, interpretarRespostaMeta,
+  renderTemplate, montarEvolution, atrasoHumanoMs, interpretarRespostaMeta, interpretarRespostaEvolution,
 } from './canal.mjs';
 
 test('soDigitos e telefones em formatos diferentes', () => {
@@ -61,9 +61,10 @@ test('renderTemplate e montarEvolution', () => {
   assert.equal(renderTemplate('Ola {{1}}, sua consulta e {{2}}.', ['Ana', 'amanha']), 'Ola Ana, sua consulta e amanha.');
   assert.equal(renderTemplate('Sem variavel {{3}}', ['a']), 'Sem variavel ');
   const p = validarPedido({ canalId: 'inst1', para: '5514997022609', tipo: 'texto', texto: 'Oi', identificarMayara: true }).pedido;
-  assert.deepEqual(montarEvolution(p), { caminho: '/message/sendText/inst1', corpo: { number: '5514997022609', text: PREFIXO + 'Oi' } });
+  assert.deepEqual(montarEvolution(p), { caminho: '/message/sendText/inst1', corpo: { number: '5514997022609', text: PREFIXO + 'Oi', delay: atrasoHumanoMs(PREFIXO + 'Oi') } });
   const t = validarPedido({ canalId: 'inst1', para: '5514997022609', tipo: 'template', templateNome: 'lembrete', templateVariaveis: '["Ana"]' }).pedido;
   assert.equal(montarEvolution(t, 'Ola {{1}}').corpo.text, 'Ola Ana');
+  assert.equal(montarEvolution(t, 'Ola {{1}}').corpo.delay, atrasoHumanoMs('Ola Ana'));
   assert.throws(() => montarEvolution(t), /template/);
 });
 
@@ -85,6 +86,28 @@ test('interpretarRespostaMeta mantem o formato da Graph API (a Ponte depende dis
     assert.ok(!Array.isArray(r.messages), JSON.stringify(ruim));
   }
   assert.equal(interpretarRespostaMeta({ error: { message: 'Invalid token' } }).error.message, 'Invalid token');
+});
+
+test('interpretarRespostaEvolution converte para o formato da Graph API (a Ponte depende disso)', () => {
+  const ok = interpretarRespostaEvolution({ key: { remoteJid: '5514997022609@s.whatsapp.net', fromMe: true, id: '3EB0ABC' }, status: 'PENDING' });
+  assert.equal(ok.ok, true);
+  assert.equal(ok.messages[0].id, '3EB0ABC');
+  assert.ok(!ok.error);
+  const casos = [
+    [{ error: { message: 'timeout' } }, 'timeout'],
+    [{ error: 'Unauthorized' }, 'Unauthorized'],
+    [{ status: 400, error: 'Bad Request', response: { message: ['Number invalido'] } }, 'Number invalido'],
+    [{ status: 404, error: 'Not Found', response: { message: 'instancia nao existe' } }, 'instancia nao existe'],
+    [{}, 'resposta_sem_id_de_mensagem'],
+    [{ key: {} }, 'resposta_sem_id_de_mensagem'],
+    [null, 'resposta_sem_id_de_mensagem'],
+  ];
+  for (const [entrada, msg] of casos) {
+    const r = interpretarRespostaEvolution(entrada);
+    assert.equal(r.ok, false, JSON.stringify(entrada));
+    assert.ok(!Array.isArray(r.messages), JSON.stringify(entrada));
+    assert.match(r.error.message, new RegExp(msg), JSON.stringify(entrada));
+  }
 });
 
 test('o codigo-fonte nao tem caracteres invisiveis ou combinantes literais', () => {

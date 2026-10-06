@@ -1,0 +1,318 @@
+{
+  "name": "Mayara — Canal: Receber Evolution",
+  "nodes": [
+    {
+      "id": "c9100000-0000-4000-8000-000000000001",
+      "name": "Webhook Evolution",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        0,
+        300
+      ],
+      "webhookId": "c9100000-0000-4000-8000-000000000101",
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "canal-evolution",
+        "authentication": "none",
+        "responseMode": "onReceived",
+        "options": {}
+      }
+    },
+    {
+      "id": "c9100000-0000-4000-8000-000000000002",
+      "name": "Conferir Segredo",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        240,
+        300
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "nNpCUIhnDuVvTApU",
+          "name": "Postgres account"
+        }
+      },
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "select mayara.conferir_segredo_canal($1) as ok",
+        "options": {
+          "queryReplacement": "={{ [String($json.headers['x-canal-segredo'] || '')] }}"
+        }
+      }
+    },
+    {
+      "id": "c9100000-0000-4000-8000-000000000003",
+      "name": "Segredo OK?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        480,
+        300
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "segredo",
+              "leftValue": "={{ $json.ok === true }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "c9100000-0000-4000-8000-000000000004",
+      "name": "Descartar em Silencio",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        720,
+        460
+      ],
+      "parameters": {}
+    },
+    {
+      "id": "c9100000-0000-4000-8000-000000000005",
+      "name": "Normalizar Evento",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        720,
+        300
+      ],
+      "parameters": {
+        "jsCode": "// evolucao.mjs\n// Normaliza o webhook MESSAGES_UPSERT da Evolution API para o evento normalizado do Gateway.\n// Sem import e sem dependencias: o corpo e copiado para um Code node do n8n (o \"export \" e removido).\n\nconst TIPOS_IGNORADOS = ['reactionMessage', 'protocolMessage', 'editedMessage', 'senderKeyDistributionMessage', 'messageContextInfo'];\nconst TIPOS_MIDIA = ['audioMessage', 'imageMessage', 'documentMessage', 'stickerMessage', 'videoMessage', 'ptvMessage', 'contactMessage', 'locationMessage'];\n\nfunction extrairTexto(message) {\n  const m = message && typeof message === 'object' ? message : {};\n  const texto = m.conversation\n    || (m.extendedTextMessage && m.extendedTextMessage.text)\n    || (m.buttonsResponseMessage && m.buttonsResponseMessage.selectedDisplayText)\n    || (m.listResponseMessage && m.listResponseMessage.title)\n    || (m.templateButtonReplyMessage && m.templateButtonReplyMessage.selectedDisplayText)\n    || '';\n  return String(texto).trim();\n}\n\nfunction nomeDoEvento(e) {\n  return String(e ?? '').toLowerCase().replace(/_/g, '.');\n}\n\nfunction telefoneDoJid(jid) {\n  const s = String(jid ?? '');\n  if (!s.endsWith('@s.whatsapp.net')) return '';\n  const digitos = s.split('@')[0].split(':')[0].replace(/\\D/g, '');\n  return digitos.length >= 10 && digitos.length <= 15 ? digitos : '';\n}\n\nfunction descartar(motivo) {\n  return { acao: 'descartar', motivo };\n}\n\nfunction paraIso(ts) {\n  const n = Number(ts && typeof ts === 'object' ? ts.low : ts);\n  return Number.isFinite(n) && n > 0 ? new Date(n * 1000).toISOString() : new Date().toISOString();\n}\n\nfunction normalizarEvolution(corpo, instanciaEsperada = 'escritorio') {\n  if (!corpo || typeof corpo !== 'object' || Array.isArray(corpo)) return descartar('payload_incompleto');\n  if (nomeDoEvento(corpo.event) !== 'messages.upsert') return descartar('evento_nao_mensagem');\n  if (String(corpo.instance ?? '') !== instanciaEsperada) return descartar('instancia_inesperada');\n  const data = corpo.data && typeof corpo.data === 'object' ? corpo.data : null;\n  const key = data && data.key && typeof data.key === 'object' ? data.key : null;\n  if (!key) return descartar('payload_incompleto');\n  const jid = String(key.remoteJid ?? '');\n  if (key.fromMe === true) return descartar('enviada_por_mim');\n  if (jid.endsWith('@g.us')) return descartar('grupo');\n  if (jid === 'status@broadcast') return descartar('status');\n  if (jid.endsWith('@newsletter')) return descartar('newsletter');\n  const message = data.message && typeof data.message === 'object' ? data.message : {};\n  const tipos = Object.keys(message);\n  if (tipos.some((t) => TIPOS_IGNORADOS.includes(t) && !tipos.some((o) => TIPOS_MIDIA.includes(o)) && !extrairTexto(message))) {\n    return descartar('tipo_ignorado');\n  }\n  let digitos = telefoneDoJid(jid);\n  if (!digitos && jid.endsWith('@lid')) {\n    digitos = telefoneDoJid(key.remoteJidAlt);\n    if (!digitos) return descartar('lid_sem_telefone');\n  }\n  const messageId = String(key.id ?? '');\n  if (!digitos || !messageId) return descartar('payload_incompleto');\n  const texto = extrairTexto(message);\n  const ehMidia = tipos.some((t) => TIPOS_MIDIA.includes(t));\n  const requiresHuman = !texto && (ehMidia || tipos.length === 0 || !tipos.some((t) => TIPOS_IGNORADOS.includes(t)));\n  if (!texto && !requiresHuman) return descartar('tipo_ignorado');\n  const phone = '+' + digitos;\n  const canalId = instanciaEsperada;\n  const tipoMsg = texto ? 'text' : String(data.messageType || tipos[0] || 'unknown');\n  return {\n    acao: 'processar',\n    evento: {\n      accepted: true, reason: 'ACEITO', channel: 'WhatsApp', provedor: 'evolution',\n      phone, profileName: String(data.pushName ?? ''), message: texto, messageType: tipoMsg,\n      messageId, timestamp: paraIso(data.messageTimestamp),\n      phoneNumberId: canalId, canalId, displayPhoneNumber: '',\n      sessionKey: 'whatsapp:' + canalId + ':' + phone, dedupeKey: messageId,\n      campaignSourceId: '', campaignSourceUrl: '', campaignHeadline: '',\n      requiresHuman, processingBlocked: true,\n    },\n  };\n}\n\n\nconst corpo = $('Webhook Evolution').first().json.body;\nreturn [{ json: normalizarEvolution(corpo) }];\n"
+      }
+    },
+    {
+      "id": "c9100000-0000-4000-8000-000000000006",
+      "name": "Aceito?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        960,
+        300
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "aceito",
+              "leftValue": "={{ $json.acao === 'processar' }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "c9100000-0000-4000-8000-000000000007",
+      "name": "Registrar Aceito",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        1200,
+        220
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "nNpCUIhnDuVvTApU",
+          "name": "Postgres account"
+        }
+      },
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "select mayara.registrar_evento_canal($1, $2, $3, nullif($4, ''), nullif($5, ''), nullif($6, ''), nullif($7, '')::int, nullif($8, '')::boolean)",
+        "options": {
+          "queryReplacement": "={{ [$json.evento.canalId, 'evolution', 'aceito', '', $json.evento.phone, $json.evento.messageType, String($json.evento.message.length), String($json.evento.requiresHuman)] }}"
+        }
+      }
+    },
+    {
+      "id": "c9100000-0000-4000-8000-000000000008",
+      "name": "Registrar Descartado",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        1200,
+        400
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "nNpCUIhnDuVvTApU",
+          "name": "Postgres account"
+        }
+      },
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "select mayara.registrar_evento_canal($1, $2, $3, nullif($4, ''), nullif($5, ''), nullif($6, ''), nullif($7, '')::int, nullif($8, '')::boolean)",
+        "options": {
+          "queryReplacement": "={{ ['escritorio', 'evolution', 'descartado', $json.motivo, '', '', '', ''] }}"
+        }
+      }
+    },
+    {
+      "id": "c9100000-0000-4000-8000-000000000009",
+      "name": "Preparar Evento",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1440,
+        220
+      ],
+      "parameters": {
+        "jsCode": "return [{ json: $('Normalizar Evento').first().json.evento }];"
+      }
+    },
+    {
+      "id": "c9100000-0000-4000-8000-000000000010",
+      "name": "Processar Evento",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.3,
+      "position": [
+        1680,
+        220
+      ],
+      "onError": "continueRegularOutput",
+      "parameters": {
+        "workflowId": {
+          "__rl": true,
+          "value": "1ciEX4HqgbaS3Gqx",
+          "mode": "list",
+          "cachedResultName": "Mayara — Canal: Processar Evento [Sub-workflow]"
+        },
+        "options": {
+          "waitForSubWorkflow": true
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Webhook Evolution": {
+      "main": [
+        [
+          {
+            "node": "Conferir Segredo",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Conferir Segredo": {
+      "main": [
+        [
+          {
+            "node": "Segredo OK?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Segredo OK?": {
+      "main": [
+        [
+          {
+            "node": "Normalizar Evento",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Descartar em Silencio",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Normalizar Evento": {
+      "main": [
+        [
+          {
+            "node": "Aceito?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Registrar Aceito": {
+      "main": [
+        [
+          {
+            "node": "Preparar Evento",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Preparar Evento": {
+      "main": [
+        [
+          {
+            "node": "Processar Evento",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Aceito?": {
+      "main": [
+        [
+          {
+            "node": "Registrar Aceito",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Registrar Descartado",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "errorWorkflow": "CQyjBKLX0UheNh1q",
+    "callerPolicy": "workflowsFromSameOwner"
+  },
+  "id": "9eUWHVFoYoW5nZDs"
+}

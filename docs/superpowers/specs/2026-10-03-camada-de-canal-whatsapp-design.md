@@ -186,3 +186,15 @@ Recebe o evento de estado da conexão da Evolution. Se o estado não for "conect
 ## Ainda em aberto
 
 - **Chip descartável:** dispensado pelo usuário em 03/10 (conecta-se o número do escritório). Continua possível como etapa opcional antes da fase 2.
+
+## Revisão de 06/10/2026: Evolution como linha única
+
+Decisão do usuário: a Meta deixa de ser usada e o número do escritório (+55 14 99617-7022), conectado pela Evolution, passa a ser a única linha da Mayara. Esta seção prevalece sobre as fases 1 a 3 acima onde houver conflito.
+
+1. **Estado real:** a Evolution v2.3.7 roda no Coolify (`https://evolution.camparimadvogados.com.br`), a instância `escritorio` está conectada e o webhook chega ao workflow `Canal: Receber Evolution`, que hoje só registra em `mayara.canal_eventos` (conteúdo da mensagem nunca é guardado). Validado com tráfego real: texto vira `aceito`; imagem vira `aceito` com `requer_humano = true`; eventos de conexão são descartados.
+2. **Portão inalterado:** a Mayara só responde a quem está em `mayara.leads_autorizados` (hoje, um número de teste). Mensagens de outras pessoas continuam ignoradas em silêncio.
+3. **Envio pela Evolution:** `Canal: Enviar` ganha o ramo `evolution`: `POST /message/sendText/<instância>` com a credencial `Evolution API`, corpo `{ number, text, delay }`, onde `delay` é o atraso humano (1 a 4 s) calculado por `atrasoHumanoMs`. A resposta é convertida para o formato da Graph API (`messages[0].id` = `key.id`), de modo que a Ponte (`Envio OK?`) não muda.
+4. **Janela e administrador:** a regra de 48 h continua para leads. Quem está em `mayara.administradores` (ativo) fica fora da regra, para que alertas de erro e de falha de agendamento cheguem mesmo sem conversa recente.
+5. **Troca de linha:** os pontos que têm o ID da linha Meta fixo passam a usar `escritorio`; a linha Meta fica inativa em `mayara.canais`. Quem ainda apontar para ela falha de forma segura (`canal_inativo`).
+6. **Lembretes de consulta e follow-up:** workflows desativados (decisão de 03/10). Registro conhecido: o worker de lembretes avança o estágio antes de enviar e perde o lembrete se o envio falhar; corrigir antes de reativar.
+7. **Ordem:** (a) migration 0014 (exceção do administrador); (b) ramo Evolution do `Canal: Enviar`; (c) `Canal: Processar Evento` e ligação do recebimento (Task 5); (d) troca dos IDs de canal, desativação dos workers, ativação do canal `escritorio` e teste ponta a ponta com o celular do usuário.

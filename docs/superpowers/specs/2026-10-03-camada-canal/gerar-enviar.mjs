@@ -7,6 +7,7 @@ import { fileURLToPath } from 'node:url';
 const dir = dirname(fileURLToPath(import.meta.url));
 const PG = { postgres: { id: 'nNpCUIhnDuVvTApU', name: 'Postgres account' } };
 const BEARER = { httpBearerAuth: { id: 'SChAKcHay4ghJVwe', name: 'Bearer Auth account' } };
+const EVO = { httpHeaderAuth: { id: 'vA1UKEhHVqwcLGWW', name: 'Evolution API' } };
 const OPCOES_IF = { caseSensitive: true, leftValue: '', typeValidation: 'strict', version: 2 };
 const id = (n) => `c9000000-0000-4000-8000-${String(n).padStart(12, '0')}`;
 
@@ -28,6 +29,21 @@ return [{ json: { pedido: p, corpo: montarCorpoMeta(p) } }];
 export const RODAPE_INTERPRETAR = `
 const p = $('Corpo Meta').first().json.pedido;
 return [{ json: { pedido: p, resultado: interpretarRespostaMeta($input.first().json) } }];
+`;
+
+export const RODAPE_CORPO_EVOLUTION = `
+const p = $('Decidir').first().json.pedido;
+const corpoTemplate = $input.first().json.corpo;
+try {
+  return [{ json: { pedido: p, evo: montarEvolution(p, corpoTemplate) } }];
+} catch (e) {
+  return [{ json: { pedido: p, resultado: { ok: false, error: { message: String(e && e.message ? e.message : e) } } } }];
+}
+`;
+
+export const RODAPE_INTERPRETAR_EVOLUTION = `
+const p = $('Corpo Evolution').first().json.pedido;
+return [{ json: { pedido: p, resultado: interpretarRespostaEvolution($input.first().json) } }];
 `;
 
 export function corpoNode(rodape) {
@@ -63,12 +79,22 @@ export function montarWorkflow() {
         authentication: 'genericCredentialType', genericAuthType: 'httpBearerAuth', sendBody: true, specifyBody: 'json',
         jsonBody: '={{ JSON.stringify($json.corpo) }}', options: { timeout: 25000 } } },
     { id: id(10), name: 'Interpretar Meta', type: 'n8n-nodes-base.code', typeVersion: 2, position: [1760, 140], parameters: { jsCode: corpoNode(RODAPE_INTERPRETAR) } },
-    { id: id(11), name: 'Evolution Indisponivel', type: 'n8n-nodes-base.code', typeVersion: 2, position: [1320, 300],
-      parameters: { jsCode: "const p = $input.first().json.pedido;\nreturn [{ json: { pedido: p, resultado: { ok: false, error: { message: 'provedor_evolution_nao_disponivel_nesta_fase' } } } }];" } },
-    { id: id(12), name: 'Registrar Envio', type: 'n8n-nodes-base.postgres', typeVersion: 2.6, position: [1980, 300], credentials: PG,
+    { id: id(11), name: 'Texto do Template', type: 'n8n-nodes-base.postgres', typeVersion: 2.6, position: [1320, 300], credentials: PG,
+      parameters: { operation: 'executeQuery', query: 'select (select corpo from mayara.canal_templates where nome = $1) as corpo',
+        options: { queryReplacement: '={{ [$json.pedido.templateNome || \'\'] }}' } } },
+    { id: id(14), name: 'Corpo Evolution', type: 'n8n-nodes-base.code', typeVersion: 2, position: [1540, 300], parameters: { jsCode: corpoNode(RODAPE_CORPO_EVOLUTION) } },
+    { id: id(15), name: 'Evolution Pronto?', type: 'n8n-nodes-base.if', typeVersion: 2.2, position: [1760, 300],
+      parameters: { conditions: { options: OPCOES_IF, conditions: [{ id: 'evo-pronto', leftValue: '={{ $json.evo !== undefined }}', rightValue: true,
+        operator: { type: 'boolean', operation: 'true', singleValue: true } }], combinator: 'and' }, options: {} } },
+    { id: id(16), name: 'Enviar Evolution', type: 'n8n-nodes-base.httpRequest', typeVersion: 4.4, position: [1980, 240], credentials: EVO, onError: 'continueRegularOutput',
+      parameters: { method: 'POST', url: "={{ 'https://evolution.camparimadvogados.com.br' + $json.evo.caminho }}",
+        authentication: 'genericCredentialType', genericAuthType: 'httpHeaderAuth', sendBody: true, specifyBody: 'json',
+        jsonBody: '={{ JSON.stringify($json.evo.corpo) }}', options: { timeout: 30000 } } },
+    { id: id(17), name: 'Interpretar Evolution', type: 'n8n-nodes-base.code', typeVersion: 2, position: [2200, 240], parameters: { jsCode: corpoNode(RODAPE_INTERPRETAR_EVOLUTION) } },
+    { id: id(12), name: 'Registrar Envio', type: 'n8n-nodes-base.postgres', typeVersion: 2.6, position: [2420, 300], credentials: PG,
       parameters: { operation: 'executeQuery', query: 'select mayara.registrar_envio($1, $2, $3, $4::jsonb) as r',
         options: { queryReplacement: '={{ [$json.pedido.canalId, $json.pedido.para, $json.pedido.tipo, JSON.stringify($json.resultado)] }}' } } },
-    { id: id(13), name: 'Retorno', type: 'n8n-nodes-base.code', typeVersion: 2, position: [2200, 300],
+    { id: id(13), name: 'Retorno', type: 'n8n-nodes-base.code', typeVersion: 2, position: [2640, 300],
       parameters: { jsCode: 'return [{ json: $input.first().json.r }];' } },
   ];
   const ligar = (...destinos) => ({ main: [destinos.map((node) => ({ node, type: 'main', index: 0 }))] });
@@ -80,13 +106,17 @@ export function montarWorkflow() {
     'Decidir': ligar('Roteador'),
     'Roteador': { main: [
       [{ node: 'Corpo Meta', type: 'main', index: 0 }],
-      [{ node: 'Evolution Indisponivel', type: 'main', index: 0 }],
+      [{ node: 'Texto do Template', type: 'main', index: 0 }],
       [{ node: 'Registrar Envio', type: 'main', index: 0 }],
     ] },
     'Corpo Meta': ligar('Enviar Meta'),
     'Enviar Meta': ligar('Interpretar Meta'),
     'Interpretar Meta': ligar('Registrar Envio'),
-    'Evolution Indisponivel': ligar('Registrar Envio'),
+    'Texto do Template': ligar('Corpo Evolution'),
+    'Corpo Evolution': ligar('Evolution Pronto?'),
+    'Evolution Pronto?': { main: [[{ node: 'Enviar Evolution', type: 'main', index: 0 }], [{ node: 'Registrar Envio', type: 'main', index: 0 }]] },
+    'Enviar Evolution': ligar('Interpretar Evolution'),
+    'Interpretar Evolution': ligar('Registrar Envio'),
     'Registrar Envio': ligar('Retorno'),
   };
   return {

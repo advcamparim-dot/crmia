@@ -955,3 +955,15 @@ Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>"
 **Consistência de nomes:** as entradas do `Canal: Enviar` (`canalId`, `para`, `tipo`, `texto`, `templateNome`, `templateVariaveis`, `identificarMayara`, `origem`) são as mesmas na biblioteca, no gerador e na tabela da Task 4. `pode_enviar` e `registrar_envio` têm as assinaturas usadas nas queries do workflow.
 
 **Riscos assumidos:** a ferramenta de edição do n8n é instável. O plano troca um ponto por vez, lê de volta e mantém rollback por versão. A Task 5 é a mais arriscada (mexe no caminho de todo lead) e vem por último, com a virada e a remoção em passos separados.
+
+---
+
+## Revisão de 06/10/2026 (Evolution como linha única)
+
+Spec: seção "Revisão de 06/10/2026" do mesmo documento de design. As tarefas 5 e 6 continuam valendo. Acrescenta-se, em ordem:
+
+- **Task 7:** migration `0014` (administrador ativo fora da janela de 48 h em `pode_enviar`), com teste SQL primeiro.
+- **Task 8:** `interpretarRespostaEvolution` e `montarEvolution` com `delay` em `canal.mjs`; ramo `evolution` em `gerar-enviar.mjs` (consulta de template, `sendText`, interpretação, registro), tudo com testes primeiro; atualizar `Canal: Enviar` no n8n.
+- **Task 5 (ajustada):** além de extrair `Canal: Processar Evento`, `Canal: Receber Evolution` passa a chamá-lo para eventos aceitos (mantendo o registro em `canal_eventos`).
+- **Task 9:** trocar os IDs fixos da Meta por `escritorio`, desativar os workers de lembretes e follow-up, ativar o canal `escritorio` e inativar a linha Meta; teste ponta a ponta com o celular do usuário (lead, `/status`, imagem), conferindo `envios_log`.
+- **Task 6 (fechamento):** registrar conclusão na spec.

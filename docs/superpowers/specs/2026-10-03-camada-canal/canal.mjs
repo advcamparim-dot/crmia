@@ -67,7 +67,8 @@ export function montarEvolution(p, corpoTemplate) {
     if (corpoTemplate === undefined || corpoTemplate === null) throw new Error('template sem texto equivalente cadastrado');
     texto = renderTemplate(corpoTemplate, p.templateVariaveis);
   }
-  return { caminho: '/message/sendText/' + p.canalId, corpo: { number: p.para, text: p.identificar ? aplicarPrefixo(texto) : texto } };
+  const final = p.identificar ? aplicarPrefixo(texto) : texto;
+  return { caminho: '/message/sendText/' + p.canalId, corpo: { number: p.para, text: final, delay: atrasoHumanoMs(final) } };
 }
 
 export function atrasoHumanoMs(texto) {
@@ -82,5 +83,16 @@ export function interpretarRespostaMeta(resposta) {
   let msg = 'erro_desconhecido';
   if (r.error) msg = typeof r.error === 'string' ? r.error : String(r.error.message ?? JSON.stringify(r.error));
   else if (!id) msg = 'resposta_sem_id_de_mensagem';
+  return { ok: false, error: { message: msg } };
+}
+
+export function interpretarRespostaEvolution(resposta) {
+  const r = resposta && typeof resposta === 'object' ? resposta : {};
+  const id = r.key && r.key.id ? String(r.key.id) : undefined;
+  if (!r.error && id) return { ok: true, messaging_product: 'whatsapp', messages: [{ id }] };
+  let msg = 'resposta_sem_id_de_mensagem';
+  const detalhe = r.response && r.response.message;
+  if (detalhe) msg = Array.isArray(detalhe) ? detalhe.map(String).join('; ') : String(detalhe);
+  else if (r.error) msg = typeof r.error === 'string' ? r.error : String(r.error.message ?? JSON.stringify(r.error));
   return { ok: false, error: { message: msg } };
 }

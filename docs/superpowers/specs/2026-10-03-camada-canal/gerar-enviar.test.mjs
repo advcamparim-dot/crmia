@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { montarWorkflow, corpoNode, RODAPE_PREPARAR, RODAPE_CORPO_META, RODAPE_INTERPRETAR } from './gerar-enviar.mjs';
+import { montarWorkflow, corpoNode, RODAPE_PREPARAR, RODAPE_CORPO_META, RODAPE_INTERPRETAR, RODAPE_CORPO_EVOLUTION, RODAPE_INTERPRETAR_EVOLUTION } from './gerar-enviar.mjs';
 
 const wf = montarWorkflow();
 const nomes = wf.nodes.map((n) => n.name);
@@ -27,7 +27,7 @@ test('todo no e alcancavel a partir do gatilho', () => {
 });
 
 test('os Code nodes gerados sao JS valido e sem import/export', () => {
-  for (const r of [RODAPE_PREPARAR, RODAPE_CORPO_META, RODAPE_INTERPRETAR]) {
+  for (const r of [RODAPE_PREPARAR, RODAPE_CORPO_META, RODAPE_INTERPRETAR, RODAPE_CORPO_EVOLUTION, RODAPE_INTERPRETAR_EVOLUTION]) {
     const c = corpoNode(r);
     assert.ok(!/^\s*(import|export)\s/m.test(c));
     assert.doesNotThrow(() => new Function('$input', '$', c));
@@ -48,12 +48,51 @@ test('Preparar valida e Interpretar mantem o formato da Graph API', () => {
   assert.equal(interp[0].json.resultado.messages[0].id, 'wamid.1');
 });
 
-test('configuracao: credenciais, workflow de erro e provedor evolution sem envio real', () => {
+const no = (n) => wf.nodes.find((x) => x.name === n);
+const sai = (o, i = 0) => (wf.connections[o]?.main?.[i] ?? []).map((c) => c.node);
+const pedido = (extra = {}) => ({ canalId: 'escritorio', para: '5514997022609', tipo: 'texto', texto: 'Oi', templateNome: '', templateVariaveis: [], identificar: true, origem: 't', ...extra });
+const rodaEvo = (p, corpoTpl) => new Function('$input', '$', corpoNode(RODAPE_CORPO_EVOLUTION))(
+  { first: () => ({ json: { corpo: corpoTpl } }) }, () => ({ first: () => ({ json: { pedido: p } }) }))[0].json;
+
+test('ramo evolution: template, corpo, envio, interpretacao e registro', () => {
+  assert.deepEqual(sai('Roteador', 1), ['Texto do Template']);
+  assert.deepEqual(sai('Texto do Template'), ['Corpo Evolution']);
+  assert.deepEqual(sai('Corpo Evolution'), ['Evolution Pronto?']);
+  assert.deepEqual(sai('Evolution Pronto?', 0), ['Enviar Evolution']);
+  assert.deepEqual(sai('Evolution Pronto?', 1), ['Registrar Envio']);
+  assert.deepEqual(sai('Enviar Evolution'), ['Interpretar Evolution']);
+  assert.deepEqual(sai('Interpretar Evolution'), ['Registrar Envio']);
+  assert.ok(!nomes.includes('Evolution Indisponivel'));
+});
+
+test('Corpo Evolution: texto sai com delay; template sem texto cadastrado nao envia', () => {
+  const ok = rodaEvo(pedido(), null);
+  assert.equal(ok.evo.caminho, '/message/sendText/escritorio');
+  assert.equal(ok.evo.corpo.text, '*Mayara:*\nOi');
+  assert.ok(ok.evo.corpo.delay >= 1000 && ok.evo.corpo.delay <= 4000);
+  assert.equal(ok.resultado, undefined);
+  const semTpl = rodaEvo(pedido({ tipo: 'template', texto: '', templateNome: 'lembrete', templateVariaveis: ['Ana'] }), null);
+  assert.equal(semTpl.evo, undefined);
+  assert.equal(semTpl.resultado.ok, false);
+  assert.match(semTpl.resultado.error.message, /template/);
+  const comTpl = rodaEvo(pedido({ tipo: 'template', texto: '', templateNome: 'lembrete', templateVariaveis: ['Ana'], identificar: false }), 'Ola {{1}}');
+  assert.equal(comTpl.evo.corpo.text, 'Ola Ana');
+});
+
+test('Enviar Evolution: credencial, URL do servico e unico no ramo', () => {
+  const e = no('Enviar Evolution');
+  assert.equal(e.parameters.method, 'POST');
+  assert.ok(e.parameters.url.includes('https://evolution.camparimadvogados.com.br'));
+  assert.ok(e.parameters.url.includes('$json.evo.caminho'));
+  assert.equal(e.credentials.httpHeaderAuth.id, 'vA1UKEhHVqwcLGWW');
+  assert.equal(e.onError, 'continueRegularOutput');
+  assert.ok(e.parameters.options.timeout >= 25000, 'o delay de ate 4 s cabe no timeout');
+});
+
+test('configuracao: credenciais, workflow de erro e envios por provedor', () => {
   assert.equal(wf.settings.errorWorkflow, 'CQyjBKLX0UheNh1q');
   const json = JSON.stringify(wf);
-  assert.ok(json.includes('nNpCUIhnDuVvTApU') && json.includes('SChAKcHay4ghJVwe'));
+  assert.ok(json.includes('nNpCUIhnDuVvTApU') && json.includes('SChAKcHay4ghJVwe') && json.includes('vA1UKEhHVqwcLGWW'));
   const http = wf.nodes.filter((n) => n.type === 'n8n-nodes-base.httpRequest');
-  assert.deepEqual(http.map((n) => n.name), ['Enviar Meta'], 'a fase 1 so tem o envio da Meta');
-  assert.ok(!JSON.stringify(http).includes('/message/sendText'), 'nenhum no HTTP envia para a Evolution');
-  assert.ok(nomes.includes('Evolution Indisponivel'));
+  assert.deepEqual(http.map((n) => n.name).sort(), ['Enviar Evolution', 'Enviar Meta']);
 });
