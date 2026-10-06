@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { normalizarEvolution, extrairTexto } from './evolucao.mjs';
+import { normalizarEvolution, extrairTexto, extrairEstado, ehEventoDeEstado } from './evolucao.mjs';
 
 const base = (data = {}, extra = {}) => ({
   event: 'messages.upsert',
@@ -105,6 +105,20 @@ test('timestamp invalido cai para agora e numero de texto grande e aceito', () =
   assert.ok(!Number.isNaN(Date.parse(r.evento.timestamp)));
   const longo = normalizarEvolution(base({ message: { conversation: 'x'.repeat(5000) } }));
   assert.equal(longo.evento.message.length, 5000);
+});
+
+test('connection.update: extrai o estado da conexao e reconhece o tipo de evento', () => {
+  const ev = (state, extra = {}) => ({ event: 'connection.update', instance: 'escritorio', data: { instance: 'escritorio', state, statusReason: 200 }, ...extra });
+  assert.equal(ehEventoDeEstado(ev('open')), true);
+  assert.equal(ehEventoDeEstado({ event: 'CONNECTION_UPDATE' }), true);
+  assert.equal(ehEventoDeEstado(base()), false);
+  assert.equal(ehEventoDeEstado(null), false);
+  assert.deepEqual(extrairEstado(ev('open')), { valido: true, canalId: 'escritorio', estado: 'open' });
+  assert.deepEqual(extrairEstado(ev('CLOSE')), { valido: true, canalId: 'escritorio', estado: 'close' });
+  assert.deepEqual(extrairEstado(ev('connecting')), { valido: true, canalId: 'escritorio', estado: 'connecting' });
+  for (const ruim of [ev('open', { instance: 'outra' }), ev(undefined), ev('qualquer'), { event: 'connection.update', instance: 'escritorio' }, null, 'x', [], base()]) {
+    assert.equal(extrairEstado(ruim).valido, false, JSON.stringify(ruim));
+  }
 });
 
 test('o codigo-fonte nao tem caracteres invisiveis ou combinantes literais', () => {

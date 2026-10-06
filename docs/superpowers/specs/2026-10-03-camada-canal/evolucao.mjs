@@ -80,3 +80,16 @@ export function normalizarEvolution(corpo, instanciaEsperada = 'escritorio') {
     },
   };
 }
+
+export function ehEventoDeEstado(corpo) {
+  return !!corpo && typeof corpo === 'object' && !Array.isArray(corpo) && nomeDoEvento(corpo.event) === 'connection.update';
+}
+
+export function extrairEstado(corpo, instanciaEsperada = 'escritorio') {
+  if (!ehEventoDeEstado(corpo)) return { valido: false, motivo: 'evento_nao_estado' };
+  if (String(corpo.instance ?? '') !== instanciaEsperada) return { valido: false, motivo: 'instancia_inesperada' };
+  const data = corpo.data && typeof corpo.data === 'object' ? corpo.data : {};
+  const estado = String(data.state ?? '').toLowerCase();
+  if (estado !== 'open' && estado !== 'connecting' && estado !== 'close') return { valido: false, motivo: 'estado_desconhecido' };
+  return { valido: true, canalId: instanciaEsperada, estado };
+}

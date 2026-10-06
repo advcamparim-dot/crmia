@@ -97,7 +97,7 @@
         300
       ],
       "parameters": {
-        "jsCode": "// evolucao.mjs\n// Normaliza o webhook MESSAGES_UPSERT da Evolution API para o evento normalizado do Gateway.\n// Sem import e sem dependencias: o corpo e copiado para um Code node do n8n (o \"export \" e removido).\n\nconst TIPOS_IGNORADOS = ['reactionMessage', 'protocolMessage', 'editedMessage', 'senderKeyDistributionMessage', 'messageContextInfo'];\nconst TIPOS_MIDIA = ['audioMessage', 'imageMessage', 'documentMessage', 'stickerMessage', 'videoMessage', 'ptvMessage', 'contactMessage', 'locationMessage'];\n\nfunction extrairTexto(message) {\n  const m = message && typeof message === 'object' ? message : {};\n  const texto = m.conversation\n    || (m.extendedTextMessage && m.extendedTextMessage.text)\n    || (m.buttonsResponseMessage && m.buttonsResponseMessage.selectedDisplayText)\n    || (m.listResponseMessage && m.listResponseMessage.title)\n    || (m.templateButtonReplyMessage && m.templateButtonReplyMessage.selectedDisplayText)\n    || '';\n  return String(texto).trim();\n}\n\nfunction nomeDoEvento(e) {\n  return String(e ?? '').toLowerCase().replace(/_/g, '.');\n}\n\nfunction telefoneDoJid(jid) {\n  const s = String(jid ?? '');\n  if (!s.endsWith('@s.whatsapp.net')) return '';\n  const digitos = s.split('@')[0].split(':')[0].replace(/\\D/g, '');\n  return digitos.length >= 10 && digitos.length <= 15 ? digitos : '';\n}\n\nfunction descartar(motivo) {\n  return { acao: 'descartar', motivo };\n}\n\nfunction paraIso(ts) {\n  const n = Number(ts && typeof ts === 'object' ? ts.low : ts);\n  return Number.isFinite(n) && n > 0 ? new Date(n * 1000).toISOString() : new Date().toISOString();\n}\n\nfunction normalizarEvolution(corpo, instanciaEsperada = 'escritorio') {\n  if (!corpo || typeof corpo !== 'object' || Array.isArray(corpo)) return descartar('payload_incompleto');\n  if (nomeDoEvento(corpo.event) !== 'messages.upsert') return descartar('evento_nao_mensagem');\n  if (String(corpo.instance ?? '') !== instanciaEsperada) return descartar('instancia_inesperada');\n  const data = corpo.data && typeof corpo.data === 'object' ? corpo.data : null;\n  const key = data && data.key && typeof data.key === 'object' ? data.key : null;\n  if (!key) return descartar('payload_incompleto');\n  const jid = String(key.remoteJid ?? '');\n  if (key.fromMe === true) return descartar('enviada_por_mim');\n  if (jid.endsWith('@g.us')) return descartar('grupo');\n  if (jid === 'status@broadcast') return descartar('status');\n  if (jid.endsWith('@newsletter')) return descartar('newsletter');\n  const message = data.message && typeof data.message === 'object' ? data.message : {};\n  const tipos = Object.keys(message);\n  if (tipos.some((t) => TIPOS_IGNORADOS.includes(t) && !tipos.some((o) => TIPOS_MIDIA.includes(o)) && !extrairTexto(message))) {\n    return descartar('tipo_ignorado');\n  }\n  let digitos = telefoneDoJid(jid);\n  if (!digitos && jid.endsWith('@lid')) {\n    digitos = telefoneDoJid(key.remoteJidAlt);\n    if (!digitos) return descartar('lid_sem_telefone');\n  }\n  const messageId = String(key.id ?? '');\n  if (!digitos || !messageId) return descartar('payload_incompleto');\n  const texto = extrairTexto(message);\n  const ehMidia = tipos.some((t) => TIPOS_MIDIA.includes(t));\n  const requiresHuman = !texto && (ehMidia || tipos.length === 0 || !tipos.some((t) => TIPOS_IGNORADOS.includes(t)));\n  if (!texto && !requiresHuman) return descartar('tipo_ignorado');\n  const phone = '+' + digitos;\n  const canalId = instanciaEsperada;\n  const tipoMsg = texto ? 'text' : String(data.messageType || tipos[0] || 'unknown');\n  return {\n    acao: 'processar',\n    evento: {\n      accepted: true, reason: 'ACEITO', channel: 'WhatsApp', provedor: 'evolution',\n      phone, profileName: String(data.pushName ?? ''), message: texto, messageType: tipoMsg,\n      messageId, timestamp: paraIso(data.messageTimestamp),\n      phoneNumberId: canalId, canalId, displayPhoneNumber: '',\n      sessionKey: 'whatsapp:' + canalId + ':' + phone, dedupeKey: messageId,\n      campaignSourceId: '', campaignSourceUrl: '', campaignHeadline: '',\n      requiresHuman, processingBlocked: true,\n    },\n  };\n}\n\n\nconst corpo = $('Webhook Evolution').first().json.body;\nreturn [{ json: normalizarEvolution(corpo) }];\n"
+        "jsCode": "// evolucao.mjs\n// Normaliza o webhook MESSAGES_UPSERT da Evolution API para o evento normalizado do Gateway.\n// Sem import e sem dependencias: o corpo e copiado para um Code node do n8n (o \"export \" e removido).\n\nconst TIPOS_IGNORADOS = ['reactionMessage', 'protocolMessage', 'editedMessage', 'senderKeyDistributionMessage', 'messageContextInfo'];\nconst TIPOS_MIDIA = ['audioMessage', 'imageMessage', 'documentMessage', 'stickerMessage', 'videoMessage', 'ptvMessage', 'contactMessage', 'locationMessage'];\n\nfunction extrairTexto(message) {\n  const m = message && typeof message === 'object' ? message : {};\n  const texto = m.conversation\n    || (m.extendedTextMessage && m.extendedTextMessage.text)\n    || (m.buttonsResponseMessage && m.buttonsResponseMessage.selectedDisplayText)\n    || (m.listResponseMessage && m.listResponseMessage.title)\n    || (m.templateButtonReplyMessage && m.templateButtonReplyMessage.selectedDisplayText)\n    || '';\n  return String(texto).trim();\n}\n\nfunction nomeDoEvento(e) {\n  return String(e ?? '').toLowerCase().replace(/_/g, '.');\n}\n\nfunction telefoneDoJid(jid) {\n  const s = String(jid ?? '');\n  if (!s.endsWith('@s.whatsapp.net')) return '';\n  const digitos = s.split('@')[0].split(':')[0].replace(/\\D/g, '');\n  return digitos.length >= 10 && digitos.length <= 15 ? digitos : '';\n}\n\nfunction descartar(motivo) {\n  return { acao: 'descartar', motivo };\n}\n\nfunction paraIso(ts) {\n  const n = Number(ts && typeof ts === 'object' ? ts.low : ts);\n  return Number.isFinite(n) && n > 0 ? new Date(n * 1000).toISOString() : new Date().toISOString();\n}\n\nfunction normalizarEvolution(corpo, instanciaEsperada = 'escritorio') {\n  if (!corpo || typeof corpo !== 'object' || Array.isArray(corpo)) return descartar('payload_incompleto');\n  if (nomeDoEvento(corpo.event) !== 'messages.upsert') return descartar('evento_nao_mensagem');\n  if (String(corpo.instance ?? '') !== instanciaEsperada) return descartar('instancia_inesperada');\n  const data = corpo.data && typeof corpo.data === 'object' ? corpo.data : null;\n  const key = data && data.key && typeof data.key === 'object' ? data.key : null;\n  if (!key) return descartar('payload_incompleto');\n  const jid = String(key.remoteJid ?? '');\n  if (key.fromMe === true) return descartar('enviada_por_mim');\n  if (jid.endsWith('@g.us')) return descartar('grupo');\n  if (jid === 'status@broadcast') return descartar('status');\n  if (jid.endsWith('@newsletter')) return descartar('newsletter');\n  const message = data.message && typeof data.message === 'object' ? data.message : {};\n  const tipos = Object.keys(message);\n  if (tipos.some((t) => TIPOS_IGNORADOS.includes(t) && !tipos.some((o) => TIPOS_MIDIA.includes(o)) && !extrairTexto(message))) {\n    return descartar('tipo_ignorado');\n  }\n  let digitos = telefoneDoJid(jid);\n  if (!digitos && jid.endsWith('@lid')) {\n    digitos = telefoneDoJid(key.remoteJidAlt);\n    if (!digitos) return descartar('lid_sem_telefone');\n  }\n  const messageId = String(key.id ?? '');\n  if (!digitos || !messageId) return descartar('payload_incompleto');\n  const texto = extrairTexto(message);\n  const ehMidia = tipos.some((t) => TIPOS_MIDIA.includes(t));\n  const requiresHuman = !texto && (ehMidia || tipos.length === 0 || !tipos.some((t) => TIPOS_IGNORADOS.includes(t)));\n  if (!texto && !requiresHuman) return descartar('tipo_ignorado');\n  const phone = '+' + digitos;\n  const canalId = instanciaEsperada;\n  const tipoMsg = texto ? 'text' : String(data.messageType || tipos[0] || 'unknown');\n  return {\n    acao: 'processar',\n    evento: {\n      accepted: true, reason: 'ACEITO', channel: 'WhatsApp', provedor: 'evolution',\n      phone, profileName: String(data.pushName ?? ''), message: texto, messageType: tipoMsg,\n      messageId, timestamp: paraIso(data.messageTimestamp),\n      phoneNumberId: canalId, canalId, displayPhoneNumber: '',\n      sessionKey: 'whatsapp:' + canalId + ':' + phone, dedupeKey: messageId,\n      campaignSourceId: '', campaignSourceUrl: '', campaignHeadline: '',\n      requiresHuman, processingBlocked: true,\n    },\n  };\n}\n\nfunction ehEventoDeEstado(corpo) {\n  return !!corpo && typeof corpo === 'object' && !Array.isArray(corpo) && nomeDoEvento(corpo.event) === 'connection.update';\n}\n\nfunction extrairEstado(corpo, instanciaEsperada = 'escritorio') {\n  if (!ehEventoDeEstado(corpo)) return { valido: false, motivo: 'evento_nao_estado' };\n  if (String(corpo.instance ?? '') !== instanciaEsperada) return { valido: false, motivo: 'instancia_inesperada' };\n  const data = corpo.data && typeof corpo.data === 'object' ? corpo.data : {};\n  const estado = String(data.state ?? '').toLowerCase();\n  if (estado !== 'open' && estado !== 'connecting' && estado !== 'close') return { valido: false, motivo: 'estado_desconhecido' };\n  return { valido: true, canalId: instanciaEsperada, estado };\n}\n\n\nconst corpo = $('Webhook Evolution').first().json.body;\nreturn [{ json: normalizarEvolution(corpo) }];\n"
       }
     },
     {
@@ -214,6 +214,75 @@
           "waitForSubWorkflow": true
         }
       }
+    },
+    {
+      "id": "c9100000-0000-4000-8000-000000000011",
+      "name": "Evento de Estado?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        600,
+        300
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "estado",
+              "leftValue": "={{ String($('Webhook Evolution').first().json.body && $('Webhook Evolution').first().json.body.event || '').toLowerCase().replace(/_/g, '.') === 'connection.update' }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "c9100000-0000-4000-8000-000000000012",
+      "name": "Preparar Estado",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        840,
+        640
+      ],
+      "parameters": {
+        "jsCode": "return [{ json: $('Webhook Evolution').first().json.body }];"
+      }
+    },
+    {
+      "id": "c9100000-0000-4000-8000-000000000013",
+      "name": "Chamar Estado",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.3,
+      "position": [
+        1080,
+        640
+      ],
+      "onError": "continueRegularOutput",
+      "parameters": {
+        "workflowId": {
+          "__rl": true,
+          "value": "uRxJRPeu9axfmzAd",
+          "mode": "list",
+          "cachedResultName": "Mayara — Canal: Estado [Sub-workflow]"
+        },
+        "options": {
+          "waitForSubWorkflow": true
+        }
+      }
     }
   ],
   "connections": {
@@ -243,7 +312,7 @@
       "main": [
         [
           {
-            "node": "Normalizar Evento",
+            "node": "Evento de Estado?",
             "type": "main",
             "index": 0
           }
@@ -251,6 +320,35 @@
         [
           {
             "node": "Descartar em Silencio",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Evento de Estado?": {
+      "main": [
+        [
+          {
+            "node": "Preparar Estado",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Normalizar Evento",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Preparar Estado": {
+      "main": [
+        [
+          {
+            "node": "Chamar Estado",
             "type": "main",
             "index": 0
           }

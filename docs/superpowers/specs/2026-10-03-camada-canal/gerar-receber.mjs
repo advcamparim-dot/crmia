@@ -32,7 +32,7 @@ const condicaoBool = (idc, expr) => ({
 
 const SQL_REGISTRO = "select mayara.registrar_evento_canal($1, $2, $3, nullif($4, ''), nullif($5, ''), nullif($6, ''), nullif($7, '')::int, nullif($8, '')::boolean)";
 
-export function montarWorkflow(processarId = '1ciEX4HqgbaS3Gqx') {
+export function montarWorkflow(processarId = '1ciEX4HqgbaS3Gqx', estadoId = 'uRxJRPeu9axfmzAd') {
   const nodes = [
     { id: id(1), name: 'Webhook Evolution', type: 'n8n-nodes-base.webhook', typeVersion: 2.1, position: [0, 300],
       webhookId: id(101),
@@ -58,12 +58,21 @@ export function montarWorkflow(processarId = '1ciEX4HqgbaS3Gqx') {
     { id: id(10), name: 'Processar Evento', type: 'n8n-nodes-base.executeWorkflow', typeVersion: 1.3, position: [1680, 220], onError: 'continueRegularOutput',
       parameters: { workflowId: { __rl: true, value: processarId, mode: 'list', cachedResultName: 'Mayara — Canal: Processar Evento [Sub-workflow]' },
         options: { waitForSubWorkflow: true } } },
+    { id: id(11), name: 'Evento de Estado?', type: 'n8n-nodes-base.if', typeVersion: 2.2, position: [600, 300],
+      parameters: { conditions: condicaoBool('estado', "={{ String($('Webhook Evolution').first().json.body && $('Webhook Evolution').first().json.body.event || '').toLowerCase().replace(/_/g, '.') === 'connection.update' }}"), options: {} } },
+    { id: id(12), name: 'Preparar Estado', type: 'n8n-nodes-base.code', typeVersion: 2, position: [840, 640],
+      parameters: { jsCode: "return [{ json: $('Webhook Evolution').first().json.body }];" } },
+    { id: id(13), name: 'Chamar Estado', type: 'n8n-nodes-base.executeWorkflow', typeVersion: 1.3, position: [1080, 640], onError: 'continueRegularOutput',
+      parameters: { workflowId: { __rl: true, value: estadoId, mode: 'list', cachedResultName: 'Mayara — Canal: Estado [Sub-workflow]' },
+        options: { waitForSubWorkflow: true } } },
   ];
   const ligar = (...destinos) => ({ main: [destinos.map((node) => ({ node, type: 'main', index: 0 }))] });
   const connections = {
     'Webhook Evolution': ligar('Conferir Segredo'),
     'Conferir Segredo': ligar('Segredo OK?'),
-    'Segredo OK?': { main: [[{ node: 'Normalizar Evento', type: 'main', index: 0 }], [{ node: 'Descartar em Silencio', type: 'main', index: 0 }]] },
+    'Segredo OK?': { main: [[{ node: 'Evento de Estado?', type: 'main', index: 0 }], [{ node: 'Descartar em Silencio', type: 'main', index: 0 }]] },
+    'Evento de Estado?': { main: [[{ node: 'Preparar Estado', type: 'main', index: 0 }], [{ node: 'Normalizar Evento', type: 'main', index: 0 }]] },
+    'Preparar Estado': ligar('Chamar Estado'),
     'Normalizar Evento': ligar('Aceito?'),
     'Registrar Aceito': ligar('Preparar Evento'),
     'Preparar Evento': ligar('Processar Evento'),

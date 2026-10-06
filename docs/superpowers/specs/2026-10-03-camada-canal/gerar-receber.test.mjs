@@ -3,7 +3,8 @@ import assert from 'node:assert/strict';
 import { montarWorkflow, corpoNode, RODAPE_NORMALIZAR } from './gerar-receber.mjs';
 
 const PROCESSAR_ID = '1ciEX4HqgbaS3Gqx';
-const wf = montarWorkflow(PROCESSAR_ID);
+const ESTADO_ID = 'uRxJRPeu9axfmzAd';
+const wf = montarWorkflow(PROCESSAR_ID, ESTADO_ID);
 const nomes = wf.nodes.map((n) => n.name);
 const sai = (o, i = 0) => (wf.connections[o]?.main?.[i] ?? []).map((c) => c.node);
 const no = (n) => wf.nodes.find((x) => x.name === n);
@@ -27,20 +28,31 @@ test('o webhook responde na hora e o segredo e conferido antes de qualquer outra
   assert.equal(no('Webhook Evolution').parameters.responseMode, 'onReceived');
   assert.deepEqual(sai('Webhook Evolution'), ['Conferir Segredo']);
   assert.deepEqual(sai('Conferir Segredo'), ['Segredo OK?']);
-  assert.deepEqual(sai('Segredo OK?', 0), ['Normalizar Evento']);
+  assert.deepEqual(sai('Segredo OK?', 0), ['Evento de Estado?']);
   assert.deepEqual(sai('Segredo OK?', 1), ['Descartar em Silencio']);
   assert.equal(no('Conferir Segredo').parameters.query, 'select mayara.conferir_segredo_canal($1) as ok');
   assert.match(no('Conferir Segredo').parameters.options.queryReplacement, /x-canal-segredo/);
 });
 
-test('so o Processar Evento e chamado, e nenhum no envia mensagem por conta propria', () => {
+test('eventos de conexao vao para o Canal Estado; os demais seguem para a normalizacao', () => {
+  assert.deepEqual(sai('Evento de Estado?', 0), ['Preparar Estado']);
+  assert.deepEqual(sai('Evento de Estado?', 1), ['Normalizar Evento']);
+  assert.deepEqual(sai('Preparar Estado'), ['Chamar Estado']);
+  assert.equal(no('Preparar Estado').parameters.jsCode, "return [{ json: $('Webhook Evolution').first().json.body }];");
+  assert.equal(no('Chamar Estado').parameters.workflowId.value, ESTADO_ID);
+  assert.equal(no('Chamar Estado').onError, 'continueRegularOutput');
+  assert.match(no('Evento de Estado?').parameters.conditions.conditions[0].leftValue, /connection\.update/);
+});
+
+test('so Processar Evento e Chamar Estado sao chamados, e nenhum no envia mensagem por conta propria', () => {
   const tipos = wf.nodes.map((n) => n.type);
   assert.ok(!tipos.includes('n8n-nodes-base.httpRequest'));
   assert.ok(!JSON.stringify(wf).includes('graph.facebook.com'));
   const chamadas = wf.nodes.filter((n) => n.type === 'n8n-nodes-base.executeWorkflow');
-  assert.deepEqual(chamadas.map((n) => n.name), ['Processar Evento']);
-  assert.equal(chamadas[0].parameters.workflowId.value, PROCESSAR_ID);
-  assert.equal(chamadas[0].parameters.options.waitForSubWorkflow, true);
+  assert.deepEqual(chamadas.map((n) => n.name).sort(), ['Chamar Estado', 'Processar Evento']);
+  const proc = chamadas.find((n) => n.name === 'Processar Evento');
+  assert.equal(proc.parameters.workflowId.value, PROCESSAR_ID);
+  assert.equal(proc.parameters.options.waitForSubWorkflow, true);
 });
 
 test('o aceito e registrado antes de ser processado, e o item enviado e o evento normalizado', () => {
