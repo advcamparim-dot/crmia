@@ -36,6 +36,21 @@ function paraIso(ts) {
   return Number.isFinite(n) && n > 0 ? new Date(n * 1000).toISOString() : new Date().toISOString();
 }
 
+const EMBRULHOS = ['ephemeralMessage', 'viewOnceMessage', 'viewOnceMessageV2', 'viewOnceMessageV2Extension', 'documentWithCaptionMessage'];
+const PREFIXO_MAYARA = '*Mayara:*';
+
+// Mensagens temporarias, de visualizacao unica e documento com legenda chegam embrulhadas em
+// <embrulho>.message. Desembrulha ate 4 niveis (protecao contra payload ciclico ou absurdo).
+function desembrulhar(message) {
+  let atual = message && typeof message === 'object' ? message : {};
+  for (let nivel = 0; nivel < 4; nivel++) {
+    const chave = EMBRULHOS.find((k) => atual[k] && typeof atual[k] === 'object' && atual[k].message && typeof atual[k].message === 'object');
+    if (!chave) break;
+    atual = atual[chave].message;
+  }
+  return atual;
+}
+
 export function normalizarEvolution(corpo, instanciaEsperada = 'escritorio') {
   if (!corpo || typeof corpo !== 'object' || Array.isArray(corpo)) return descartar('payload_incompleto');
   if (nomeDoEvento(corpo.event) !== 'messages.upsert') return descartar('evento_nao_mensagem');
@@ -44,15 +59,14 @@ export function normalizarEvolution(corpo, instanciaEsperada = 'escritorio') {
   const key = data && data.key && typeof data.key === 'object' ? data.key : null;
   if (!key) return descartar('payload_incompleto');
   const jid = String(key.remoteJid ?? '');
-  if (key.fromMe === true) return descartar('enviada_por_mim');
   if (jid.endsWith('@g.us')) return descartar('grupo');
   if (jid === 'status@broadcast') return descartar('status');
   if (jid.endsWith('@newsletter')) return descartar('newsletter');
-  const message = data.message && typeof data.message === 'object' ? data.message : {};
+  const message = desembrulhar(data.message);
   const tipos = Object.keys(message);
-  if (tipos.some((t) => TIPOS_IGNORADOS.includes(t) && !tipos.some((o) => TIPOS_MIDIA.includes(o)) && !extrairTexto(message))) {
-    return descartar('tipo_ignorado');
-  }
+  const texto = extrairTexto(message);
+  const ehMidia = tipos.some((t) => TIPOS_MIDIA.includes(t));
+  if (!texto && !ehMidia && tipos.some((t) => TIPOS_IGNORADOS.includes(t))) return descartar('tipo_ignorado');
   let digitos = telefoneDoJid(jid);
   if (!digitos && jid.endsWith('@lid')) {
     digitos = telefoneDoJid(key.remoteJidAlt);
@@ -60,13 +74,16 @@ export function normalizarEvolution(corpo, instanciaEsperada = 'escritorio') {
   }
   const messageId = String(key.id ?? '');
   if (!digitos || !messageId) return descartar('payload_incompleto');
-  const texto = extrairTexto(message);
-  const ehMidia = tipos.some((t) => TIPOS_MIDIA.includes(t));
-  const requiresHuman = !texto && (ehMidia || tipos.length === 0 || !tipos.some((t) => TIPOS_IGNORADOS.includes(t)));
-  if (!texto && !requiresHuman) return descartar('tipo_ignorado');
   const phone = '+' + digitos;
   const canalId = instanciaEsperada;
-  const tipoMsg = texto ? 'text' : String(data.messageType || tipos[0] || 'unknown');
+  if (key.fromMe === true) {
+    // Enviada pelo numero do escritorio: se for da propria Mayara (prefixo), ignora; senao um humano respondeu.
+    if (texto.startsWith(PREFIXO_MAYARA)) return descartar('enviada_por_mim');
+    return { acao: 'humano', canalId, phone, messageId };
+  }
+  const requiresHuman = !texto && (ehMidia || tipos.length === 0 || !tipos.some((t) => TIPOS_IGNORADOS.includes(t)));
+  if (!texto && !requiresHuman) return descartar('tipo_ignorado');
+  const tipoMsg = texto ? 'text' : String(tipos.find((t) => TIPOS_MIDIA.includes(t)) || data.messageType || tipos[0] || 'unknown');
   return {
     acao: 'processar',
     evento: {

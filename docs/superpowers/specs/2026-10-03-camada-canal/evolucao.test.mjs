@@ -45,10 +45,10 @@ test('extrairTexto cobre os formatos de texto, botao e lista', () => {
   assert.equal(extrairTexto(null), '');
 });
 
-test('descartes que nao tocam o banco: fromMe, grupo, status, newsletter, outra instancia, outro evento', () => {
+test('descartes que nao tocam o banco: grupo, status, newsletter, outra instancia, outro evento', () => {
   const casos = [
-    [base({ key: { remoteJid: '5514997022609@s.whatsapp.net', fromMe: true, id: 'X' } }), 'enviada_por_mim'],
     [base({ key: { remoteJid: '120363@g.us', fromMe: false, id: 'X', participant: '5514997022609@s.whatsapp.net' } }), 'grupo'],
+    [base({ key: { remoteJid: '120363@g.us', fromMe: true, id: 'X' } }), 'grupo'],
     [base({ key: { remoteJid: 'status@broadcast', fromMe: false, id: 'X' } }), 'status'],
     [base({ key: { remoteJid: '1203@newsletter', fromMe: false, id: 'X' } }), 'newsletter'],
     [base({}, { instance: 'outra' }), 'instancia_inesperada'],
@@ -59,6 +59,53 @@ test('descartes que nao tocam o banco: fromMe, grupo, status, newsletter, outra 
     assert.equal(r.acao, 'descartar', motivo);
     assert.equal(r.motivo, motivo);
   }
+});
+
+test('mensagem enviada pelo escritorio: a da propria Mayara e descartada; a de um humano vira acao humano', () => {
+  const doHumano = normalizarEvolution(base({ key: { remoteJid: '5514997022609@s.whatsapp.net', fromMe: true, id: 'H1' }, message: { conversation: 'Oi, aqui e o Dr. Santo' } }));
+  assert.deepEqual(doHumano, { acao: 'humano', canalId: 'escritorio', phone: '+5514997022609', messageId: 'H1' });
+  const daMayara = normalizarEvolution(base({ key: { remoteJid: '5514997022609@s.whatsapp.net', fromMe: true, id: 'M1' }, message: { conversation: '*Mayara:*\nOi!' } }));
+  assert.deepEqual([daMayara.acao, daMayara.motivo], ['descartar', 'enviada_por_mim']);
+  const midiaDoHumano = normalizarEvolution(base({ key: { remoteJid: '5514997022609@s.whatsapp.net', fromMe: true, id: 'H2' }, message: { imageMessage: {} }, messageType: 'imageMessage' }));
+  assert.equal(midiaDoHumano.acao, 'humano');
+  const lid = normalizarEvolution(base({ key: { remoteJid: '99887766@lid', remoteJidAlt: '5514997022609@s.whatsapp.net', fromMe: true, id: 'H3' }, message: { conversation: 'oi' } }));
+  assert.equal(lid.phone, '+5514997022609');
+  const lidSem = normalizarEvolution(base({ key: { remoteJid: '99887766@lid', fromMe: true, id: 'H4' }, message: { conversation: 'oi' } }));
+  assert.deepEqual([lidSem.acao, lidSem.motivo], ['descartar', 'lid_sem_telefone']);
+  const reacao = normalizarEvolution(base({ key: { remoteJid: '5514997022609@s.whatsapp.net', fromMe: true, id: 'H5' }, message: { reactionMessage: { text: 'ok' } }, messageType: 'reactionMessage' }));
+  assert.deepEqual([reacao.acao, reacao.motivo], ['descartar', 'tipo_ignorado']);
+});
+
+const emb = (message) => base({ message, messageType: Object.keys(message || {})[0] });
+
+test('mensagens embrulhadas (temporaria, visualizacao unica, documento com legenda) sao desembrulhadas', () => {
+  const texto = normalizarEvolution(emb({ ephemeralMessage: { message: { conversation: 'oi, preciso de ajuda' } } }));
+  assert.equal(texto.acao, 'processar');
+  assert.equal(texto.evento.message, 'oi, preciso de ajuda');
+  assert.equal(texto.evento.requiresHuman, false);
+  assert.equal(texto.evento.messageType, 'text');
+  const estendido = normalizarEvolution(emb({ ephemeralMessage: { message: { extendedTextMessage: { text: 'com link' } } } }));
+  assert.equal(estendido.evento.message, 'com link');
+  const foto = normalizarEvolution(emb({ viewOnceMessage: { message: { imageMessage: {} } } }));
+  assert.equal(foto.evento.requiresHuman, true);
+  assert.equal(foto.evento.messageType, 'imageMessage');
+  const v2 = normalizarEvolution(emb({ viewOnceMessageV2: { message: { videoMessage: {} } } }));
+  assert.equal(v2.evento.messageType, 'videoMessage');
+  const doc = normalizarEvolution(emb({ documentWithCaptionMessage: { message: { documentMessage: { caption: 'contrato' } } } }));
+  assert.equal(doc.evento.requiresHuman, true);
+  assert.equal(doc.evento.messageType, 'documentMessage');
+  const duplo = normalizarEvolution(emb({ ephemeralMessage: { message: { viewOnceMessage: { message: { conversation: 'fundo' } } } } }));
+  assert.equal(duplo.evento.message, 'fundo');
+  const reacaoTemp = normalizarEvolution(emb({ ephemeralMessage: { message: { reactionMessage: { text: 'x' } } } }));
+  assert.deepEqual([reacaoTemp.acao, reacaoTemp.motivo], ['descartar', 'tipo_ignorado']);
+});
+
+test('embrulhos hostis nao entram em laco nem lancam excecao', () => {
+  let ciclo = { conversation: 'x' };
+  for (let i = 0; i < 50; i++) ciclo = { ephemeralMessage: { message: ciclo } };
+  assert.doesNotThrow(() => normalizarEvolution(emb(ciclo)));
+  assert.doesNotThrow(() => normalizarEvolution(emb({ ephemeralMessage: null })));
+  assert.doesNotThrow(() => normalizarEvolution(emb({ ephemeralMessage: { message: 'texto' } })));
 });
 
 test('reacao, edicao e exclusao sao descartadas', () => {

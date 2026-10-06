@@ -63,10 +63,29 @@ test('o aceito e registrado antes de ser processado, e o item enviado e o evento
   assert.equal(no('Processar Evento').parameters.options.waitForSubWorkflow, true);
 });
 
+test('o registro de auditoria nunca bloqueia o processamento da mensagem', () => {
+  for (const n of ['Registrar Aceito', 'Registrar Descartado', 'Registrar Humano']) {
+    assert.equal(no(n).onError, 'continueRegularOutput', n);
+  }
+});
+
+test('mensagem enviada por humano pelo numero do escritorio: espera o log de envios e pausa o lead', () => {
+  assert.deepEqual(sai('Aceito?', 1), ['Humano?']);
+  assert.deepEqual(sai('Humano?', 0), ['Aguardar Registro de Envio']);
+  assert.deepEqual(sai('Humano?', 1), ['Registrar Descartado']);
+  assert.deepEqual(sai('Aguardar Registro de Envio'), ['Registrar Humano']);
+  assert.equal(no('Aguardar Registro de Envio').type, 'n8n-nodes-base.wait');
+  assert.equal(no('Aguardar Registro de Envio').parameters.amount, 5);
+  assert.equal(no('Aguardar Registro de Envio').parameters.unit, 'seconds');
+  assert.match(no('Humano?').parameters.conditions.conditions[0].leftValue, /acao === 'humano'/);
+  assert.equal(no('Registrar Humano').parameters.query, 'select mayara.humano_assumiu($1, $2, $3) as r');
+  assert.match(no('Registrar Humano').parameters.options.queryReplacement, /\$json\.canalId.*\$json\.phone.*\$json\.messageId/);
+  assert.deepEqual(sai('Registrar Humano'), []);
+});
+
 test('aceitos e descartados terminam no registro, sem consultar autorizacao', () => {
   assert.deepEqual(sai('Normalizar Evento'), ['Aceito?']);
   assert.deepEqual(sai('Aceito?', 0), ['Registrar Aceito']);
-  assert.deepEqual(sai('Aceito?', 1), ['Registrar Descartado']);
   assert.match(no('Registrar Aceito').parameters.query, /registrar_evento_canal/);
   assert.match(no('Registrar Descartado').parameters.query, /registrar_evento_canal/);
 });

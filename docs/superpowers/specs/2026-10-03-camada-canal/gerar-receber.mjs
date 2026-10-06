@@ -47,10 +47,10 @@ export function montarWorkflow(processarId = '1ciEX4HqgbaS3Gqx', estadoId = 'uRx
       parameters: { jsCode: corpoNode(RODAPE_NORMALIZAR) } },
     { id: id(6), name: 'Aceito?', type: 'n8n-nodes-base.if', typeVersion: 2.2, position: [960, 300],
       parameters: { conditions: condicaoBool('aceito', "={{ $json.acao === 'processar' }}"), options: {} } },
-    { id: id(7), name: 'Registrar Aceito', type: 'n8n-nodes-base.postgres', typeVersion: 2.6, position: [1200, 220], credentials: PG,
+    { id: id(7), name: 'Registrar Aceito', type: 'n8n-nodes-base.postgres', typeVersion: 2.6, position: [1200, 220], credentials: PG, onError: 'continueRegularOutput',
       parameters: { operation: 'executeQuery', query: SQL_REGISTRO,
         options: { queryReplacement: "={{ [$json.evento.canalId, 'evolution', 'aceito', '', $json.evento.phone, $json.evento.messageType, String($json.evento.message.length), String($json.evento.requiresHuman)] }}" } } },
-    { id: id(8), name: 'Registrar Descartado', type: 'n8n-nodes-base.postgres', typeVersion: 2.6, position: [1200, 400], credentials: PG,
+    { id: id(8), name: 'Registrar Descartado', type: 'n8n-nodes-base.postgres', typeVersion: 2.6, position: [1440, 440], credentials: PG, onError: 'continueRegularOutput',
       parameters: { operation: 'executeQuery', query: SQL_REGISTRO,
         options: { queryReplacement: "={{ ['escritorio', 'evolution', 'descartado', $json.motivo, '', '', '', ''] }}" } } },
     { id: id(9), name: 'Preparar Evento', type: 'n8n-nodes-base.code', typeVersion: 2, position: [1440, 220],
@@ -65,6 +65,13 @@ export function montarWorkflow(processarId = '1ciEX4HqgbaS3Gqx', estadoId = 'uRx
     { id: id(13), name: 'Chamar Estado', type: 'n8n-nodes-base.executeWorkflow', typeVersion: 1.3, position: [1080, 640], onError: 'continueRegularOutput',
       parameters: { workflowId: { __rl: true, value: estadoId, mode: 'list', cachedResultName: 'Mayara — Canal: Estado [Sub-workflow]' },
         options: { waitForSubWorkflow: true } } },
+    { id: id(14), name: 'Humano?', type: 'n8n-nodes-base.if', typeVersion: 2.2, position: [1200, 400],
+      parameters: { conditions: condicaoBool('humano', "={{ $json.acao === 'humano' }}"), options: {} } },
+    { id: id(15), name: 'Aguardar Registro de Envio', type: 'n8n-nodes-base.wait', typeVersion: 1.1, position: [1440, 340], webhookId: id(201),
+      parameters: { amount: 5, unit: 'seconds' } },
+    { id: id(16), name: 'Registrar Humano', type: 'n8n-nodes-base.postgres', typeVersion: 2.6, position: [1680, 340], credentials: PG, onError: 'continueRegularOutput',
+      parameters: { operation: 'executeQuery', query: 'select mayara.humano_assumiu($1, $2, $3) as r',
+        options: { queryReplacement: '={{ [$json.canalId, $json.phone, $json.messageId] }}' } } },
   ];
   const ligar = (...destinos) => ({ main: [destinos.map((node) => ({ node, type: 'main', index: 0 }))] });
   const connections = {
@@ -76,7 +83,9 @@ export function montarWorkflow(processarId = '1ciEX4HqgbaS3Gqx', estadoId = 'uRx
     'Normalizar Evento': ligar('Aceito?'),
     'Registrar Aceito': ligar('Preparar Evento'),
     'Preparar Evento': ligar('Processar Evento'),
-    'Aceito?': { main: [[{ node: 'Registrar Aceito', type: 'main', index: 0 }], [{ node: 'Registrar Descartado', type: 'main', index: 0 }]] },
+    'Aceito?': { main: [[{ node: 'Registrar Aceito', type: 'main', index: 0 }], [{ node: 'Humano?', type: 'main', index: 0 }]] },
+    'Humano?': { main: [[{ node: 'Aguardar Registro de Envio', type: 'main', index: 0 }], [{ node: 'Registrar Descartado', type: 'main', index: 0 }]] },
+    'Aguardar Registro de Envio': ligar('Registrar Humano'),
   };
   return {
     name: 'Mayara — Canal: Receber Evolution',
