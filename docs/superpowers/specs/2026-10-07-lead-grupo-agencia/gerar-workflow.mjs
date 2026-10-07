@@ -12,6 +12,7 @@ const ALERTAR = { __rl: true, value: 'FWSC1k1CBMWBtsNs', mode: 'list', cachedRes
 const cond = (id, esquerda) => ({ options: { caseSensitive: true, leftValue: '', typeValidation: 'strict', version: 2 }, conditions: [{ id, leftValue: esquerda, rightValue: true, operator: { type: 'boolean', operation: 'true', singleValue: true } }], combinator: 'and' });
 const se = (id, nome, pos, esquerda) => ({ id, name: nome, type: 'n8n-nodes-base.if', typeVersion: 2.2, position: pos, parameters: { conditions: cond(id + '-c', esquerda), options: {} } });
 const alerta = (id, nome, pos) => ({ id, name: nome, type: 'n8n-nodes-base.executeWorkflow', typeVersion: 1.3, position: pos, onError: 'continueRegularOutput', parameters: { workflowId: ALERTAR, workflowInputs: { mappingMode: 'defineBelow', value: { texto: '={{ $json.texto }}' }, matchingColumns: [], schema: [{ id: 'texto', displayName: 'texto', required: false, defaultMatch: false, display: true, type: 'string', canBeUsedToMatch: true }], attemptToConvertTypes: false, convertFieldsToString: true }, options: { waitForSubWorkflow: false } } });
+const registro = (id, nome, pos, query, repl) => ({ id, name: nome, type: 'n8n-nodes-base.postgres', typeVersion: 2.6, position: pos, onError: 'continueRegularOutput', credentials: { postgres: { id: 'nNpCUIhnDuVvTApU', name: 'Postgres account' } }, parameters: { operation: 'executeQuery', query, options: { queryReplacement: repl } } });
 const codigo = (id, nome, pos, js) => ({ id, name: nome, type: 'n8n-nodes-base.code', typeVersion: 2, position: pos, parameters: { jsCode: js } });
 
 const nodes = [
@@ -27,19 +28,23 @@ const nodes = [
   se('f4000000-0000-4000-8000-000000000010', 'Criou?', [1540, 300], '={{ Boolean($json.id) }}'),
   codigo('f4000000-0000-4000-8000-000000000011', 'Montar Alerta Falha', [1760, 420], "const tel = String($('Montar Lead').first().json.telefone || '');\nreturn [{ json: { texto: 'Atenção: não consegui criar no CRM um lead do grupo da agência (final do telefone ' + tel.slice(-4) + '). Lance manualmente.' } }];"),
   alerta('f4000000-0000-4000-8000-000000000012', 'Alertar Escritório', [2000, 450]),
+  registro('f4000000-0000-4000-8000-000000000021', 'Registrar Ilegivel', [880, 620], "select mayara.registrar_cartao_agencia($1::text, $2::text, 'ilegivel', $3::text, null) as r", "={{ [$('Decidir').first().json.messageId || '', '', $('Decidir').first().json.motivo || ''] }}"),
+  registro('f4000000-0000-4000-8000-000000000022', 'Registrar Ja Existia', [1320, 60], "select mayara.registrar_cartao_agencia($1::text, $2::text, 'ja_existia', null, $3::text) as r", "={{ [$('Decidir').first().json.messageId || '', $('Decidir').first().json.lead.telefone || '', ($('Buscar no CRM').first().json.list && $('Buscar no CRM').first().json.list[0] && $('Buscar no CRM').first().json.list[0].id) || ''] }}"),
+  registro('f4000000-0000-4000-8000-000000000023', 'Registrar Criado', [1760, 200], "select mayara.registrar_cartao_agencia($1::text, $2::text, 'criado', null, $3::text) as r", "={{ [$('Decidir').first().json.messageId || '', $('Decidir').first().json.lead.telefone || '', $json.id || ''] }}"),
+  registro('f4000000-0000-4000-8000-000000000024', 'Registrar Falha CRM', [1760, 600], "select mayara.registrar_cartao_agencia($1::text, $2::text, 'erro_crm', $3::text, null) as r", "={{ [$('Decidir').first().json.messageId || '', $('Decidir').first().json.lead.telefone || '', String($json.error && $json.error.message || $json.message || 'falha_ao_criar').slice(0, 120)] }}"),
 ];
 const lig = (...d) => ({ main: [d.map((x) => ({ node: x, type: 'main', index: 0 }))] });
 const connections = {
   'Execute Workflow Trigger': lig('Decidir'),
   Decidir: lig('Criar?'),
   'Criar?': { main: [[{ node: 'Buscar no CRM', type: 'main', index: 0 }], [{ node: 'Alertar?', type: 'main', index: 0 }]] },
-  'Alertar?': { main: [[{ node: 'Montar Alerta Ilegivel', type: 'main', index: 0 }], []] },
+  'Alertar?': { main: [[{ node: 'Montar Alerta Ilegivel', type: 'main', index: 0 }, { node: 'Registrar Ilegivel', type: 'main', index: 0 }], []] },
   'Montar Alerta Ilegivel': lig('Alertar Escritório'),
   'Buscar no CRM': lig('Montar Lead'),
   'Montar Lead': lig('Ja Existe?'),
-  'Ja Existe?': { main: [[], [{ node: 'Criar Lead', type: 'main', index: 0 }]] },
+  'Ja Existe?': { main: [[{ node: 'Registrar Ja Existia', type: 'main', index: 0 }], [{ node: 'Criar Lead', type: 'main', index: 0 }]] },
   'Criar Lead': lig('Criou?'),
-  'Criou?': { main: [[], [{ node: 'Montar Alerta Falha', type: 'main', index: 0 }]] },
+  'Criou?': { main: [[{ node: 'Registrar Criado', type: 'main', index: 0 }], [{ node: 'Montar Alerta Falha', type: 'main', index: 0 }, { node: 'Registrar Falha CRM', type: 'main', index: 0 }]] },
   'Montar Alerta Falha': lig('Alertar Escritório'),
 };
 const wf = { name: 'Mayara — Lead do Grupo da Agência [Sub-workflow]', nodes, connections, settings: { executionOrder: 'v1', errorWorkflow: 'CQyjBKLX0UheNh1q', callerPolicy: 'workflowsFromSameOwner' } };
