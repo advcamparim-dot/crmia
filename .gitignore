@@ -11,3 +11,7 @@ IA ATENDIMENTO/
 
 # artefatos locais do fluxo superpowers
 .superpowers/
+
+# dados pessoais de leads reais (nao versionar)
+leads-reais/*
+!leads-reais/modelo-leads.csv
