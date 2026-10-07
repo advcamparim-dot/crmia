@@ -1,0 +1,440 @@
+{
+  "name": "Mayara — Lead do Grupo da Agência [Sub-workflow]",
+  "nodes": [
+    {
+      "id": "f4000000-0000-4000-8000-000000000001",
+      "name": "Execute Workflow Trigger",
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1.1,
+      "position": [
+        0,
+        300
+      ],
+      "parameters": {
+        "inputSource": "passthrough"
+      }
+    },
+    {
+      "id": "f4000000-0000-4000-8000-000000000002",
+      "name": "Decidir",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        220,
+        300
+      ],
+      "parameters": {
+        "jsCode": "// lead-grupo.mjs\n// Le o cartao \"Novo Lead\" que a agencia posta no grupo e devolve os campos normalizados.\n// Sem import e sem dependencias: o corpo e copiado para um Code node do n8n (o \"export \" e removido).\n\nconst ROTULOS = {\n  campanha: 'campanha',\n  ondeDivida: 'onde esta a divida',\n  valorDivida: 'valor da divida',\n  situacao: 'situacao',\n  tipo: 'tipo',\n};\n\n// Classe de combinantes montada por codigo (sem escape barra-u nem caractere invisivel literal).\nconst MARCAS = new RegExp('[' + String.fromCharCode(0x300) + '-' + String.fromCharCode(0x36f) + ']', 'g');\n\nfunction simplificar(texto) {\n  return String(texto ?? '').normalize('NFD').replace(MARCAS, '').toLowerCase();\n}\n\nfunction limparEspacos(texto) {\n  return String(texto ?? '').replace(/\\s+/g, ' ').trim();\n}\n\n// Valor depois do primeiro \":\" de uma linha cujo rotulo (sem emoji, acento e caixa) e o esperado.\nfunction valorDoRotulo(linhas, rotulo) {\n  for (const linha of linhas) {\n    const i = linha.indexOf(':');\n    if (i < 0) continue;\n    const antes = simplificar(linha.slice(0, i)).replace(/[^a-z ]/g, '').replace(/\\s+/g, ' ').trim();\n    if (antes === rotulo) return limparEspacos(linha.slice(i + 1));\n  }\n  return '';\n}\n\nfunction normalizarTelefone(bruto) {\n  let d = String(bruto ?? '').replace(/\\D/g, '');\n  if (d.startsWith('55') && (d.length === 12 || d.length === 13)) return '+' + d;\n  if (d.length === 10 || d.length === 11) return '+55' + d;\n  return '';\n}\n\nfunction nomeDoCartao(linhas) {\n  for (const linha of linhas) {\n    const t = linha.trim();\n    if (!t.startsWith(String.fromCodePoint(0x1F464))) continue; // pessoa\n    // Remove o emoji e qualquer seletor de variacao que venha depois, sem escrever caractere especial no codigo.\n    return limparEspacos(t.replace(/^[^\\p{L}\\p{N}]+/u, ''));\n  }\n  return '';\n}\n\nfunction lerCartaoLead(mensagem) {\n  const texto = typeof mensagem === 'string' ? mensagem : '';\n  if (!simplificar(texto).includes('novo lead')) return { valido: false, motivo: 'nao_e_lead' };\n  const linhas = texto.split(/\\r?\\n/);\n\n  const lead = { campanha: '', nome: nomeDoCartao(linhas), ondeDivida: '', valorDivida: '', situacao: '', tipo: '', telefone: '' };\n  for (const [campo, rotulo] of Object.entries(ROTULOS)) lead[campo] = valorDoRotulo(linhas, rotulo);\n\n  const brutoTel = valorDoRotulo(linhas, 'telefone');\n  const link = (texto.match(/wa\\.me\\/(\\+?\\d+)/i) || [])[1] || '';\n  if (!brutoTel && !link) return { valido: false, motivo: 'sem_telefone' };\n  lead.telefone = normalizarTelefone(brutoTel) || normalizarTelefone(link);\n  if (!lead.telefone) return { valido: false, motivo: 'telefone_invalido' };\n  return { valido: true, lead };\n}\n\nconst EMBRULHOS = ['ephemeralMessage', 'viewOnceMessage', 'viewOnceMessageV2', 'viewOnceMessageV2Extension', 'documentWithCaptionMessage'];\n\n// Mensagens temporarias e similares chegam embrulhadas em <embrulho>.message (ate 4 niveis).\nfunction desembrulhar(message) {\n  let atual = message && typeof message === 'object' ? message : {};\n  for (let nivel = 0; nivel < 4; nivel++) {\n    const chave = EMBRULHOS.find((k) => atual[k] && typeof atual[k] === 'object' && atual[k].message && typeof atual[k].message === 'object');\n    if (!chave) break;\n    atual = atual[chave].message;\n  }\n  return atual;\n}\n\nfunction textoDaMensagem(message) {\n  const m = desembrulhar(message);\n  return String(m.conversation || (m.extendedTextMessage && m.extendedTextMessage.text) || '').trim();\n}\n\n// Decide o que fazer com um evento bruto da Evolution: ignorar, criar o lead ou alertar o escritorio.\n// So olha o grupo da agencia (grupoJid); qualquer outra coisa, inclusive conversa da equipe, e ignorada em silencio.\nfunction decidirAcao(corpo, grupoJid, instancia = 'escritorio') {\n  const ignorar = (motivo) => ({ acao: 'ignorar', motivo });\n  if (!corpo || typeof corpo !== 'object') return ignorar('payload_incompleto');\n  if (String(corpo.event ?? '').toLowerCase().replace(/_/g, '.') !== 'messages.upsert') return ignorar('evento_nao_mensagem');\n  if (String(corpo.instance ?? '') !== instancia) return ignorar('instancia_inesperada');\n  const data = corpo.data && typeof corpo.data === 'object' ? corpo.data : null;\n  const key = data && data.key && typeof data.key === 'object' ? data.key : null;\n  if (!key) return ignorar('payload_incompleto');\n  if (String(key.remoteJid ?? '') !== grupoJid) return ignorar('outro_chat');\n  const leitura = lerCartaoLead(textoDaMensagem(data.message));\n  const messageId = String(key.id ?? '');\n  if (leitura.valido) return { acao: 'criar', messageId, lead: leitura.lead };\n  if (leitura.motivo === 'nao_e_lead') return ignorar('nao_e_lead');\n  return { acao: 'alertar', motivo: leitura.motivo, messageId };\n}\n\nconst GRUPO_JID = '120363429995424499@g.us';\nreturn [{ json: decidirAcao($input.first().json, GRUPO_JID) }];\n"
+      }
+    },
+    {
+      "id": "f4000000-0000-4000-8000-000000000003",
+      "name": "Criar?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        440,
+        300
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "f4000000-0000-4000-8000-000000000003-c",
+              "leftValue": "={{ $json.acao === 'criar' }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "f4000000-0000-4000-8000-000000000004",
+      "name": "Alertar?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        660,
+        480
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "f4000000-0000-4000-8000-000000000004-c",
+              "leftValue": "={{ $json.acao === 'alertar' }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "f4000000-0000-4000-8000-000000000005",
+      "name": "Montar Alerta Ilegivel",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        880,
+        480
+      ],
+      "parameters": {
+        "jsCode": "const d = $input.first().json;\nreturn [{ json: { texto: 'Atenção: um cartão de lead no grupo da agência não pôde ser lido (motivo: ' + d.motivo + '). Confira o grupo e lance o lead manualmente no CRM.' } }];"
+      }
+    },
+    {
+      "id": "f4000000-0000-4000-8000-000000000006",
+      "name": "Buscar no CRM",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        660,
+        180
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "3CNvCGWMMDOyGD2n",
+          "name": "EspoCRM Integração n8n — Mayara"
+        }
+      },
+      "parameters": {
+        "method": "GET",
+        "url": "=https://crm.camparimadvogados.com.br/api/v1/Lead?where[0][type]=equals&where[0][attribute]=phoneNumber&where[0][value]={{ encodeURIComponent($('Decidir').first().json.lead.telefone) }}&select=id&maxSize=1",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "options": {
+          "timeout": 30000
+        }
+      }
+    },
+    {
+      "id": "f4000000-0000-4000-8000-000000000007",
+      "name": "Montar Lead",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        880,
+        180
+      ],
+      "parameters": {
+        "jsCode": "const l = $('Decidir').first().json.lead;\nconst r = $input.first().json;\nconst partes = String(l.nome || '').trim().split(/\\s+/).filter(Boolean);\nconst quando = new Date().toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo' });\nconst linhas = [\n  'Lead do grupo da agencia, cartao de ' + quando,\n  'Campanha: ' + (l.campanha || ''),\n  'Onde esta a divida: ' + (l.ondeDivida || ''),\n  'Valor da divida: ' + (l.valorDivida || ''),\n  'Situacao: ' + (l.situacao || ''),\n  'Tipo: ' + (l.tipo || ''),\n];\nreturn [{ json: { telefone: l.telefone, firstName: partes[0] || 'Lead', lastName: partes.slice(1).join(' '), description: linhas.join('\\n'), existe: Number(r.total || 0) > 0 } }];"
+      }
+    },
+    {
+      "id": "f4000000-0000-4000-8000-000000000008",
+      "name": "Ja Existe?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        1100,
+        180
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "f4000000-0000-4000-8000-000000000008-c",
+              "leftValue": "={{ $json.existe === true }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "f4000000-0000-4000-8000-000000000009",
+      "name": "Criar Lead",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        1320,
+        300
+      ],
+      "onError": "continueRegularOutput",
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "3CNvCGWMMDOyGD2n",
+          "name": "EspoCRM Integração n8n — Mayara"
+        }
+      },
+      "parameters": {
+        "method": "POST",
+        "url": "https://crm.camparimadvogados.com.br/api/v1/Lead",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ ({ firstName: $json.firstName, lastName: $json.lastName, phoneNumber: $json.telefone, description: $json.description, assignedUserId: '6a899d5f8a2b61a29' }) }}",
+        "options": {
+          "timeout": 30000
+        }
+      }
+    },
+    {
+      "id": "f4000000-0000-4000-8000-000000000010",
+      "name": "Criou?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        1540,
+        300
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "f4000000-0000-4000-8000-000000000010-c",
+              "leftValue": "={{ Boolean($json.id) }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "f4000000-0000-4000-8000-000000000011",
+      "name": "Montar Alerta Falha",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1760,
+        420
+      ],
+      "parameters": {
+        "jsCode": "const tel = String($('Montar Lead').first().json.telefone || '');\nreturn [{ json: { texto: 'Atenção: não consegui criar no CRM um lead do grupo da agência (final do telefone ' + tel.slice(-4) + '). Lance manualmente.' } }];"
+      }
+    },
+    {
+      "id": "f4000000-0000-4000-8000-000000000012",
+      "name": "Alertar Escritório",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.3,
+      "position": [
+        2000,
+        450
+      ],
+      "onError": "continueRegularOutput",
+      "parameters": {
+        "workflowId": {
+          "__rl": true,
+          "value": "FWSC1k1CBMWBtsNs",
+          "mode": "list",
+          "cachedResultName": "Mayara — Alertar Escritório [Sub-workflow]"
+        },
+        "workflowInputs": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "texto": "={{ $json.texto }}"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "texto",
+              "displayName": "texto",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": true
+        },
+        "options": {
+          "waitForSubWorkflow": false
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Execute Workflow Trigger": {
+      "main": [
+        [
+          {
+            "node": "Decidir",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Decidir": {
+      "main": [
+        [
+          {
+            "node": "Criar?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Criar?": {
+      "main": [
+        [
+          {
+            "node": "Buscar no CRM",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Alertar?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Alertar?": {
+      "main": [
+        [
+          {
+            "node": "Montar Alerta Ilegivel",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        []
+      ]
+    },
+    "Montar Alerta Ilegivel": {
+      "main": [
+        [
+          {
+            "node": "Alertar Escritório",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Buscar no CRM": {
+      "main": [
+        [
+          {
+            "node": "Montar Lead",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Montar Lead": {
+      "main": [
+        [
+          {
+            "node": "Ja Existe?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Ja Existe?": {
+      "main": [
+        [],
+        [
+          {
+            "node": "Criar Lead",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Criar Lead": {
+      "main": [
+        [
+          {
+            "node": "Criou?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Criou?": {
+      "main": [
+        [],
+        [
+          {
+            "node": "Montar Alerta Falha",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Montar Alerta Falha": {
+      "main": [
+        [
+          {
+            "node": "Alertar Escritório",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "errorWorkflow": "CQyjBKLX0UheNh1q",
+    "callerPolicy": "workflowsFromSameOwner"
+  }
+}

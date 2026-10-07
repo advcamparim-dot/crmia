@@ -73,3 +73,61 @@ test('nao confunde o nome com outras linhas e corta espacos', () => {
   const r = lerCartaoLead(CARTAO.replace('👤 Fulano Teste', '👤   Maria  da   Silva  '));
   assert.equal(r.lead.nome, 'Maria da Silva');
 });
+
+// ---- decidirAcao: do evento bruto da Evolution para ignorar / criar / alertar ----
+import { decidirAcao } from './lead-grupo.mjs';
+
+const GRUPO = '120363429995424499@g.us';
+const evento = (message, extra = {}) => ({
+  event: 'messages.upsert',
+  instance: 'escritorio',
+  data: { key: { remoteJid: GRUPO, fromMe: false, id: 'MSG1', participant: '5511999990001@s.whatsapp.net' }, message, ...extra },
+});
+
+test('cartao no grupo vira criar, com o id da mensagem', () => {
+  const r = decidirAcao(evento({ conversation: CARTAO }), GRUPO);
+  assert.equal(r.acao, 'criar');
+  assert.equal(r.messageId, 'MSG1');
+  assert.equal(r.lead.telefone, '+556199391304');
+});
+
+test('aceita texto estendido e mensagem temporaria embrulhada', () => {
+  assert.equal(decidirAcao(evento({ extendedTextMessage: { text: CARTAO } }), GRUPO).acao, 'criar');
+  assert.equal(decidirAcao(evento({ ephemeralMessage: { message: { conversation: CARTAO } } }), GRUPO).acao, 'criar');
+});
+
+test('conversa da equipe no grupo e ignorada em silencio', () => {
+  assert.deepEqual(decidirAcao(evento({ conversation: 'Pessoal, bom dia! Alguem viu o lead?' }), GRUPO), { acao: 'ignorar', motivo: 'nao_e_lead' });
+  assert.equal(decidirAcao(evento({ imageMessage: {} }), GRUPO).acao, 'ignorar');
+});
+
+test('outro grupo, conversa privada ou instancia diferente sao ignorados mesmo com cartao', () => {
+  const outro = evento({ conversation: CARTAO });
+  outro.data.key.remoteJid = '999@g.us';
+  assert.equal(decidirAcao(outro, GRUPO).acao, 'ignorar');
+  const privado = evento({ conversation: CARTAO });
+  privado.data.key.remoteJid = '5511999990001@s.whatsapp.net';
+  assert.equal(decidirAcao(privado, GRUPO).acao, 'ignorar');
+  const inst = evento({ conversation: CARTAO });
+  inst.instance = 'outra';
+  assert.equal(decidirAcao(inst, GRUPO).acao, 'ignorar');
+});
+
+test('evento que nao e mensagem e payload quebrado sao ignorados', () => {
+  assert.equal(decidirAcao({ event: 'connection.update', instance: 'escritorio', data: {} }, GRUPO).acao, 'ignorar');
+  assert.equal(decidirAcao(null, GRUPO).acao, 'ignorar');
+  assert.equal(decidirAcao({ event: 'messages.upsert', instance: 'escritorio' }, GRUPO).acao, 'ignorar');
+});
+
+test('cartao ilegivel gera alerta com o motivo e o id da mensagem', () => {
+  const semTel = CARTAO.replace(/📞 Telefone:.*\n/, '').replace(/👉.*/, '');
+  assert.deepEqual(decidirAcao(evento({ conversation: semTel }), GRUPO), { acao: 'alertar', motivo: 'sem_telefone', messageId: 'MSG1' });
+  const curto = CARTAO.replace('+556199391304', '12').replace('wa.me/556199391304', '');
+  assert.deepEqual(decidirAcao(evento({ conversation: curto }), GRUPO), { acao: 'alertar', motivo: 'telefone_invalido', messageId: 'MSG1' });
+});
+
+test('aceita messages.upsert escrito como MESSAGES_UPSERT', () => {
+  const e = evento({ conversation: CARTAO });
+  e.event = 'MESSAGES_UPSERT';
+  assert.equal(decidirAcao(e, GRUPO).acao, 'criar');
+});
