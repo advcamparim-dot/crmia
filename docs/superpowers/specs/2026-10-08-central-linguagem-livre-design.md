@@ -120,7 +120,7 @@ mayara.acoes_pendentes (
 
 ## Fases
 
-1. **Banco:** `acoes_pendentes`, funções de confirmação e de leitura, com testes.
+1. **Banco:** `acoes_pendentes`, funções de confirmação e de leitura, com testes. **Concluída em 08/10/2026** (migrations 0030 a 0032; chave `central_linguagem_livre` desligada).
 2. **Biblioteca `interpretar.mjs`** com testes e o conjunto de frases (sem chamar a IA).
 3. **Sub-workflow e ligação ao `Roteador`**, atrás da chave desligada; teste do conjunto de frases contra o modelo real; ligar a chave.
 4. **Abordar um lead** (rascunho, limites, memória) e leitura do histórico da conversa, junto com a habilidade de ler o histórico de que falamos.
