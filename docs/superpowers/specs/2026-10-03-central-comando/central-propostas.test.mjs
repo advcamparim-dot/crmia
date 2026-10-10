@@ -56,3 +56,16 @@ test('o ensino livre e os comandos com barra nao mudam', () => {
   assert.equal(classificarMensagem('sim claro, pode ser', livre).tipo, 'livre');
   assert.equal(classificarMensagem('editar a regra de honorários', livre).tipo, 'livre');
 });
+
+test('editar aceita espaco no lugar dos dois pontos e explica quando falta o texto', () => {
+  assert.deepEqual(classificarMensagem('Editar 41 Boa tarde, Ana. Aqui é a Mayara. Qual banco?', livre),
+    { tipo: 'proposta', acao: 'proposta_editar', op: 'editar', id: 41, texto: 'Boa tarde, Ana. Aqui é a Mayara. Qual banco?' });
+  assert.equal(classificarMensagem('editar 41:Texto sem espaco', livre).texto, 'Texto sem espaco');
+  const sem = classificarMensagem('Editar 41', livre);
+  assert.equal(sem.tipo, 'texto');
+  assert.equal(sem.acao, 'proposta_editar_sem_texto');
+  assert.match(sem.resposta, /editar 41: novo texto/);
+  assert.equal(classificarMensagem('editar #41   ', livre).acao, 'proposta_editar_sem_texto');
+  // frases comuns de ensino que comecam com "editar" nao sao capturadas
+  assert.equal(classificarMensagem('editar a regra de honorários', livre).tipo, 'livre');
+});

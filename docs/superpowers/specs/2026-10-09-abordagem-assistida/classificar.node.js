@@ -77,8 +77,13 @@ function classificarMensagem(texto, { exclusivo = false, ctx = {} } = {}) {
   if (aprovar) return proposta('aprovar', Number(aprovar[1]));
   const descartar = base.match(/^(?:nao|n)\s+#?(\d{1,9})$/);
   if (descartar) return proposta('descartar', Number(descartar[1]));
-  const editar = t.match(/^editar\s+#?(\d{1,9})\s*[:\-]\s*([\s\S]+)$/i);
+  const editar = t.match(/^editar\s+#?(\d{1,9})(?:\s*[:\-]\s*|\s+)([\s\S]+)$/i);
   if (editar) return proposta('editar', Number(editar[1]), editar[2].trim());
+  const editarSem = t.match(/^editar\s+#?(\d{1,9})\s*$/i);
+  if (editarSem) {
+    return { tipo: 'texto', acao: 'proposta_editar_sem_texto',
+      resposta: 'Para trocar o texto, envie tudo em uma mensagem: editar ' + editarSem[1] + ': novo texto' };
+  }
   if (/^propostas?$/.test(base)) return proposta('listar', null);
 
   const confirmacao = SIM.includes(norm) ? 'aprovar' : NAO.includes(norm) ? 'descartar' : '';
