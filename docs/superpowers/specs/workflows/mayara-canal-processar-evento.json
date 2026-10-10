@@ -53,22 +53,22 @@
       "name": "Rota da Mensagem",
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2.6,
+      "onError": "continueErrorOutput",
       "position": [
         440,
         300
       ],
-      "credentials": {
-        "postgres": {
-          "id": "nNpCUIhnDuVvTApU",
-          "name": "Postgres account"
-        }
-      },
-      "onError": "continueErrorOutput",
       "parameters": {
         "operation": "executeQuery",
         "query": "select mayara.rota_mensagem($1::text, $2::text) as rota, $1::text as phone",
         "options": {
           "queryReplacement": "={{ [$json.phone, $json.message] }}"
+        }
+      },
+      "credentials": {
+        "postgres": {
+          "id": "nNpCUIhnDuVvTApU",
+          "name": "Postgres account"
         }
       }
     },
@@ -111,11 +111,11 @@
       "name": "Executar Central",
       "type": "n8n-nodes-base.executeWorkflow",
       "typeVersion": 1.3,
+      "onError": "continueRegularOutput",
       "position": [
         880,
         160
       ],
-      "onError": "continueRegularOutput",
       "parameters": {
         "workflowId": {
           "__rl": true,
@@ -196,22 +196,22 @@
       "name": "Consultar Autorização",
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2.6,
+      "onError": "continueErrorOutput",
       "position": [
         880,
         360
       ],
-      "credentials": {
-        "postgres": {
-          "id": "nNpCUIhnDuVvTApU",
-          "name": "Postgres account"
-        }
-      },
-      "onError": "continueErrorOutput",
       "parameters": {
         "operation": "executeQuery",
         "query": "select mayara.motivo_bloqueio($1) as motivo",
         "options": {
           "queryReplacement": "={{ [$json.phone] }}"
+        }
+      },
+      "credentials": {
+        "postgres": {
+          "id": "nNpCUIhnDuVvTApU",
+          "name": "Postgres account"
         }
       }
     },
@@ -370,11 +370,11 @@
       "name": "Chamar Mayara — Ponte WhatsApp",
       "type": "n8n-nodes-base.executeWorkflow",
       "typeVersion": 1.3,
+      "onError": "continueRegularOutput",
       "position": [
         1980,
         300
       ],
-      "onError": "continueRegularOutput",
       "parameters": {
         "workflowId": {
           "__rl": true,
@@ -476,6 +476,87 @@
           "waitForSubWorkflow": true
         }
       }
+    },
+    {
+      "id": "ce000000-0000-4000-8000-000000000001",
+      "name": "Resposta Permitida",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "onError": "continueRegularOutput",
+      "position": [
+        900,
+        500
+      ],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "select mayara.resposta_permitida() as ok, $1::text as phone",
+        "options": {
+          "queryReplacement": "={{ [$json.phone] }}"
+        }
+      },
+      "credentials": {
+        "postgres": {
+          "id": "nNpCUIhnDuVvTApU",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "id": "ce000000-0000-4000-8000-000000000002",
+      "name": "Aberto?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        1120,
+        500
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "version": 2,
+            "leftValue": "",
+            "caseSensitive": true,
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "ce-aberto",
+              "leftValue": "={{ $json.ok !== false }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "ce000000-0000-4000-8000-000000000003",
+      "name": "Adiar Evento",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        1340,
+        640
+      ],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "select mayara.adiar_evento($1, $2::jsonb) as id",
+        "options": {
+          "queryReplacement": "={{ [$json.phone, JSON.stringify($('Execute Workflow Trigger').first().json)] }}"
+        }
+      },
+      "credentials": {
+        "postgres": {
+          "id": "nNpCUIhnDuVvTApU",
+          "name": "Postgres account"
+        }
+      }
     }
   ],
   "connections": {
@@ -537,7 +618,7 @@
         ],
         [
           {
-            "node": "Consultar Autorização",
+            "node": "Resposta Permitida",
             "type": "main",
             "index": 0
           }
@@ -626,12 +707,40 @@
           }
         ]
       ]
+    },
+    "Resposta Permitida": {
+      "main": [
+        [
+          {
+            "node": "Aberto?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Aberto?": {
+      "main": [
+        [
+          {
+            "node": "Consultar Autorização",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Adiar Evento",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     }
   },
   "settings": {
     "executionOrder": "v1",
     "errorWorkflow": "CQyjBKLX0UheNh1q",
     "callerPolicy": "workflowsFromSameOwner"
-  },
-  "id": "1ciEX4HqgbaS3Gqx"
+  }
 }
