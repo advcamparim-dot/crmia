@@ -350,7 +350,7 @@ test('sim sem numero e sem propostas continua como confirmacao de regra', () => 
 
 test('o ensino livre e os comandos com barra nao mudam', () => {
   assert.equal(classificarMensagem('Quando perguntarem de honorários, não cite valores.', livre).tipo, 'livre');
-  assert.equal(classificarMensagem('/status', livre).tipo, 'sql');
+  assert.equal(classificarMensagem('/status', livre).tipo, 'status');
   assert.equal(classificarMensagem('sim claro, pode ser', livre).tipo, 'livre');
   assert.equal(classificarMensagem('editar a regra de honorários', livre).tipo, 'livre');
 });

@@ -12,7 +12,7 @@ export function corpoLib() {
 export const RODAPE_CLASSIFICAR = `
 const entrada = $('Execute Workflow Trigger').first().json;
 const ctx = $input.first().json.ctx || {};
-const r = classificarMensagem(entrada.message, { exclusivo: ctx.exclusivo === true });
+const r = classificarMensagem(entrada.message, { exclusivo: ctx.exclusivo === true, ctx });
 return [{ json: { ...r, phone: entrada.phone, message: entrada.message, messageId: entrada.messageId, phoneNumberId: entrada.phoneNumberId } }];
 `;
 

@@ -58,7 +58,7 @@ function comando(cmd, args) {
   }
 }
 
-export function classificarMensagem(texto, { exclusivo = false } = {}) {
+export function classificarMensagem(texto, { exclusivo = false, ctx = {} } = {}) {
   const t = String(texto ?? '').trim();
   if (t.startsWith('/')) {
     const m = t.match(/^\/([^\s]*)\s*([\s\S]*)$/);
@@ -70,6 +70,26 @@ export function classificarMensagem(texto, { exclusivo = false } = {}) {
     return comando(cmd, args);
   }
   const norm = semAcento(t).toLowerCase().replace(/[^a-z\s]/g, '').trim();
+  const base = semAcento(t).toLowerCase().trim();
+  const proposta = (op, id, texto = '') => ({ tipo: 'proposta', acao: 'proposta_' + op, op, id, texto });
+
+  const aprovar = base.match(/^(?:sim|s)\s+#?(\d{1,9})$/);
+  if (aprovar) return proposta('aprovar', Number(aprovar[1]));
+  const descartar = base.match(/^(?:nao|n)\s+#?(\d{1,9})$/);
+  if (descartar) return proposta('descartar', Number(descartar[1]));
+  const editar = t.match(/^editar\s+#?(\d{1,9})\s*[:\-]\s*([\s\S]+)$/i);
+  if (editar) return proposta('editar', Number(editar[1]), editar[2].trim());
+  if (/^propostas?$/.test(base)) return proposta('listar', null);
+
+  const confirmacao = SIM.includes(norm) ? 'aprovar' : NAO.includes(norm) ? 'descartar' : '';
+  const contexto = ctx && typeof ctx === 'object' ? ctx : {};
+  if (confirmacao && !contexto.pendente && !contexto.acao_pendente) {
+    if (contexto.proposta_unica) return proposta(confirmacao, Number(contexto.proposta_unica));
+    if (Number(contexto.propostas_abertas) > 1) {
+      return { tipo: 'texto', acao: 'proposta_ambigua',
+        resposta: 'Há ' + contexto.propostas_abertas + ' propostas abertas. Responda sim <número> ou não <número>. Para ver a lista, envie: propostas' };
+    }
+  }
   if (SIM.includes(norm)) return sql('confirmar_sim');
   if (NAO.includes(norm)) return sql('confirmar_nao');
   if (exclusivo && t) return { tipo: 'livre', acao: 'ensino', texto: t };
