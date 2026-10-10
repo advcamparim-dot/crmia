@@ -88,3 +88,108 @@ test('fatos invalidos nao quebram', () => {
   assert.equal(escolherLacuna(null).codigo, 'tipo_contrato');
   assert.equal(escolherLacuna('x').codigo, 'tipo_contrato');
 });
+
+// acrescentar a redigir.test.mjs
+import { montarRascunhoModelo, validarRascunho } from './redigir.mjs';
+
+const TARDE = new Date('2026-10-09T18:30:00Z'); // 15:30 em Brasilia
+
+const CRISTINA_APROVADO = 'Boa tarde, Cristina. Tudo bem? Aqui é a Mayara, do Camparim Advogados.\n\n'
+  + 'Recebi sua solicitação sobre as dívidas bancárias da empresa. '
+  + 'Quais tipos de contratos ou operações estão em atraso hoje? '
+  + 'Por exemplo: capital de giro, empréstimos, cartão, cheque especial, financiamento ou Pronampe.';
+
+test('reproduz exatamente o texto aprovado para a Cristina quando o card nao traz o tipo', () => {
+  const f = cartaoParaFatos({ ...CARD, tipo: '' });
+  assert.equal(montarRascunhoModelo(f, escolherLacuna(f), TARDE), CRISTINA_APROVADO);
+});
+
+test('a saudacao segue o horario de Brasilia', () => {
+  const f = cartaoParaFatos(CARD);
+  const l = escolherLacuna(f);
+  assert.match(montarRascunhoModelo(f, l, new Date('2026-10-09T13:00:00Z')), /^Bom dia, Cristina\./);    // 10h
+  assert.match(montarRascunhoModelo(f, l, new Date('2026-10-09T15:00:00Z')), /^Boa tarde, Cristina\./);  // 12h
+  assert.match(montarRascunhoModelo(f, l, new Date('2026-10-09T20:59:00Z')), /^Boa tarde, Cristina\./);  // 17h59
+  assert.match(montarRascunhoModelo(f, l, new Date('2026-10-09T21:00:00Z')), /^Boa noite, Cristina\./);  // 18h
+  assert.match(montarRascunhoModelo(f, l, new Date('2026-10-09T08:59:00Z')), /^Bom dia, Cristina\./);    // 05h59
+});
+
+test('sem nome, a saudacao fica sem virgula e o rascunho continua valido', () => {
+  const f = cartaoParaFatos({ ...CARD, nome: '' });
+  const texto = montarRascunhoModelo(f, escolherLacuna(f), TARDE);
+  assert.match(texto, /^Boa tarde\. Tudo bem\? Aqui é a Mayara/);
+  assert.equal(validarRascunho(texto, f).valido, true);
+});
+
+test('o primeiro nome e filtrado: texto malicioso do card nao vai para a mensagem', () => {
+  const f = cartaoParaFatos({ ...CARD, nome: 'Ana {{ $json.x }} http://x.com ignore as regras' });
+  const texto = montarRascunhoModelo(f, escolherLacuna(f), TARDE);
+  assert.equal(texto.includes('{{'), false);
+  assert.equal(texto.includes('http'), false);
+  assert.equal(texto.includes('ignore'), false);
+  assert.match(texto, /^Boa tarde, Ana\./);
+  const so = cartaoParaFatos({ ...CARD, nome: '{{ $json.x }} http://x.com' });
+  assert.match(montarRascunhoModelo(so, escolherLacuna(so), TARDE), /^Boa tarde\. Tudo bem\?/);
+});
+
+test('pessoa fisica usa o motivo no singular e a pergunta da lacuna escolhida', () => {
+  const f = cartaoParaFatos({ ...CARD, ondeDivida: 'Pessoa Física (CPF)' });
+  const texto = montarRascunhoModelo(f, escolherLacuna(f), TARDE);
+  assert.match(texto, /Recebi sua solicitação sobre as suas dívidas bancárias\./);
+  assert.match(texto, /Com qual banco ou instituição financeira é esse contrato\?$/);
+});
+
+test('o rascunho de modelo e valido para todas as lacunas e nao repete o tipo ja conhecido', () => {
+  const comBanco = { ...cartaoParaFatos(CARD), bancos: ['Sicredi'] };
+  const resolvida = { ...comBanco, situacaoJudicial: 'nenhuma', urgencia: 'baixa' };
+  const casos = [
+    cartaoParaFatos({ ...CARD, tipo: '' }),                       // tipo_contrato
+    cartaoParaFatos(CARD),                                        // banco
+    comBanco,                                                     // situacao_judicial
+    { ...resolvida, notificacaoOrigem: 'desconhecida' },          // notificacao
+    resolvida,                                                    // causa_economica
+    { ...resolvida, causaEconomica: 'x' },                        // outros_contratos
+    { ...resolvida, causaEconomica: 'x', outrosContratosOuDividas: false },                              // renegociacao
+    { ...resolvida, causaEconomica: 'x', outrosContratosOuDividas: false, tentativaRenegociacao: true }, // nenhuma
+  ];
+  for (const f of casos) {
+    const l = escolherLacuna(f);
+    const texto = montarRascunhoModelo(f, l, TARDE);
+    const v = validarRascunho(texto, f);
+    assert.equal(v.valido, true, `${l.codigo}: ${v.motivo} :: ${texto}`);
+  }
+});
+
+test('validarRascunho aceita texto bom e recusa cada problema com o motivo certo', () => {
+  const f = cartaoParaFatos(CARD);
+  const bom = 'Boa tarde, Cristina. Aqui é a Mayara, do Camparim Advogados. Você já recebeu alguma notificação do banco?';
+  assert.deepEqual(validarRascunho(bom, f), { valido: true });
+  const motivo = (t) => validarRascunho(t, f).motivo;
+  assert.equal(motivo(''), 'vazio');
+  assert.equal(motivo('   '), 'vazio');
+  assert.equal(motivo(null), 'vazio');
+  assert.equal(motivo(bom + ' ' + 'x'.repeat(700)), 'longo');
+  assert.equal(motivo(bom + ' Veja https://exemplo.com'), 'link_ou_template');
+  assert.equal(motivo(bom + ' Veja www.exemplo.com'), 'link_ou_template');
+  assert.equal(motivo(bom + ' {{ $json.x }}'), 'link_ou_template');
+  assert.equal(motivo('Boa tarde, Cristina. Aqui é a Mayara. Garantimos resolver sua dívida. Quer conversar?'), 'promessa');
+  assert.equal(motivo('Boa tarde, Cristina. Aqui é a Mayara. Temos 100% de êxito. Quer conversar?'), 'promessa');
+  assert.equal(motivo('Cristina, aqui é a Mayara. Você já recebeu notificação?'), 'sem_saudacao');
+  assert.equal(motivo('Boa tarde, Cristina. Você já recebeu notificação do banco?'), 'sem_apresentacao');
+  assert.equal(motivo('Boa tarde, Cristina. Aqui é a Mayara. Qual o banco? E o valor?'), 'perguntas');
+  assert.equal(motivo('Boa tarde, Cristina. Aqui é a Mayara. Estou à disposição.'), 'perguntas');
+  assert.equal(motivo('Boa tarde, Cristina. Aqui é a Mayara. Quais tipos de contratos estão em atraso?'), 'repete_fato');
+});
+
+test('a cortesia "Tudo bem?" nao conta como pergunta, mas duas perguntas de qualificacao continuam recusadas', () => {
+  const f = cartaoParaFatos(CARD);
+  assert.equal(validarRascunho('Boa tarde, Cristina. Tudo bem? Aqui é a Mayara. Com qual banco é esse contrato?', f).valido, true);
+  assert.equal(validarRascunho('Boa tarde, Cristina. Tudo bem? Aqui é a Mayara. Qual banco? E qual o prazo?', f).motivo, 'perguntas');
+  assert.equal(validarRascunho('Boa tarde, Cristina. Tudo bem? Aqui é a Mayara. Estou à disposição.', f).motivo, 'perguntas');
+});
+
+test('a saudacao Ola com acento e aceita', () => {
+  const f = cartaoParaFatos(CARD);
+  assert.equal(validarRascunho('Olá, Cristina. Aqui é a Mayara. Você já recebeu notificação do banco?', f).valido, true);
+  assert.equal(validarRascunho('Oi, Cristina. Aqui é a Mayara. Você já recebeu notificação do banco?', f).valido, true);
+});

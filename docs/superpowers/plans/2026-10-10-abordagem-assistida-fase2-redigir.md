@@ -449,7 +449,8 @@ export function validarRascunho(texto, fatos) {
   if (PROMESSA.test(t)) return { valido: false, motivo: 'promessa' };
   if (!/^(bom dia|boa tarde|boa noite|ol[aá]|oi)(?![\p{L}])/iu.test(t)) return { valido: false, motivo: 'sem_saudacao' };
   if (!/mayara/i.test(t)) return { valido: false, motivo: 'sem_apresentacao' };
-  if ((t.match(/\?/g) || []).length !== 1) return { valido: false, motivo: 'perguntas' };
+  // a cortesia "Tudo bem?" nao conta como pergunta de qualificacao
+  if ((t.replace(/tudo bem\?/gi, '').match(/\?/g) || []).length !== 1) return { valido: false, motivo: 'perguntas' };
   if (sanitizarFato(f.tipoDivida) && /tipos? de contratos?/i.test(t)) return { valido: false, motivo: 'repete_fato' };
   if (sanitizarFato(f.valorAproximado) && /qual (é )?o valor/i.test(t)) return { valido: false, motivo: 'repete_fato' };
   return { valido: true };
@@ -459,7 +460,7 @@ export function validarRascunho(texto, fatos) {
 - [ ] **Step 4: Rodar e ver passar**
 
 Run: `node --test docs/superpowers/specs/2026-10-09-abordagem-assistida/redigir.test.mjs`
-Expected: `pass 17`, `fail 0`. Se uma asserção de `like` de texto falhar por pontuação, corrigir a **função** para casar com o texto aprovado da Cristina (que é o contrato).
+Expected: `pass 19`, `fail 0`. Se uma asserção de `like` de texto falhar por pontuação, corrigir a **função** para casar com o texto aprovado da Cristina (que é o contrato).
 
 - [ ] **Step 5: Commit**
 
@@ -588,7 +589,7 @@ export function resolverRascunho(lead, textoIA, agora) {
 - [ ] **Step 4: Rodar e ver passar**
 
 Run: `node --test docs/superpowers/specs/2026-10-09-abordagem-assistida/redigir.test.mjs`
-Expected: `pass 23`, `fail 0`.
+Expected: `pass 25`, `fail 0`.
 
 - [ ] **Step 5: Commit**
 
@@ -659,7 +660,7 @@ test('aceitacao: todo card gera rascunho valido, com uma pergunta e sem vazar te
     const r = resolverRascunho(lead, '', TARDE);
     const v = validarRascunho(r.texto, r.fatos);
     assert.equal(v.valido, true, `${lead.nome}: ${v.motivo} :: ${r.texto}`);
-    assert.equal((r.texto.match(/\?/g) || []).length, 1, lead.nome);
+    assert.equal((r.texto.replace(/tudo bem\?/gi, '').match(/\?/g) || []).length, 1, lead.nome);
     assert.equal('situacaoJudicial' in r.fatos, false, lead.nome);
     for (const proibido of ['http', '{{', 'ignore', 'mande o link']) assert.equal(r.texto.toLowerCase().includes(proibido), false, `${lead.nome}: ${proibido}`);
     assert.equal(r.texto.includes(lead.telefone), false, lead.nome);

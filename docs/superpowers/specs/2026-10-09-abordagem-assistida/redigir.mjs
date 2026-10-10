@@ -55,3 +55,67 @@ export function escolherLacuna(fatos) {
   const achado = CODIGOS.find(([trecho]) => descricao.includes(trecho));
   return { codigo: achado ? achado[1] : 'outra', descricao };
 }
+
+// acrescentar a redigir.mjs
+const PERGUNTAS = {
+  tipo_contrato: 'Quais tipos de contratos ou operações estão em atraso hoje? Por exemplo: capital de giro, empréstimos, cartão, cheque especial, financiamento ou Pronampe.',
+  situacao_judicial: 'Você já recebeu alguma notificação do banco ou já existe processo judicial em andamento?',
+  banco: 'Com qual banco ou instituição financeira é esse contrato?',
+  notificacao: 'A notificação que você recebeu veio do banco ou de um processo judicial?',
+  causa_economica: 'O que levou ao atraso nos pagamentos?',
+  outros_contratos: 'Além desse contrato, existem outras dívidas bancárias em aberto?',
+  renegociacao: 'Você já tentou renegociar com o banco?',
+  nenhuma: 'Pode me contar com as suas palavras como está a situação hoje?',
+  outra: 'Pode me contar um pouco mais sobre a situação?',
+};
+
+function horaEmBrasilia(agora) {
+  const data = agora instanceof Date && !Number.isNaN(agora.getTime()) ? agora : new Date();
+  const hora = new Intl.DateTimeFormat('pt-BR', { hour: 'numeric', hourCycle: 'h23', timeZone: 'America/Sao_Paulo' }).format(data);
+  return Number.parseInt(hora, 10);
+}
+
+function saudacao(agora) {
+  const h = horaEmBrasilia(agora);
+  if (h < 12) return 'Bom dia';
+  if (h < 18) return 'Boa tarde';
+  return 'Boa noite';
+}
+
+function primeiroNome(fatos) {
+  const f = fatos && typeof fatos === 'object' ? fatos : {};
+  const token = String(f.nomeCompleto ?? '').trim().split(/\s+/)[0] || '';
+  if (!/^[\p{L}'-]{1,30}$/u.test(token)) return '';
+  return token.charAt(0).toUpperCase() + token.slice(1);
+}
+
+function motivoDoContato(fatos) {
+  const f = fatos && typeof fatos === 'object' ? fatos : {};
+  const empresa = f.documento === 'CNPJ' || /jur[ií]dica/i.test(String(f.perfil ?? ''));
+  return empresa ? 'sobre as dívidas bancárias da empresa' : 'sobre as suas dívidas bancárias';
+}
+
+export function montarRascunhoModelo(fatos, lacuna, agora) {
+  const codigo = lacuna && PERGUNTAS[lacuna.codigo] ? lacuna.codigo : 'outra';
+  const nome = primeiroNome(fatos);
+  return saudacao(agora) + (nome ? ', ' + nome : '') + '. Tudo bem? Aqui é a Mayara, do Camparim Advogados.\n\n'
+    + 'Recebi sua solicitação ' + motivoDoContato(fatos) + '. ' + PERGUNTAS[codigo];
+}
+
+const PROMESSA = /garant|100\s*%|certeza|assegur|ganh(ar|amos) a causa|sem risco|gr[aá]tis|de gra[cç]a/i;
+
+export function validarRascunho(texto, fatos) {
+  const f = fatos && typeof fatos === 'object' ? fatos : {};
+  const t = typeof texto === 'string' ? texto.trim() : '';
+  if (!t) return { valido: false, motivo: 'vazio' };
+  if (t.length > 700) return { valido: false, motivo: 'longo' };
+  if (/https?:|www\.|wa\.me|\{\{|\}\}/i.test(t)) return { valido: false, motivo: 'link_ou_template' };
+  if (PROMESSA.test(t)) return { valido: false, motivo: 'promessa' };
+  if (!/^(bom dia|boa tarde|boa noite|ol[aá]|oi)(?![\p{L}])/iu.test(t)) return { valido: false, motivo: 'sem_saudacao' };
+  if (!/mayara/i.test(t)) return { valido: false, motivo: 'sem_apresentacao' };
+  // a cortesia "Tudo bem?" nao conta como pergunta de qualificacao
+  if ((t.replace(/tudo bem\?/gi, '').match(/\?/g) || []).length !== 1) return { valido: false, motivo: 'perguntas' };
+  if (sanitizarFato(f.tipoDivida) && /tipos? de contratos?/i.test(t)) return { valido: false, motivo: 'repete_fato' };
+  if (sanitizarFato(f.valorAproximado) && /qual (é )?o valor/i.test(t)) return { valido: false, motivo: 'repete_fato' };
+  return { valido: true };
+}
