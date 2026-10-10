@@ -1,5 +1,4 @@
 {
-  "id": "jNhj68Ee7i3w8dey",
   "name": "Mayara — Central de Comando",
   "nodes": [
     {
@@ -44,17 +43,17 @@
         220,
         300
       ],
-      "credentials": {
-        "postgres": {
-          "id": "nNpCUIhnDuVvTApU",
-          "name": "Postgres account"
-        }
-      },
       "parameters": {
         "operation": "executeQuery",
         "query": "select mayara.registrar_comando($1, $2, $3) as novo",
         "options": {
           "queryReplacement": "={{ [$json.messageId, $json.phone, $json.message] }}"
+        }
+      },
+      "credentials": {
+        "postgres": {
+          "id": "nNpCUIhnDuVvTApU",
+          "name": "Postgres account"
         }
       }
     },
@@ -112,17 +111,17 @@
         660,
         300
       ],
-      "credentials": {
-        "postgres": {
-          "id": "nNpCUIhnDuVvTApU",
-          "name": "Postgres account"
-        }
-      },
       "parameters": {
         "operation": "executeQuery",
         "query": "select mayara.contexto_central($1) as ctx",
         "options": {
           "queryReplacement": "={{ [$('Execute Workflow Trigger').first().json.phone] }}"
+        }
+      },
+      "credentials": {
+        "postgres": {
+          "id": "nNpCUIhnDuVvTApU",
+          "name": "Postgres account"
         }
       }
     },
@@ -136,7 +135,7 @@
         300
       ],
       "parameters": {
-        "jsCode": "// central-comando.mjs\n// Biblioteca da Central de Comando. Sem import e sem dependencias: o corpo e copiado\n// para Code nodes do n8n (gerar-node.mjs remove o \"export \").\n\nconst MARCAS_COMBINANTES = new RegExp('[' + String.fromCharCode(0x300) + '-' + String.fromCharCode(0x36f) + ']', 'g');\n\nfunction semAcento(s) {\n  return String(s ?? '').normalize('NFD').replace(MARCAS_COMBINANTES, '');\n}\n\nfunction normalizarTelefone(texto) {\n  const d = String(texto ?? '').replace(/\\D/g, '');\n  if (/^55\\d{10,11}$/.test(d)) return '+' + d;\n  if (/^\\d{10,11}$/.test(d)) return '+55' + d;\n  return null;\n}\n\nconst AJUDA = [\n  'Comandos:',\n  '/status: situação da Mayara',\n  '/ligar e /desligar: liga ou desliga a Mayara para todos os leads',\n  '/assumir +5514999990000: a Mayara para de responder esse lead',\n  '/devolver +5514999990000: a Mayara volta a atender esse lead',\n  '/regras: instruções ativas',\n  '/desfazer 3: desativa a instrução 3',\n  '/reativar 3: reativa a instrução 3',\n  '/ajuda: esta lista',\n  'No modo exclusivo, escreva livremente para ensinar a Mayara e responda sim ou não para confirmar.',\n].join('\\n');\n\nconst COMANDOS = ['status', 'ligar', 'desligar', 'assumir', 'devolver', 'regras', 'desfazer', 'reativar', 'ajuda'];\nconst SIM = ['sim', 's', 'confirmo', 'confirma', 'confirmar', 'pode', 'isso'];\nconst NAO = ['nao', 'n', 'cancela', 'cancelar', 'descarta', 'descartar'];\n\nfunction sql(acao, arg = '') {\n  return { tipo: 'sql', acao, fn: acao, arg, arg2: '' };\n}\n\nfunction comando(cmd, args) {\n  switch (cmd) {\n    case 'ajuda': return { tipo: 'texto', acao: 'ajuda', resposta: AJUDA };\n    case 'status': return { tipo: 'status', acao: 'status' };\n    case 'ligar': return { tipo: 'modo', acao: 'ligar', aiMode: 'active' };\n    case 'desligar': return { tipo: 'modo', acao: 'desligar', aiMode: 'paused' };\n    case 'regras': return sql('regras');\n    case 'assumir':\n    case 'devolver': {\n      const tel = normalizarTelefone(args);\n      if (!tel) return { tipo: 'texto', acao: cmd + '_invalido', resposta: 'Número inválido. Use /' + cmd + ' +5514999990000 (com DDD).' };\n      return sql(cmd, tel);\n    }\n    case 'desfazer':\n    case 'reativar': {\n      if (!/^\\d{1,9}$/.test(args)) return { tipo: 'texto', acao: cmd + '_invalido', resposta: 'Use /' + cmd + ' <número>. Veja os números em /regras.' };\n      return sql(cmd, args);\n    }\n    default: return { tipo: 'texto', acao: 'comando_desconhecido', resposta: 'Não conheci esse comando.\\n\\n' + AJUDA };\n  }\n}\n\nfunction classificarMensagem(texto, { exclusivo = false } = {}) {\n  const t = String(texto ?? '').trim();\n  if (t.startsWith('/')) {\n    const m = t.match(/^\\/([^\\s]*)\\s*([\\s\\S]*)$/);\n    const cmd = semAcento(m ? m[1] : '').toLowerCase();\n    const args = m ? m[2].trim() : '';\n    if (!COMANDOS.includes(cmd)) {\n      return { tipo: 'texto', acao: 'comando_desconhecido', resposta: 'Não conheci esse comando.\\n\\n' + AJUDA };\n    }\n    return comando(cmd, args);\n  }\n  const norm = semAcento(t).toLowerCase().replace(/[^a-z\\s]/g, '').trim();\n  if (SIM.includes(norm)) return sql('confirmar_sim');\n  if (NAO.includes(norm)) return sql('confirmar_nao');\n  if (exclusivo && t) return { tipo: 'livre', acao: 'ensino', texto: t };\n  return { tipo: 'texto', acao: 'ignorado', resposta: 'Esse canal aceita comandos que começam com /. Envie /ajuda.' };\n}\n\nconst CONFLITOS = [\n  { motivo: 'prometer resultado, desconto ou êxito',\n    re: /\\b(prometa|garanta|assegure)\\b|desconto\\s+(de\\s+)?\\d+\\s*%|\\d+\\s*%\\s+de\\s+desconto|garantia\\s+de\\s+(resultado|[eê]xito)/i },\n  { motivo: 'dar opinião jurídica sobre o caso',\n    re: /opini[aã]o\\s+jur[ií]dica|diga\\s+(ao|para\\s+o|pro)\\s+cliente\\s+que\\s+(ele\\s+)?(tem|vai\\s+ter)\\s+(direito|chance)|cl[aá]usulas?\\s+abusivas?|juros\\s+abusivos/i },\n  { motivo: 'esconder que é um atendimento automático',\n    re: /\\bfinja\\b|diga\\s+que\\s+(voc[eê]\\s+)?(é|e)\\s+(uma\\s+)?(pessoa|humana|humano|advogada|advogado)|n[aã]o\\s+(diga|revele|conte)\\s+que\\s+(voc[eê]\\s+)?(é|e)\\s+(uma\\s+)?(ia|rob[oô]|intelig[eê]ncia\\s+artificial)/i },\n  { motivo: 'contrariar as regras fixas de segurança',\n    re: /\\b(ignore|desconsidere|esque[cç]a)\\b\\s+(todas\\s+)?(as\\s+)?(regras|proibi[cç][oõ]es|instru[cç][oõ]es|orienta[cç][oõ]es)/i },\n  { motivo: 'orientar movimentação de patrimônio',\n    re: /\\b(oriente|ajude|sugira|ensine|aconselhe)\\b.{0,60}\\b(ocultar|esconder|transferir|passar)\\b.{0,40}\\b(bens|patrim[oô]nio)/i },\n  { motivo: 'pedir documentos sensíveis na triagem',\n    re: /\\b(pe[cç]a|solicite|exija)\\b.{0,40}\\b(contrato|extratos?|cnpj\\s+completo|senha)/i },\n  { motivo: 'orientar sobre recuperação judicial ou falência',\n    re: /\\b(oriente|aconselhe|explique|ensine)\\b.{0,60}\\b(recupera[cç][aã]o\\s+judicial|fal[eê]ncia)/i },\n  { motivo: 'ignorar o protocolo de risco pessoal',\n    re: /\\b(ignore|desconsidere|n[aã]o\\s+(fale|mencione))\\b.{0,40}\\b(cvv|risco\\s+pessoal|suic[ií]dio)/i },\n];\n\nfunction negadoAntes(texto, idx) {\n  // A negacao so vale se estiver colada ao verbo (no maximo uma palavra no meio) e na mesma frase.\n  const antes = texto.slice(0, idx);\n  return /(?:^|[\\s,;:.!?])(?:n[aã]o|nunca|jamais|evite|proibido|nem)\\s+(?:[^\\s,;:.!?]+\\s+)?$/i.test(antes);\n}\n\nfunction checarConflito(regra) {\n  const t = String(regra ?? '');\n  for (const c of CONFLITOS) {\n    const re = new RegExp(c.re.source, 'gi');\n    let m;\n    while ((m = re.exec(t)) !== null) {\n      if (!negadoAntes(t, m.index)) return { conflito: true, motivo: c.motivo };\n      if (m[0].length === 0) re.lastIndex++;\n    }\n  }\n  return { conflito: false };\n}\n\nfunction limparRegra(texto) {\n  return String(texto ?? '').replace(/\\{\\{|\\}\\}/g, '').replace(/\\s+/g, ' ').trim();\n}\n\nfunction interpretarRespostaIA(texto) {\n  const duvida = { tipo: 'duvida', pergunta: 'Não consegui entender. Pode escrever a instrução de outro jeito?' };\n  const bruto = String(texto ?? '').replace(/```(?:json)?/gi, '').trim();\n  const ini = bruto.indexOf('{');\n  const fim = bruto.lastIndexOf('}');\n  if (ini < 0 || fim <= ini) return duvida;\n  try {\n    const o = JSON.parse(bruto.slice(ini, fim + 1));\n    if (['instrucao', 'duvida', 'pergunta'].includes(o.tipo)) return o;\n  } catch (e) { /* cai na duvida */ }\n  return duvida;\n}\n\nfunction recusarEnsino(motivo) {\n  return { tipo: 'texto', acao: 'ensino_recusado',\n    resposta: 'Não posso ativar isso: ' + motivo + '. Essas regras ficam fixas por segurança. Se quiser, reescreva a instrução sem esse ponto.' };\n}\n\nfunction montarResultadoEnsino(saida, original) {\n  const orig = String(original ?? '').trim();\n  const previo = checarConflito(orig);\n  if (previo.conflito) return recusarEnsino(previo.motivo);\n  if (saida.tipo === 'instrucao') {\n    const regra = limparRegra(saida.regra);\n    if (!regra) {\n      return { tipo: 'texto', acao: 'ensino_duvida', resposta: 'Não consegui entender a instrução. Pode escrever de outro jeito?' };\n    }\n    const c = checarConflito(regra + ' ' + orig);\n    if (c.conflito) return recusarEnsino(c.motivo);\n    return { tipo: 'sql', acao: 'ensino', fn: 'criar_pendente', arg: regra, arg2: orig.slice(0, 1000) };\n  }\n  if (saida.tipo === 'duvida') {\n    return { tipo: 'texto', acao: 'ensino_duvida', resposta: String(saida.pergunta || 'Pode explicar melhor o que você quer que eu mude?') };\n  }\n  return { tipo: 'texto', acao: 'ensino_ignorado', resposta: 'Por enquanto só entendo comandos e instruções de atendimento. Envie /ajuda.' };\n}\n\n\nconst entrada = $('Execute Workflow Trigger').first().json;\nconst ctx = $input.first().json.ctx || {};\nconst r = classificarMensagem(entrada.message, { exclusivo: ctx.exclusivo === true });\nreturn [{ json: { ...r, phone: entrada.phone, message: entrada.message, messageId: entrada.messageId, phoneNumberId: entrada.phoneNumberId } }];\n"
+        "jsCode": "// central-comando.mjs\n// Biblioteca da Central de Comando. Sem import e sem dependencias: o corpo e copiado\n// para Code nodes do n8n (gerar-node.mjs remove o \"export \").\n\nconst MARCAS_COMBINANTES = new RegExp('[' + String.fromCharCode(0x300) + '-' + String.fromCharCode(0x36f) + ']', 'g');\n\nfunction semAcento(s) {\n  return String(s ?? '').normalize('NFD').replace(MARCAS_COMBINANTES, '');\n}\n\nfunction normalizarTelefone(texto) {\n  const d = String(texto ?? '').replace(/\\D/g, '');\n  if (/^55\\d{10,11}$/.test(d)) return '+' + d;\n  if (/^\\d{10,11}$/.test(d)) return '+55' + d;\n  return null;\n}\n\nconst AJUDA = [\n  'Comandos:',\n  '/status: situação da Mayara',\n  '/ligar e /desligar: liga ou desliga a Mayara para todos os leads',\n  '/assumir +5514999990000: a Mayara para de responder esse lead',\n  '/devolver +5514999990000: a Mayara volta a atender esse lead',\n  '/regras: instruções ativas',\n  '/desfazer 3: desativa a instrução 3',\n  '/reativar 3: reativa a instrução 3',\n  '/ajuda: esta lista',\n  'No modo exclusivo, escreva livremente para ensinar a Mayara e responda sim ou não para confirmar.',\n].join('\\n');\n\nconst COMANDOS = ['status', 'ligar', 'desligar', 'assumir', 'devolver', 'regras', 'desfazer', 'reativar', 'ajuda'];\nconst SIM = ['sim', 's', 'confirmo', 'confirma', 'confirmar', 'pode', 'isso'];\nconst NAO = ['nao', 'n', 'cancela', 'cancelar', 'descarta', 'descartar'];\n\nfunction sql(acao, arg = '') {\n  return { tipo: 'sql', acao, fn: acao, arg, arg2: '' };\n}\n\nfunction comando(cmd, args) {\n  switch (cmd) {\n    case 'ajuda': return { tipo: 'texto', acao: 'ajuda', resposta: AJUDA };\n    case 'status': return { tipo: 'status', acao: 'status' };\n    case 'ligar': return { tipo: 'modo', acao: 'ligar', aiMode: 'active' };\n    case 'desligar': return { tipo: 'modo', acao: 'desligar', aiMode: 'paused' };\n    case 'regras': return sql('regras');\n    case 'assumir':\n    case 'devolver': {\n      const tel = normalizarTelefone(args);\n      if (!tel) return { tipo: 'texto', acao: cmd + '_invalido', resposta: 'Número inválido. Use /' + cmd + ' +5514999990000 (com DDD).' };\n      return sql(cmd, tel);\n    }\n    case 'desfazer':\n    case 'reativar': {\n      if (!/^\\d{1,9}$/.test(args)) return { tipo: 'texto', acao: cmd + '_invalido', resposta: 'Use /' + cmd + ' <número>. Veja os números em /regras.' };\n      return sql(cmd, args);\n    }\n    default: return { tipo: 'texto', acao: 'comando_desconhecido', resposta: 'Não conheci esse comando.\\n\\n' + AJUDA };\n  }\n}\n\nfunction classificarMensagem(texto, { exclusivo = false, ctx = {} } = {}) {\n  const t = String(texto ?? '').trim();\n  if (t.startsWith('/')) {\n    const m = t.match(/^\\/([^\\s]*)\\s*([\\s\\S]*)$/);\n    const cmd = semAcento(m ? m[1] : '').toLowerCase();\n    const args = m ? m[2].trim() : '';\n    if (!COMANDOS.includes(cmd)) {\n      return { tipo: 'texto', acao: 'comando_desconhecido', resposta: 'Não conheci esse comando.\\n\\n' + AJUDA };\n    }\n    return comando(cmd, args);\n  }\n  const norm = semAcento(t).toLowerCase().replace(/[^a-z\\s]/g, '').trim();\n  const base = semAcento(t).toLowerCase().trim();\n  const proposta = (op, id, texto = '') => ({ tipo: 'proposta', acao: 'proposta_' + op, op, id, texto });\n\n  const aprovar = base.match(/^(?:sim|s)\\s+#?(\\d{1,9})$/);\n  if (aprovar) return proposta('aprovar', Number(aprovar[1]));\n  const descartar = base.match(/^(?:nao|n)\\s+#?(\\d{1,9})$/);\n  if (descartar) return proposta('descartar', Number(descartar[1]));\n  const editar = t.match(/^editar\\s+#?(\\d{1,9})\\s*[:\\-]\\s*([\\s\\S]+)$/i);\n  if (editar) return proposta('editar', Number(editar[1]), editar[2].trim());\n  if (/^propostas?$/.test(base)) return proposta('listar', null);\n\n  const confirmacao = SIM.includes(norm) ? 'aprovar' : NAO.includes(norm) ? 'descartar' : '';\n  const contexto = ctx && typeof ctx === 'object' ? ctx : {};\n  if (confirmacao && !contexto.pendente && !contexto.acao_pendente) {\n    if (contexto.proposta_unica) return proposta(confirmacao, Number(contexto.proposta_unica));\n    if (Number(contexto.propostas_abertas) > 1) {\n      return { tipo: 'texto', acao: 'proposta_ambigua',\n        resposta: 'Há ' + contexto.propostas_abertas + ' propostas abertas. Responda sim <número> ou não <número>. Para ver a lista, envie: propostas' };\n    }\n  }\n  if (SIM.includes(norm)) return sql('confirmar_sim');\n  if (NAO.includes(norm)) return sql('confirmar_nao');\n  if (exclusivo && t) return { tipo: 'livre', acao: 'ensino', texto: t };\n  return { tipo: 'texto', acao: 'ignorado', resposta: 'Esse canal aceita comandos que começam com /. Envie /ajuda.' };\n}\n\nconst entrada = $('Execute Workflow Trigger').first().json;\nconst ctx = $input.first().json.ctx || {};\nconst r = classificarMensagem(entrada.message, { exclusivo: ctx.exclusivo === true, ctx });\nreturn [{ json: { ...r, phone: entrada.phone, message: entrada.message, messageId: entrada.messageId, phoneNumberId: entrada.phoneNumberId } }];\n"
       }
     },
     {
@@ -154,10 +153,10 @@
             {
               "conditions": {
                 "options": {
-                  "caseSensitive": true,
+                  "version": 2,
                   "leftValue": "",
-                  "typeValidation": "strict",
-                  "version": 2
+                  "caseSensitive": true,
+                  "typeValidation": "strict"
                 },
                 "conditions": [
                   {
@@ -178,10 +177,10 @@
             {
               "conditions": {
                 "options": {
-                  "caseSensitive": true,
+                  "version": 2,
                   "leftValue": "",
-                  "typeValidation": "strict",
-                  "version": 2
+                  "caseSensitive": true,
+                  "typeValidation": "strict"
                 },
                 "conditions": [
                   {
@@ -202,10 +201,10 @@
             {
               "conditions": {
                 "options": {
-                  "caseSensitive": true,
+                  "version": 2,
                   "leftValue": "",
-                  "typeValidation": "strict",
-                  "version": 2
+                  "caseSensitive": true,
+                  "typeValidation": "strict"
                 },
                 "conditions": [
                   {
@@ -226,10 +225,10 @@
             {
               "conditions": {
                 "options": {
-                  "caseSensitive": true,
+                  "version": 2,
                   "leftValue": "",
-                  "typeValidation": "strict",
-                  "version": 2
+                  "caseSensitive": true,
+                  "typeValidation": "strict"
                 },
                 "conditions": [
                   {
@@ -250,10 +249,10 @@
             {
               "conditions": {
                 "options": {
-                  "caseSensitive": true,
+                  "version": 2,
                   "leftValue": "",
-                  "typeValidation": "strict",
-                  "version": 2
+                  "caseSensitive": true,
+                  "typeValidation": "strict"
                 },
                 "conditions": [
                   {
@@ -270,6 +269,30 @@
               },
               "renameOutput": true,
               "outputKey": "livre"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "version": 2,
+                  "leftValue": "",
+                  "caseSensitive": true,
+                  "typeValidation": "strict"
+                },
+                "conditions": [
+                  {
+                    "id": "r-proposta",
+                    "leftValue": "={{ $json.tipo }}",
+                    "rightValue": "proposta",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "proposta"
             }
           ]
         },
@@ -281,22 +304,22 @@
       "name": "Executar SQL",
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2.6,
+      "onError": "continueErrorOutput",
       "position": [
         1400,
         40
       ],
-      "credentials": {
-        "postgres": {
-          "id": "nNpCUIhnDuVvTApU",
-          "name": "Postgres account"
-        }
-      },
-      "onError": "continueErrorOutput",
       "parameters": {
         "operation": "executeQuery",
         "query": "select mayara.executar_central($1, $2, $3, $4) as resposta",
         "options": {
           "queryReplacement": "={{ [$json.fn, $json.arg || '', $json.arg2 || '', $('Classificar').first().json.phone] }}"
+        }
+      },
+      "credentials": {
+        "postgres": {
+          "id": "nNpCUIhnDuVvTApU",
+          "name": "Postgres account"
         }
       }
     },
@@ -433,15 +456,15 @@
         1620,
         560
       ],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "select mayara.executar_central('status', '', '', '') as resposta"
+      },
       "credentials": {
         "postgres": {
           "id": "nNpCUIhnDuVvTApU",
           "name": "Postgres account"
         }
-      },
-      "parameters": {
-        "operation": "executeQuery",
-        "query": "select mayara.executar_central('status', '', '', '') as resposta"
       }
     },
     {
@@ -462,11 +485,11 @@
       "name": "Interpretar Instrucao",
       "type": "@n8n/n8n-nodes-langchain.chainLlm",
       "typeVersion": 1.9,
+      "onError": "continueErrorOutput",
       "position": [
         1400,
         760
       ],
-      "onError": "continueErrorOutput",
       "parameters": {
         "promptType": "define",
         "text": "={{ \"Você transforma mensagens de um administrador em uma regra curta de atendimento para a atendente virtual Mayara, que faz o primeiro atendimento de empresas endividadas com bancos no escritório Camparim Advogados. Responda SOMENTE com JSON, sem nenhum texto fora dele, em um destes formatos: {\\\"tipo\\\":\\\"instrucao\\\",\\\"regra\\\":\\\"<regra em até 300 caracteres, em português, na segunda pessoa, começando por um verbo ou por Quando>\\\"} quando a mensagem ensina ou muda o jeito de atender; {\\\"tipo\\\":\\\"duvida\\\",\\\"pergunta\\\":\\\"<uma pergunta curta para esclarecer>\\\"} quando a instrução é ambígua ou incompleta; {\\\"tipo\\\":\\\"pergunta\\\"} quando for só uma pergunta ou conversa que não é instrução. Não invente fatos, valores ou prazos que o administrador não disse. Mensagem do administrador: \" + $('Classificar').first().json.texto }}"
@@ -481,12 +504,6 @@
         1400,
         960
       ],
-      "credentials": {
-        "anthropicApi": {
-          "id": "6U02h1ioNpD09Q99",
-          "name": "Anthropic account 2"
-        }
-      },
       "parameters": {
         "model": {
           "__rl": true,
@@ -496,6 +513,12 @@
         },
         "options": {
           "temperature": 0
+        }
+      },
+      "credentials": {
+        "anthropicApi": {
+          "id": "6U02h1ioNpD09Q99",
+          "name": "Anthropic account 2"
         }
       }
     },
@@ -509,7 +532,7 @@
         760
       ],
       "parameters": {
-        "jsCode": "// central-comando.mjs\n// Biblioteca da Central de Comando. Sem import e sem dependencias: o corpo e copiado\n// para Code nodes do n8n (gerar-node.mjs remove o \"export \").\n\nconst MARCAS_COMBINANTES = new RegExp('[' + String.fromCharCode(0x300) + '-' + String.fromCharCode(0x36f) + ']', 'g');\n\nfunction semAcento(s) {\n  return String(s ?? '').normalize('NFD').replace(MARCAS_COMBINANTES, '');\n}\n\nfunction normalizarTelefone(texto) {\n  const d = String(texto ?? '').replace(/\\D/g, '');\n  if (/^55\\d{10,11}$/.test(d)) return '+' + d;\n  if (/^\\d{10,11}$/.test(d)) return '+55' + d;\n  return null;\n}\n\nconst AJUDA = [\n  'Comandos:',\n  '/status: situação da Mayara',\n  '/ligar e /desligar: liga ou desliga a Mayara para todos os leads',\n  '/assumir +5514999990000: a Mayara para de responder esse lead',\n  '/devolver +5514999990000: a Mayara volta a atender esse lead',\n  '/regras: instruções ativas',\n  '/desfazer 3: desativa a instrução 3',\n  '/reativar 3: reativa a instrução 3',\n  '/ajuda: esta lista',\n  'No modo exclusivo, escreva livremente para ensinar a Mayara e responda sim ou não para confirmar.',\n].join('\\n');\n\nconst COMANDOS = ['status', 'ligar', 'desligar', 'assumir', 'devolver', 'regras', 'desfazer', 'reativar', 'ajuda'];\nconst SIM = ['sim', 's', 'confirmo', 'confirma', 'confirmar', 'pode', 'isso'];\nconst NAO = ['nao', 'n', 'cancela', 'cancelar', 'descarta', 'descartar'];\n\nfunction sql(acao, arg = '') {\n  return { tipo: 'sql', acao, fn: acao, arg, arg2: '' };\n}\n\nfunction comando(cmd, args) {\n  switch (cmd) {\n    case 'ajuda': return { tipo: 'texto', acao: 'ajuda', resposta: AJUDA };\n    case 'status': return { tipo: 'status', acao: 'status' };\n    case 'ligar': return { tipo: 'modo', acao: 'ligar', aiMode: 'active' };\n    case 'desligar': return { tipo: 'modo', acao: 'desligar', aiMode: 'paused' };\n    case 'regras': return sql('regras');\n    case 'assumir':\n    case 'devolver': {\n      const tel = normalizarTelefone(args);\n      if (!tel) return { tipo: 'texto', acao: cmd + '_invalido', resposta: 'Número inválido. Use /' + cmd + ' +5514999990000 (com DDD).' };\n      return sql(cmd, tel);\n    }\n    case 'desfazer':\n    case 'reativar': {\n      if (!/^\\d{1,9}$/.test(args)) return { tipo: 'texto', acao: cmd + '_invalido', resposta: 'Use /' + cmd + ' <número>. Veja os números em /regras.' };\n      return sql(cmd, args);\n    }\n    default: return { tipo: 'texto', acao: 'comando_desconhecido', resposta: 'Não conheci esse comando.\\n\\n' + AJUDA };\n  }\n}\n\nfunction classificarMensagem(texto, { exclusivo = false } = {}) {\n  const t = String(texto ?? '').trim();\n  if (t.startsWith('/')) {\n    const m = t.match(/^\\/([^\\s]*)\\s*([\\s\\S]*)$/);\n    const cmd = semAcento(m ? m[1] : '').toLowerCase();\n    const args = m ? m[2].trim() : '';\n    if (!COMANDOS.includes(cmd)) {\n      return { tipo: 'texto', acao: 'comando_desconhecido', resposta: 'Não conheci esse comando.\\n\\n' + AJUDA };\n    }\n    return comando(cmd, args);\n  }\n  const norm = semAcento(t).toLowerCase().replace(/[^a-z\\s]/g, '').trim();\n  if (SIM.includes(norm)) return sql('confirmar_sim');\n  if (NAO.includes(norm)) return sql('confirmar_nao');\n  if (exclusivo && t) return { tipo: 'livre', acao: 'ensino', texto: t };\n  return { tipo: 'texto', acao: 'ignorado', resposta: 'Esse canal aceita comandos que começam com /. Envie /ajuda.' };\n}\n\nconst CONFLITOS = [\n  { motivo: 'prometer resultado, desconto ou êxito',\n    re: /\\b(prometa|garanta|assegure)\\b|desconto\\s+(de\\s+)?\\d+\\s*%|\\d+\\s*%\\s+de\\s+desconto|garantia\\s+de\\s+(resultado|[eê]xito)/i },\n  { motivo: 'dar opinião jurídica sobre o caso',\n    re: /opini[aã]o\\s+jur[ií]dica|diga\\s+(ao|para\\s+o|pro)\\s+cliente\\s+que\\s+(ele\\s+)?(tem|vai\\s+ter)\\s+(direito|chance)|cl[aá]usulas?\\s+abusivas?|juros\\s+abusivos/i },\n  { motivo: 'esconder que é um atendimento automático',\n    re: /\\bfinja\\b|diga\\s+que\\s+(voc[eê]\\s+)?(é|e)\\s+(uma\\s+)?(pessoa|humana|humano|advogada|advogado)|n[aã]o\\s+(diga|revele|conte)\\s+que\\s+(voc[eê]\\s+)?(é|e)\\s+(uma\\s+)?(ia|rob[oô]|intelig[eê]ncia\\s+artificial)/i },\n  { motivo: 'contrariar as regras fixas de segurança',\n    re: /\\b(ignore|desconsidere|esque[cç]a)\\b\\s+(todas\\s+)?(as\\s+)?(regras|proibi[cç][oõ]es|instru[cç][oõ]es|orienta[cç][oõ]es)/i },\n  { motivo: 'orientar movimentação de patrimônio',\n    re: /\\b(oriente|ajude|sugira|ensine|aconselhe)\\b.{0,60}\\b(ocultar|esconder|transferir|passar)\\b.{0,40}\\b(bens|patrim[oô]nio)/i },\n  { motivo: 'pedir documentos sensíveis na triagem',\n    re: /\\b(pe[cç]a|solicite|exija)\\b.{0,40}\\b(contrato|extratos?|cnpj\\s+completo|senha)/i },\n  { motivo: 'orientar sobre recuperação judicial ou falência',\n    re: /\\b(oriente|aconselhe|explique|ensine)\\b.{0,60}\\b(recupera[cç][aã]o\\s+judicial|fal[eê]ncia)/i },\n  { motivo: 'ignorar o protocolo de risco pessoal',\n    re: /\\b(ignore|desconsidere|n[aã]o\\s+(fale|mencione))\\b.{0,40}\\b(cvv|risco\\s+pessoal|suic[ií]dio)/i },\n];\n\nfunction negadoAntes(texto, idx) {\n  // A negacao so vale se estiver colada ao verbo (no maximo uma palavra no meio) e na mesma frase.\n  const antes = texto.slice(0, idx);\n  return /(?:^|[\\s,;:.!?])(?:n[aã]o|nunca|jamais|evite|proibido|nem)\\s+(?:[^\\s,;:.!?]+\\s+)?$/i.test(antes);\n}\n\nfunction checarConflito(regra) {\n  const t = String(regra ?? '');\n  for (const c of CONFLITOS) {\n    const re = new RegExp(c.re.source, 'gi');\n    let m;\n    while ((m = re.exec(t)) !== null) {\n      if (!negadoAntes(t, m.index)) return { conflito: true, motivo: c.motivo };\n      if (m[0].length === 0) re.lastIndex++;\n    }\n  }\n  return { conflito: false };\n}\n\nfunction limparRegra(texto) {\n  return String(texto ?? '').replace(/\\{\\{|\\}\\}/g, '').replace(/\\s+/g, ' ').trim();\n}\n\nfunction interpretarRespostaIA(texto) {\n  const duvida = { tipo: 'duvida', pergunta: 'Não consegui entender. Pode escrever a instrução de outro jeito?' };\n  const bruto = String(texto ?? '').replace(/```(?:json)?/gi, '').trim();\n  const ini = bruto.indexOf('{');\n  const fim = bruto.lastIndexOf('}');\n  if (ini < 0 || fim <= ini) return duvida;\n  try {\n    const o = JSON.parse(bruto.slice(ini, fim + 1));\n    if (['instrucao', 'duvida', 'pergunta'].includes(o.tipo)) return o;\n  } catch (e) { /* cai na duvida */ }\n  return duvida;\n}\n\nfunction recusarEnsino(motivo) {\n  return { tipo: 'texto', acao: 'ensino_recusado',\n    resposta: 'Não posso ativar isso: ' + motivo + '. Essas regras ficam fixas por segurança. Se quiser, reescreva a instrução sem esse ponto.' };\n}\n\nfunction montarResultadoEnsino(saida, original) {\n  const orig = String(original ?? '').trim();\n  const previo = checarConflito(orig);\n  if (previo.conflito) return recusarEnsino(previo.motivo);\n  if (saida.tipo === 'instrucao') {\n    const regra = limparRegra(saida.regra);\n    if (!regra) {\n      return { tipo: 'texto', acao: 'ensino_duvida', resposta: 'Não consegui entender a instrução. Pode escrever de outro jeito?' };\n    }\n    const c = checarConflito(regra + ' ' + orig);\n    if (c.conflito) return recusarEnsino(c.motivo);\n    return { tipo: 'sql', acao: 'ensino', fn: 'criar_pendente', arg: regra, arg2: orig.slice(0, 1000) };\n  }\n  if (saida.tipo === 'duvida') {\n    return { tipo: 'texto', acao: 'ensino_duvida', resposta: String(saida.pergunta || 'Pode explicar melhor o que você quer que eu mude?') };\n  }\n  return { tipo: 'texto', acao: 'ensino_ignorado', resposta: 'Por enquanto só entendo comandos e instruções de atendimento. Envie /ajuda.' };\n}\n\n\nconst c = $('Classificar').first().json;\nconst bruto = $input.first().json;\nconst saida = interpretarRespostaIA(bruto.text !== undefined ? bruto.text : bruto.output);\nreturn [{ json: montarResultadoEnsino(saida, c.texto) }];\n"
+        "jsCode": "// central-comando.mjs\n// Biblioteca da Central de Comando. Sem import e sem dependencias: o corpo e copiado\n// para Code nodes do n8n (gerar-node.mjs remove o \"export \").\n\nconst MARCAS_COMBINANTES = new RegExp('[' + String.fromCharCode(0x300) + '-' + String.fromCharCode(0x36f) + ']', 'g');\n\nfunction semAcento(s) {\n  return String(s ?? '').normalize('NFD').replace(MARCAS_COMBINANTES, '');\n}\n\nfunction normalizarTelefone(texto) {\n  const d = String(texto ?? '').replace(/\\D/g, '');\n  if (/^55\\d{10,11}$/.test(d)) return '+' + d;\n  if (/^\\d{10,11}$/.test(d)) return '+55' + d;\n  return null;\n}\n\nconst AJUDA = [\n  'Comandos:',\n  '/status: situação da Mayara',\n  '/ligar e /desligar: liga ou desliga a Mayara para todos os leads',\n  '/assumir +5514999990000: a Mayara para de responder esse lead',\n  '/devolver +5514999990000: a Mayara volta a atender esse lead',\n  '/regras: instruções ativas',\n  '/desfazer 3: desativa a instrução 3',\n  '/reativar 3: reativa a instrução 3',\n  '/ajuda: esta lista',\n  'No modo exclusivo, escreva livremente para ensinar a Mayara e responda sim ou não para confirmar.',\n].join('\\n');\n\nconst COMANDOS = ['status', 'ligar', 'desligar', 'assumir', 'devolver', 'regras', 'desfazer', 'reativar', 'ajuda'];\nconst SIM = ['sim', 's', 'confirmo', 'confirma', 'confirmar', 'pode', 'isso'];\nconst NAO = ['nao', 'n', 'cancela', 'cancelar', 'descarta', 'descartar'];\n\nfunction sql(acao, arg = '') {\n  return { tipo: 'sql', acao, fn: acao, arg, arg2: '' };\n}\n\nfunction comando(cmd, args) {\n  switch (cmd) {\n    case 'ajuda': return { tipo: 'texto', acao: 'ajuda', resposta: AJUDA };\n    case 'status': return { tipo: 'status', acao: 'status' };\n    case 'ligar': return { tipo: 'modo', acao: 'ligar', aiMode: 'active' };\n    case 'desligar': return { tipo: 'modo', acao: 'desligar', aiMode: 'paused' };\n    case 'regras': return sql('regras');\n    case 'assumir':\n    case 'devolver': {\n      const tel = normalizarTelefone(args);\n      if (!tel) return { tipo: 'texto', acao: cmd + '_invalido', resposta: 'Número inválido. Use /' + cmd + ' +5514999990000 (com DDD).' };\n      return sql(cmd, tel);\n    }\n    case 'desfazer':\n    case 'reativar': {\n      if (!/^\\d{1,9}$/.test(args)) return { tipo: 'texto', acao: cmd + '_invalido', resposta: 'Use /' + cmd + ' <número>. Veja os números em /regras.' };\n      return sql(cmd, args);\n    }\n    default: return { tipo: 'texto', acao: 'comando_desconhecido', resposta: 'Não conheci esse comando.\\n\\n' + AJUDA };\n  }\n}\n\nfunction classificarMensagem(texto, { exclusivo = false } = {}) {\n  const t = String(texto ?? '').trim();\n  if (t.startsWith('/')) {\n    const m = t.match(/^\\/([^\\s]*)\\s*([\\s\\S]*)$/);\n    const cmd = semAcento(m ? m[1] : '').toLowerCase();\n    const args = m ? m[2].trim() : '';\n    if (!COMANDOS.includes(cmd)) {\n      return { tipo: 'texto', acao: 'comando_desconhecido', resposta: 'Não conheci esse comando.\\n\\n' + AJUDA };\n    }\n    return comando(cmd, args);\n  }\n  const norm = semAcento(t).toLowerCase().replace(/[^a-z\\s]/g, '').trim();\n  if (SIM.includes(norm)) return sql('confirmar_sim');\n  if (NAO.includes(norm)) return sql('confirmar_nao');\n  if (exclusivo && t) return { tipo: 'livre', acao: 'ensino', texto: t };\n  return { tipo: 'texto', acao: 'ignorado', resposta: 'Esse canal aceita comandos que começam com /. Envie /ajuda.' };\n}\n\nconst CONFLITOS = [\n  { motivo: 'prometer resultado, desconto ou êxito',\n    re: /\\b(prometa|garanta|assegure)\\b|desconto\\s+(de\\s+)?\\d+\\s*%|\\d+\\s*%\\s+de\\s+desconto|garantia\\s+de\\s+(resultado|[eê]xito)/i },\n  { motivo: 'dar opinião jurídica sobre o caso',\n    re: /opini[aã]o\\s+jur[ií]dica|diga\\s+(ao|para\\s+o|pro)\\s+cliente\\s+que\\s+(ele\\s+)?(tem|vai\\s+ter)\\s+(direito|chance)|cl[aá]usulas?\\s+abusivas?|juros\\s+abusivos/i },\n  { motivo: 'esconder que é um atendimento automático',\n    re: /\\bfinja\\b|diga\\s+que\\s+(voc[eê]\\s+)?(é|e)\\s+(uma\\s+)?(pessoa|humana|humano|advogada|advogado)|n[aã]o\\s+(diga|revele|conte)\\s+que\\s+(voc[eê]\\s+)?(é|e)\\s+(uma\\s+)?(ia|rob[oô]|intelig[eê]ncia\\s+artificial)/i },\n  { motivo: 'contrariar as regras fixas de segurança',\n    re: /\\b(ignore|desconsidere|esque[cç]a)\\b\\s+(todas\\s+)?(as\\s+)?(regras|proibi[cç][oõ]es|instru[cç][oõ]es|orienta[cç][oõ]es)/i },\n  { motivo: 'orientar movimentação de patrimônio',\n    re: /\\b(oriente|ajude|sugira|ensine|aconselhe)\\b.{0,60}\\b(ocultar|esconder|transferir|passar)\\b.{0,40}\\b(bens|patrim[oô]nio)/i },\n  { motivo: 'pedir documentos sensíveis na triagem',\n    re: /\\b(pe[cç]a|solicite|exija)\\b.{0,40}\\b(contrato|extratos?|cnpj\\s+completo|senha)/i },\n  { motivo: 'orientar sobre recuperação judicial ou falência',\n    re: /\\b(oriente|aconselhe|explique|ensine)\\b.{0,60}\\b(recupera[cç][aã]o\\s+judicial|fal[eê]ncia)/i },\n  { motivo: 'ignorar o protocolo de risco pessoal',\n    re: /\\b(ignore|desconsidere|n[aã]o\\s+(fale|mencione))\\b.{0,40}\\b(cvv|risco\\s+pessoal|suic[ií]dio)/i },\n];\n\nfunction negadoAntes(texto, idx) {\n  const antes = texto.slice(0, idx);\n  return /(?:^|[\\s,;:.!?])(?:n[aã]o|nunca|jamais|evite|proibido|nem)\\s+(?:[^\\s,;:.!?]+\\s+)?$/i.test(antes);\n}\n\nfunction checarConflito(regra) {\n  const t = String(regra ?? '');\n  for (const c of CONFLITOS) {\n    const re = new RegExp(c.re.source, 'gi');\n    let m;\n    while ((m = re.exec(t)) !== null) {\n      if (!negadoAntes(t, m.index)) return { conflito: true, motivo: c.motivo };\n      if (m[0].length === 0) re.lastIndex++;\n    }\n  }\n  return { conflito: false };\n}\n\nfunction limparRegra(texto) {\n  return String(texto ?? '').replace(/\\{\\{|\\}\\}/g, '').replace(/\\s+/g, ' ').trim();\n}\n\nfunction interpretarRespostaIA(texto) {\n  const duvida = { tipo: 'duvida', pergunta: 'Não consegui entender. Pode escrever a instrução de outro jeito?' };\n  const bruto = String(texto ?? '').replace(/```(?:json)?/gi, '').trim();\n  const ini = bruto.indexOf('{');\n  const fim = bruto.lastIndexOf('}');\n  if (ini < 0 || fim <= ini) return duvida;\n  try {\n    const o = JSON.parse(bruto.slice(ini, fim + 1));\n    if (['instrucao', 'duvida', 'pergunta'].includes(o.tipo)) return o;\n  } catch (e) { /* cai na duvida */ }\n  return duvida;\n}\n\nfunction recusarEnsino(motivo) {\n  return { tipo: 'texto', acao: 'ensino_recusado',\n    resposta: 'Não posso ativar isso: ' + motivo + '. Essas regras ficam fixas por segurança. Se quiser, reescreva a instrução sem esse ponto.' };\n}\n\nfunction montarResultadoEnsino(saida, original) {\n  const orig = String(original ?? '').trim();\n  const previo = checarConflito(orig);\n  if (previo.conflito) return recusarEnsino(previo.motivo);\n  if (saida.tipo === 'instrucao') {\n    const regra = limparRegra(saida.regra);\n    if (!regra) {\n      return { tipo: 'texto', acao: 'ensino_duvida', resposta: 'Não consegui entender a instrução. Pode escrever de outro jeito?' };\n    }\n    const c = checarConflito(regra + ' ' + orig);\n    if (c.conflito) {\n      return { tipo: 'texto', acao: 'ensino_recusado',\n        resposta: 'Não posso ativar isso: ' + c.motivo + '. Essas regras ficam fixas por segurança. Se quiser, reescreva a instrução sem esse ponto.' };\n    }\n    return { tipo: 'sql', acao: 'ensino', fn: 'criar_pendente', arg: regra, arg2: orig.slice(0, 1000) };\n  }\n  if (saida.tipo === 'duvida') {\n    return { tipo: 'texto', acao: 'ensino_duvida', resposta: String(saida.pergunta || 'Pode explicar melhor o que você quer que eu mude?') };\n  }\n  return { tipo: 'texto', acao: 'ensino_ignorado', resposta: 'Por enquanto só entendo comandos e instruções de atendimento. Envie /ajuda.' };\n}\n\n\nconst c = $('Classificar').first().json;\nconst bruto = $input.first().json;\nconst saida = interpretarRespostaIA(bruto.text !== undefined ? bruto.text : bruto.output);\nreturn [{ json: montarResultadoEnsino(saida, c.texto) }];\n"
       }
     },
     {
@@ -567,46 +590,440 @@
         2200,
         300
       ],
-      "credentials": {
-        "postgres": {
-          "id": "nNpCUIhnDuVvTApU",
-          "name": "Postgres account"
-        }
-      },
       "parameters": {
         "operation": "executeQuery",
         "query": "select mayara.finalizar_comando($1, $2, $3) as resposta",
         "options": {
           "queryReplacement": "={{ [$('Classificar').first().json.messageId, $('Classificar').first().json.acao, $json.resposta] }}"
         }
+      },
+      "credentials": {
+        "postgres": {
+          "id": "nNpCUIhnDuVvTApU",
+          "name": "Postgres account"
+        }
       }
     },
     {
       "id": "c8000000-0000-4000-8000-000000000020",
       "name": "Responder",
-      "type": "n8n-nodes-base.httpRequest",
-      "typeVersion": 4.4,
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.3,
+      "onError": "continueRegularOutput",
       "position": [
         2420,
         300
       ],
-      "credentials": {
-        "httpBearerAuth": {
-          "id": "SChAKcHay4ghJVwe",
-          "name": "Bearer Auth account"
+      "parameters": {
+        "workflowId": {
+          "__rl": true,
+          "value": "SHLZkNqfbCrs2OSQ",
+          "mode": "list",
+          "cachedResultName": "Mayara — Canal: Enviar [Sub-workflow]"
+        },
+        "workflowInputs": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "canalId": "={{ $('Classificar').first().json.phoneNumberId }}",
+            "para": "={{ $('Classificar').first().json.phone }}",
+            "tipo": "texto",
+            "texto": "={{ $json.resposta }}",
+            "templateNome": "",
+            "templateVariaveis": "",
+            "identificarMayara": "false",
+            "origem": "central"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "canalId",
+              "displayName": "canalId",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "para",
+              "displayName": "para",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "tipo",
+              "displayName": "tipo",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "texto",
+              "displayName": "texto",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "templateNome",
+              "displayName": "templateNome",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "templateVariaveis",
+              "displayName": "templateVariaveis",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "identificarMayara",
+              "displayName": "identificarMayara",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "origem",
+              "displayName": "origem",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {
+          "waitForSubWorkflow": true
+        }
+      }
+    },
+    {
+      "id": "c9000000-0000-4000-8000-000000000001",
+      "name": "Decidir Proposta",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "onError": "continueErrorOutput",
+      "position": [
+        1400,
+        1160
+      ],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "select mayara.decidir_proposta($1, $2::bigint, $3, $4) as d",
+        "options": {
+          "queryReplacement": "={{ [$json.op, $json.id || null, $json.texto || '', $json.phone] }}"
         }
       },
-      "onError": "continueRegularOutput",
+      "credentials": {
+        "postgres": {
+          "id": "nNpCUIhnDuVvTApU",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "id": "c9000000-0000-4000-8000-000000000002",
+      "name": "Enviar?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        1620,
+        1160
+      ],
       "parameters": {
-        "method": "POST",
-        "url": "=https://graph.facebook.com/v25.0/{{ $('Classificar').first().json.phoneNumberId }}/messages",
+        "conditions": {
+          "options": {
+            "version": 2,
+            "leftValue": "",
+            "caseSensitive": true,
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "p2",
+              "leftValue": "={{ $json.d.acao === 'enviar' }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "c9000000-0000-4000-8000-000000000003",
+      "name": "Resposta Proposta",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1840,
+        1260
+      ],
+      "parameters": {
+        "jsCode": "return [{ json: { resposta: $json.d.resposta } }];"
+      }
+    },
+    {
+      "id": "c9000000-0000-4000-8000-000000000004",
+      "name": "Enviar Primeiro Contato",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.3,
+      "onError": "continueRegularOutput",
+      "position": [
+        1840,
+        1060
+      ],
+      "parameters": {
+        "workflowId": {
+          "__rl": true,
+          "value": "SHLZkNqfbCrs2OSQ",
+          "mode": "list",
+          "cachedResultName": "Mayara — Canal: Enviar [Sub-workflow]"
+        },
+        "options": {
+          "waitForSubWorkflow": true
+        },
+        "workflowInputs": {
+          "mappingMode": "defineBelow",
+          "matchingColumns": [],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": true,
+          "value": {
+            "canalId": "escritorio",
+            "para": "={{ $json.d.destino }}",
+            "tipo": "texto",
+            "texto": "={{ $json.d.texto }}",
+            "templateNome": "",
+            "templateVariaveis": "",
+            "identificarMayara": "true",
+            "origem": "abordagem_assistida"
+          },
+          "schema": [
+            {
+              "id": "canalId",
+              "displayName": "canalId",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "para",
+              "displayName": "para",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "tipo",
+              "displayName": "tipo",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "texto",
+              "displayName": "texto",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "templateNome",
+              "displayName": "templateNome",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "templateVariaveis",
+              "displayName": "templateVariaveis",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "identificarMayara",
+              "displayName": "identificarMayara",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "origem",
+              "displayName": "origem",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "c9000000-0000-4000-8000-000000000005",
+      "name": "Casar Envio",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2060,
+        1060
+      ],
+      "parameters": {
+        "jsCode": "const d = $('Decidir Proposta').first().json.d;\nconst r = $input.first().json;\nconst ok = r.ok === true;\nconst erro = ok ? '' : String((r.error && r.error.message) || r.message || 'falha_no_envio').slice(0, 200);\nreturn [{ json: { id: d.id, ok, erro, crmLeadId: d.crm_lead_id || '', nome: d.nome || '' } }];"
+      }
+    },
+    {
+      "id": "c9000000-0000-4000-8000-000000000006",
+      "name": "Confirmar Envio",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        2280,
+        1160
+      ],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "select mayara.finalizar_envio_proposta($1::bigint, $2::boolean, $3) as resposta",
+        "options": {
+          "queryReplacement": "={{ [$json.id, $json.ok, $json.erro] }}"
+        }
+      },
+      "credentials": {
+        "postgres": {
+          "id": "nNpCUIhnDuVvTApU",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "id": "c9000000-0000-4000-8000-000000000007",
+      "name": "Enviado?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        2280,
+        960
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "version": 2,
+            "leftValue": "",
+            "caseSensitive": true,
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "p7",
+              "leftValue": "={{ $json.ok === true && $json.crmLeadId !== '' }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "c9000000-0000-4000-8000-000000000008",
+      "name": "Atualizar CRM",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "onError": "continueRegularOutput",
+      "position": [
+        2500,
+        960
+      ],
+      "parameters": {
+        "method": "PUT",
+        "url": "=https://crm.camparimadvogados.com.br/api/v1/Lead/{{ $json.crmLeadId }}",
         "authentication": "genericCredentialType",
-        "genericAuthType": "httpBearerAuth",
+        "genericAuthType": "httpHeaderAuth",
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={{ ({ messaging_product: 'whatsapp', to: $('Classificar').first().json.phone.replace(/\\D/g, ''), type: 'text', text: { body: $json.resposta } }) }}",
+        "jsonBody": "={{ ({ cFirstResponseAt: new Date().toISOString().slice(0, 19).replace('T', ' ') }) }}",
         "options": {
-          "timeout": 25000
+          "timeout": 30000
+        }
+      },
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "3CNvCGWMMDOyGD2n",
+          "name": "EspoCRM Integração n8n — Mayara"
+        }
+      }
+    },
+    {
+      "id": "c9000000-0000-4000-8000-000000000009",
+      "name": "Nota no CRM",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "onError": "continueRegularOutput",
+      "position": [
+        2720,
+        960
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "https://crm.camparimadvogados.com.br/api/v1/Note",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ ({ parentType: 'Lead', parentId: $('Casar Envio').first().json.crmLeadId, type: 'Post', post: 'Primeiro contato enviado pela Mayara (abordagem assistida).' }) }}",
+        "options": {
+          "timeout": 30000
+        }
+      },
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "3CNvCGWMMDOyGD2n",
+          "name": "EspoCRM Integração n8n — Mayara"
         }
       }
     }
@@ -707,6 +1124,13 @@
         [
           {
             "node": "Interpretar Instrucao",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Decidir Proposta",
             "type": "main",
             "index": 0
           }
@@ -860,6 +1284,113 @@
         [
           {
             "node": "Responder",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Decidir Proposta": {
+      "main": [
+        [
+          {
+            "node": "Enviar?",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Falha",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Enviar?": {
+      "main": [
+        [
+          {
+            "node": "Enviar Primeiro Contato",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Resposta Proposta",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Resposta Proposta": {
+      "main": [
+        [
+          {
+            "node": "Finalizar",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Enviar Primeiro Contato": {
+      "main": [
+        [
+          {
+            "node": "Casar Envio",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Casar Envio": {
+      "main": [
+        [
+          {
+            "node": "Confirmar Envio",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Enviado?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Confirmar Envio": {
+      "main": [
+        [
+          {
+            "node": "Finalizar",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Enviado?": {
+      "main": [
+        [
+          {
+            "node": "Atualizar CRM",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Atualizar CRM": {
+      "main": [
+        [
+          {
+            "node": "Nota no CRM",
             "type": "main",
             "index": 0
           }
