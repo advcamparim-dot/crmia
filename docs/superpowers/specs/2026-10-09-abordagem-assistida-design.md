@@ -95,7 +95,7 @@ Campos: `id`, `telefone`, `telefone_chave`, `nome`, `crm_lead_id`, `fatos` (json
 
 ## Fases
 
-1. **Banco:** tabela, funções e testes.
+1. **Banco:** tabela, funções e testes. **Concluída em 10/10/2026** (migrations 0033 a 0035; chave `abordagem_assistida` desligada).
 2. **Biblioteca `redigir.mjs`** com testes e prompt de redação.
 3. **Workflows:** `Abordagem: Propor`, `Abordagem: Notificar`, ramo do Roteador, gatilho no sub-workflow de captura (atrás da chave desligada).
 4. **Aceitação real** com leads de teste, ligar a chave, acompanhar a primeira semana.
