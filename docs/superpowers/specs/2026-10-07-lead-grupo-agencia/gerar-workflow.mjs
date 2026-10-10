@@ -9,6 +9,7 @@ const lib = readFileSync(join(dir, 'lead-grupo.mjs'), 'utf8').replace(/^export\s
 
 const CRED = { httpHeaderAuth: { id: '3CNvCGWMMDOyGD2n', name: 'EspoCRM Integração n8n — Mayara' } };
 const ALERTAR = { __rl: true, value: 'FWSC1k1CBMWBtsNs', mode: 'list', cachedResultName: 'Mayara — Alertar Escritório [Sub-workflow]' };
+const PROPOR = { __rl: true, value: 'G7eWMOcC16UWuism', mode: 'list', cachedResultName: 'Mayara — Abordagem: Propor [Sub-workflow]' };
 const cond = (id, esquerda) => ({ options: { caseSensitive: true, leftValue: '', typeValidation: 'strict', version: 2 }, conditions: [{ id, leftValue: esquerda, rightValue: true, operator: { type: 'boolean', operation: 'true', singleValue: true } }], combinator: 'and' });
 const se = (id, nome, pos, esquerda) => ({ id, name: nome, type: 'n8n-nodes-base.if', typeVersion: 2.2, position: pos, parameters: { conditions: cond(id + '-c', esquerda), options: {} } });
 const alerta = (id, nome, pos) => ({ id, name: nome, type: 'n8n-nodes-base.executeWorkflow', typeVersion: 1.3, position: pos, onError: 'continueRegularOutput', parameters: { workflowId: ALERTAR, workflowInputs: { mappingMode: 'defineBelow', value: { texto: '={{ $json.texto }}' }, matchingColumns: [], schema: [{ id: 'texto', displayName: 'texto', required: false, defaultMatch: false, display: true, type: 'string', canBeUsedToMatch: true }], attemptToConvertTypes: false, convertFieldsToString: true }, options: { waitForSubWorkflow: false } } });
@@ -31,6 +32,11 @@ const nodes = [
   registro('f4000000-0000-4000-8000-000000000021', 'Registrar Ilegivel', [880, 620], "select mayara.registrar_cartao_agencia($1::text, $2::text, 'ilegivel', $3::text, null) as r", "={{ [$('Decidir').first().json.messageId || '', '', $('Decidir').first().json.motivo || ''] }}"),
   registro('f4000000-0000-4000-8000-000000000022', 'Registrar Ja Existia', [1320, 60], "select mayara.registrar_cartao_agencia($1::text, $2::text, 'ja_existia', null, $3::text) as r", "={{ [$('Decidir').first().json.messageId || '', $('Decidir').first().json.lead.telefone || '', ($('Buscar no CRM').first().json.list && $('Buscar no CRM').first().json.list[0] && $('Buscar no CRM').first().json.list[0].id) || ''] }}"),
   registro('f4000000-0000-4000-8000-000000000023', 'Registrar Criado', [1760, 200], "select mayara.registrar_cartao_agencia($1::text, $2::text, 'criado', null, $3::text) as r", "={{ [$('Decidir').first().json.messageId || '', $('Decidir').first().json.lead.telefone || '', $json.id || ''] }}"),
+  { id: 'f4000000-0000-4000-8000-000000000025', name: 'Propor Abordagem', type: 'n8n-nodes-base.executeWorkflow', typeVersion: 1.3, position: [1760, 40], onError: 'continueRegularOutput',
+    parameters: { workflowId: PROPOR, options: { waitForSubWorkflow: false },
+      workflowInputs: { mappingMode: 'defineBelow', matchingColumns: [], attemptToConvertTypes: false, convertFieldsToString: false,
+        value: { lead: "={{ $('Decidir').first().json.lead }}", crmLeadId: '={{ $json.id }}' },
+        schema: [{ id: 'lead', displayName: 'lead', required: false, defaultMatch: false, display: true, type: 'object', canBeUsedToMatch: true }, { id: 'crmLeadId', displayName: 'crmLeadId', required: false, defaultMatch: false, display: true, type: 'string', canBeUsedToMatch: true }] } } },
   registro('f4000000-0000-4000-8000-000000000024', 'Registrar Falha CRM', [1760, 600], "select mayara.registrar_cartao_agencia($1::text, $2::text, 'erro_crm', $3::text, null) as r", "={{ [$('Decidir').first().json.messageId || '', $('Decidir').first().json.lead.telefone || '', String($json.error && $json.error.message || $json.message || 'falha_ao_criar').slice(0, 120)] }}"),
 ];
 const lig = (...d) => ({ main: [d.map((x) => ({ node: x, type: 'main', index: 0 }))] });
@@ -44,7 +50,7 @@ const connections = {
   'Montar Lead': lig('Ja Existe?'),
   'Ja Existe?': { main: [[{ node: 'Registrar Ja Existia', type: 'main', index: 0 }], [{ node: 'Criar Lead', type: 'main', index: 0 }]] },
   'Criar Lead': lig('Criou?'),
-  'Criou?': { main: [[{ node: 'Registrar Criado', type: 'main', index: 0 }], [{ node: 'Montar Alerta Falha', type: 'main', index: 0 }, { node: 'Registrar Falha CRM', type: 'main', index: 0 }]] },
+  'Criou?': { main: [[{ node: 'Registrar Criado', type: 'main', index: 0 }, { node: 'Propor Abordagem', type: 'main', index: 0 }], [{ node: 'Montar Alerta Falha', type: 'main', index: 0 }, { node: 'Registrar Falha CRM', type: 'main', index: 0 }]] },
   'Montar Alerta Falha': lig('Alertar Escritório'),
 };
 const wf = { name: 'Mayara — Lead do Grupo da Agência [Sub-workflow]', nodes, connections, settings: { executionOrder: 'v1', errorWorkflow: 'CQyjBKLX0UheNh1q', callerPolicy: 'workflowsFromSameOwner' } };
