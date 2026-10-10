@@ -26,16 +26,16 @@ Sucesso:
 
 Horário de Brasília. Tabela editável `mayara.expediente` (um registro por dia da semana) e tabela `mayara.feriados_nacionais` (data, nome).
 
-| Dia | Abre | Fecha para resposta ao lead | Fecha para follow-up |
-|---|---|---|---|
-| Segunda a sexta | 08:00 | sem limite (como hoje) | 19:00 |
-| Sábado | 08:00 | 18:00 | 18:00 |
-| Domingo | fechado | fechado | fechado |
-| Feriado nacional | fechado | fechado | fechado |
+| Dia | Resposta ao lead | Follow-up |
+|---|---|---|
+| Segunda a sexta | 06:00 às 21:00 | 08:00 às 19:00 |
+| Sábado | 06:00 às 18:00 | 08:00 às 18:00 |
+| Domingo | fechado | fechado |
+| Feriado nacional | fechado | fechado |
 
 Feriados nacionais carregados para 2026 a 2030: 1º de janeiro, Sexta-feira Santa, 21 de abril, 1º de maio, 7 de setembro, 12 de outubro, 2 de novembro, 15 de novembro, 20 de novembro e 25 de dezembro. Carnaval e Corpus Christi são ponto facultativo e ficam de fora; feriados estaduais e municipais podem ser acrescentados na tabela.
 
-**Decisão minha (a confirmar):** em dias úteis, a Mayara continua respondendo a qualquer hora (como hoje); só o sábado depois das 18h, o domingo e os feriados deixam de ter resposta. Se você quiser um horário limite também nos dias úteis, é só mudar `fecha_resposta` na tabela.
+**Decisão do usuário (10/10):** dias úteis, resposta das 6h às 21h. Fora dessa janela (noite, madrugada, sábado depois das 18h, domingo e feriados) a mensagem do lead é guardada e respondida na abertura seguinte. **Premissa minha:** o sábado abre às 6h como os dias úteis, e a janela de follow-up (8h às 19h; sábado até 18h) é mais estreita que a de resposta, para não acordar o lead com mensagem automática de madrugada. Tudo fica em `mayara.expediente` e muda sem código.
 
 **Não são afetados:** comandos do administrador na Central; as notificações de proposta ao administrador; os lembretes de consulta já agendada (são operacionais e a consulta pode ser na segunda).
 
@@ -75,7 +75,7 @@ Os "dias" são dias de atendimento (domingos e feriados não contam). Os horári
 
 Em A, a cada nova pergunta da Mayara que fica sem resposta, a sequência **recomeça** da etapa 1. O teto vale para a soma de follow-ups do lead desde que a régua começou (padrão 14).
 
-**Nunca recuperar atraso:** quando o sistema estiver parado ou um lead entrar depois do horário, envia-se **no máximo uma** mensagem de follow-up por vez, a etapa pendente mais antiga; as seguintes são contadas a partir desse envio. Isso evita uma rajada ao ligar a régua pela primeira vez.
+**Nunca recuperar atraso:** o calendário de cada ciclo é uma função só do horário da última mensagem da Mayara (`agenda(sequência, ciclo)`). Quando o sistema estiver parado ou o lead entrar atrasado, envia-se **uma única** mensagem: a da etapa **mais recente já devida**; as etapas intermediárias são puladas (não contam no teto). Isso evita uma rajada ao ligar a régua pela primeira vez.
 
 ### Quem não entra / quando para
 
@@ -119,7 +119,11 @@ Todo dia útil às 18h30 (sábado às 17h30), uma mensagem ao administrador: env
 
 ## Leads que já estão em atendimento
 
-Na ativação, os leads com a Mayara falando por último e sem resposta entram na régua pelo **estado real**: a etapa devida é a primeira ainda não enviada, e vale a regra "nunca recuperar atraso". Só entram conversas cujo último contato foi nos **últimos 7 dias**. A lista exata dos leads atuais é conferida na fase de aceite, com você.
+Na ativação, os leads com a Mayara falando por último e sem resposta entram na régua pelo **estado real**, com a regra "nunca recuperar atraso". Só entram conversas cujo último contato foi nos **últimos 7 dias**. Pelos dados de 10/10, os que não responderam mais são a **Cristina** e o **Gilberto** (sequência B, pois não há mensagem deles na memória); a conversa em prioridade jurídica fica de fora por segurança. A lista final é conferida com você na fase de aceite.
+
+## Identidade do lead
+
+O mesmo lead pode ter duas sessões (telefone com e sem o 9º dígito). A régua trabalha por **telefone normalizado** (`mayara.chave_telefone`): o horário da última mensagem da Mayara vem de `mayara.envios_log` (origens `ponte`, `abordagem_assistida` e `reativacao`; os follow-ups não contam como "pergunta"), a última mensagem do lead vem da memória da conversa (`public.n8n_chat_histories`, tipo `human`, somando as duas sessões), e a sequência é B quando o lead nunca escreveu.
 
 ## Arquitetura
 
@@ -143,7 +147,8 @@ Na ativação, os leads com a Mayara falando por último e sem resposta entram n
 
 ## Fases
 
-1. **Banco:** calendário, expediente, eventos adiados, régua, elegibilidade, log, chaves.
+0. **Expediente de atendimento** (calendário, adiamento e retomada das mensagens de lead): plano próprio, vem primeiro porque o domingo e os feriados já valem.
+1. **Banco da régua:** estado por lead, calendário `agenda`, elegibilidade, reserva, log, chaves.
 2. **Biblioteca `followup.mjs`** (prompt, validação, textos fixos), com testes.
 3. **Workflows:** portão de expediente e retomada, worker de follow-up, resumo e avisos, comando `/followup`.
 4. **Aceite em simulação**, conferência dos leads atuais e liberação para `ligado`.
@@ -165,6 +170,6 @@ A parte do **encaminhamento ao advogado após o agendamento** (verificar agenda,
 
 ## Perguntas em aberto
 
-1. Dias úteis: a Mayara continua respondendo a qualquer hora (proposto) ou deve haver horário limite como no sábado?
+1. ~~Dias úteis~~: respondido, 6h às 21h.
 2. Os textos fixos de reserva servem?
 3. Teto de 14, limite de 15 follow-ups por hora e janela de 8h às 19h servem?
