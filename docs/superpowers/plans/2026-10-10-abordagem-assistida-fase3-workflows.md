@@ -338,7 +338,6 @@ test('sim sem numero com duas ou mais propostas pede o numero e nao aprova nada'
 
 test('regra ou acao pendente tem prioridade: o sim continua valendo para elas', () => {
   const base = { propostas_abertas: 1, proposta_unica: 5 };
-  assert.deepEqual(classificarMensagem('sim', { exclusivo: true, ctx: { ...base, pendente: true, acao_pendente: false } }), { tipo: 'sql', fn: 'confirmar_sim' }.tipo === 'sql' ? classificarMensagem('sim', { exclusivo: true }) : null);
   assert.equal(classificarMensagem('sim', { exclusivo: true, ctx: { ...base, pendente: true, acao_pendente: false } }).tipo, 'sql');
   assert.equal(classificarMensagem('sim', { exclusivo: true, ctx: { ...base, pendente: false, acao_pendente: true } }).tipo, 'sql');
   assert.equal(classificarMensagem('não', { exclusivo: true, ctx: { ...base, pendente: true, acao_pendente: false } }).tipo, 'sql');
@@ -356,8 +355,6 @@ test('o ensino livre e os comandos com barra nao mudam', () => {
   assert.equal(classificarMensagem('editar a regra de honorários', livre).tipo, 'livre');
 });
 ```
-
-Nota para quem executa: o terceiro `assert.deepEqual` do teste "regra ou acao pendente" acima é uma construção defensiva confusa; **substituí-lo** por `assert.equal(classificarMensagem('sim', { exclusivo: true, ctx: { ...base, pendente: true, acao_pendente: false } }).tipo, 'sql');` (que já é a linha seguinte) e apagar a linha confusa antes de rodar.
 
 - [ ] **Step 2: Rodar e ver falhar**
 
