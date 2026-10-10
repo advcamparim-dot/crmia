@@ -1,0 +1,558 @@
+[
+  {
+    "type": "updateNode",
+    "nodeName": "Roteador",
+    "updates": {
+      "parameters.rules.values": [
+        {
+          "conditions": {
+            "options": {
+              "caseSensitive": true,
+              "leftValue": "",
+              "typeValidation": "strict",
+              "version": 2
+            },
+            "conditions": [
+              {
+                "id": "r-sql",
+                "leftValue": "={{ $json.tipo }}",
+                "rightValue": "sql",
+                "operator": {
+                  "type": "string",
+                  "operation": "equals"
+                }
+              }
+            ],
+            "combinator": "and"
+          },
+          "renameOutput": true,
+          "outputKey": "sql"
+        },
+        {
+          "conditions": {
+            "options": {
+              "caseSensitive": true,
+              "leftValue": "",
+              "typeValidation": "strict",
+              "version": 2
+            },
+            "conditions": [
+              {
+                "id": "r-texto",
+                "leftValue": "={{ $json.tipo }}",
+                "rightValue": "texto",
+                "operator": {
+                  "type": "string",
+                  "operation": "equals"
+                }
+              }
+            ],
+            "combinator": "and"
+          },
+          "renameOutput": true,
+          "outputKey": "texto"
+        },
+        {
+          "conditions": {
+            "options": {
+              "caseSensitive": true,
+              "leftValue": "",
+              "typeValidation": "strict",
+              "version": 2
+            },
+            "conditions": [
+              {
+                "id": "r-modo",
+                "leftValue": "={{ $json.tipo }}",
+                "rightValue": "modo",
+                "operator": {
+                  "type": "string",
+                  "operation": "equals"
+                }
+              }
+            ],
+            "combinator": "and"
+          },
+          "renameOutput": true,
+          "outputKey": "modo"
+        },
+        {
+          "conditions": {
+            "options": {
+              "caseSensitive": true,
+              "leftValue": "",
+              "typeValidation": "strict",
+              "version": 2
+            },
+            "conditions": [
+              {
+                "id": "r-status",
+                "leftValue": "={{ $json.tipo }}",
+                "rightValue": "status",
+                "operator": {
+                  "type": "string",
+                  "operation": "equals"
+                }
+              }
+            ],
+            "combinator": "and"
+          },
+          "renameOutput": true,
+          "outputKey": "status"
+        },
+        {
+          "conditions": {
+            "options": {
+              "caseSensitive": true,
+              "leftValue": "",
+              "typeValidation": "strict",
+              "version": 2
+            },
+            "conditions": [
+              {
+                "id": "r-livre",
+                "leftValue": "={{ $json.tipo }}",
+                "rightValue": "livre",
+                "operator": {
+                  "type": "string",
+                  "operation": "equals"
+                }
+              }
+            ],
+            "combinator": "and"
+          },
+          "renameOutput": true,
+          "outputKey": "livre"
+        },
+        {
+          "conditions": {
+            "options": {
+              "caseSensitive": true,
+              "leftValue": "",
+              "typeValidation": "strict",
+              "version": 2
+            },
+            "conditions": [
+              {
+                "id": "r-proposta",
+                "leftValue": "={{ $json.tipo }}",
+                "rightValue": "proposta",
+                "operator": {
+                  "type": "string",
+                  "operation": "equals"
+                }
+              }
+            ],
+            "combinator": "and"
+          },
+          "renameOutput": true,
+          "outputKey": "proposta"
+        }
+      ]
+    }
+  },
+  {
+    "type": "addNode",
+    "node": {
+      "id": "c9000000-0000-4000-8000-000000000001",
+      "name": "Decidir Proposta",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        1400,
+        1160
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "nNpCUIhnDuVvTApU",
+          "name": "Postgres account"
+        }
+      },
+      "onError": "continueErrorOutput",
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "select mayara.decidir_proposta($1, $2::bigint, $3, $4) as d",
+        "options": {
+          "queryReplacement": "={{ [$json.op, $json.id || null, $json.texto || '', $json.phone] }}"
+        }
+      }
+    }
+  },
+  {
+    "type": "addNode",
+    "node": {
+      "id": "c9000000-0000-4000-8000-000000000002",
+      "name": "Enviar?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        1620,
+        1160
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "p2",
+              "leftValue": "={{ $json.d.acao === 'enviar' }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      }
+    }
+  },
+  {
+    "type": "addNode",
+    "node": {
+      "id": "c9000000-0000-4000-8000-000000000003",
+      "name": "Resposta Proposta",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1840,
+        1260
+      ],
+      "parameters": {
+        "jsCode": "return [{ json: { resposta: $json.d.resposta } }];"
+      }
+    }
+  },
+  {
+    "type": "addNode",
+    "node": {
+      "id": "c9000000-0000-4000-8000-000000000004",
+      "name": "Enviar Primeiro Contato",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.3,
+      "position": [
+        1840,
+        1060
+      ],
+      "onError": "continueRegularOutput",
+      "parameters": {
+        "workflowId": {
+          "__rl": true,
+          "value": "SHLZkNqfbCrs2OSQ",
+          "mode": "list",
+          "cachedResultName": "Mayara — Canal: Enviar [Sub-workflow]"
+        },
+        "options": {
+          "waitForSubWorkflow": true
+        },
+        "workflowInputs": {
+          "mappingMode": "defineBelow",
+          "matchingColumns": [],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": true,
+          "value": {
+            "canalId": "escritorio",
+            "para": "={{ $json.d.destino }}",
+            "tipo": "texto",
+            "texto": "={{ $json.d.texto }}",
+            "templateNome": "",
+            "templateVariaveis": "",
+            "identificarMayara": "true",
+            "origem": "abordagem_assistida"
+          },
+          "schema": [
+            {
+              "id": "canalId",
+              "displayName": "canalId",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "para",
+              "displayName": "para",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "tipo",
+              "displayName": "tipo",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "texto",
+              "displayName": "texto",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "templateNome",
+              "displayName": "templateNome",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "templateVariaveis",
+              "displayName": "templateVariaveis",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "identificarMayara",
+              "displayName": "identificarMayara",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "origem",
+              "displayName": "origem",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            }
+          ]
+        }
+      }
+    }
+  },
+  {
+    "type": "addNode",
+    "node": {
+      "id": "c9000000-0000-4000-8000-000000000005",
+      "name": "Casar Envio",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2060,
+        1060
+      ],
+      "parameters": {
+        "jsCode": "const d = $('Decidir Proposta').first().json.d;\nconst r = $input.first().json;\nconst ok = r.ok === true;\nconst erro = ok ? '' : String((r.error && r.error.message) || r.message || 'falha_no_envio').slice(0, 200);\nreturn [{ json: { id: d.id, ok, erro, crmLeadId: d.crm_lead_id || '', nome: d.nome || '' } }];"
+      }
+    }
+  },
+  {
+    "type": "addNode",
+    "node": {
+      "id": "c9000000-0000-4000-8000-000000000006",
+      "name": "Confirmar Envio",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        2280,
+        1160
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "nNpCUIhnDuVvTApU",
+          "name": "Postgres account"
+        }
+      },
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "select mayara.finalizar_envio_proposta($1::bigint, $2::boolean, $3) as resposta",
+        "options": {
+          "queryReplacement": "={{ [$json.id, $json.ok, $json.erro] }}"
+        }
+      }
+    }
+  },
+  {
+    "type": "addNode",
+    "node": {
+      "id": "c9000000-0000-4000-8000-000000000007",
+      "name": "Enviado?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        2280,
+        960
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "p7",
+              "leftValue": "={{ $json.ok === true && $json.crmLeadId !== '' }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      }
+    }
+  },
+  {
+    "type": "addNode",
+    "node": {
+      "id": "c9000000-0000-4000-8000-000000000008",
+      "name": "Atualizar CRM",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        2500,
+        960
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "3CNvCGWMMDOyGD2n",
+          "name": "EspoCRM Integração n8n — Mayara"
+        }
+      },
+      "onError": "continueRegularOutput",
+      "parameters": {
+        "method": "PUT",
+        "url": "=https://crm.camparimadvogados.com.br/api/v1/Lead/{{ $json.crmLeadId }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ ({ cFirstResponseAt: new Date().toISOString().slice(0, 19).replace('T', ' ') }) }}",
+        "options": {
+          "timeout": 30000
+        }
+      }
+    }
+  },
+  {
+    "type": "addNode",
+    "node": {
+      "id": "c9000000-0000-4000-8000-000000000009",
+      "name": "Nota no CRM",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        2720,
+        960
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "3CNvCGWMMDOyGD2n",
+          "name": "EspoCRM Integração n8n — Mayara"
+        }
+      },
+      "onError": "continueRegularOutput",
+      "parameters": {
+        "method": "POST",
+        "url": "https://crm.camparimadvogados.com.br/api/v1/Note",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ ({ parentType: 'Lead', parentId: $('Casar Envio').first().json.crmLeadId, type: 'Post', post: 'Primeiro contato enviado pela Mayara (abordagem assistida).' }) }}",
+        "options": {
+          "timeout": 30000
+        }
+      }
+    }
+  },
+  {
+    "type": "addConnection",
+    "source": "Roteador",
+    "target": "Decidir Proposta",
+    "sourceIndex": 5
+  },
+  {
+    "type": "addConnection",
+    "source": "Decidir Proposta",
+    "target": "Enviar?",
+    "sourceIndex": 0
+  },
+  {
+    "type": "addConnection",
+    "source": "Decidir Proposta",
+    "target": "Falha",
+    "sourceIndex": 1
+  },
+  {
+    "type": "addConnection",
+    "source": "Enviar?",
+    "target": "Enviar Primeiro Contato",
+    "branch": "true"
+  },
+  {
+    "type": "addConnection",
+    "source": "Enviar?",
+    "target": "Resposta Proposta",
+    "branch": "false"
+  },
+  {
+    "type": "addConnection",
+    "source": "Resposta Proposta",
+    "target": "Finalizar"
+  },
+  {
+    "type": "addConnection",
+    "source": "Enviar Primeiro Contato",
+    "target": "Casar Envio"
+  },
+  {
+    "type": "addConnection",
+    "source": "Casar Envio",
+    "target": "Confirmar Envio"
+  },
+  {
+    "type": "addConnection",
+    "source": "Casar Envio",
+    "target": "Enviado?"
+  },
+  {
+    "type": "addConnection",
+    "source": "Confirmar Envio",
+    "target": "Finalizar"
+  },
+  {
+    "type": "addConnection",
+    "source": "Enviado?",
+    "target": "Atualizar CRM",
+    "branch": "true"
+  },
+  {
+    "type": "addConnection",
+    "source": "Atualizar CRM",
+    "target": "Nota no CRM"
+  }
+]
