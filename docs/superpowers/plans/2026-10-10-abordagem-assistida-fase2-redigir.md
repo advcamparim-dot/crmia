@@ -717,7 +717,7 @@ Expected: `redigir.node.js gerado (...)`.
 
 - [ ] **Step 4: Rodar e ver passar (a pasta inteira e as suítes vizinhas)**
 
-Run: `node --test docs/superpowers/specs/2026-10-09-abordagem-assistida/ docs/superpowers/specs/2026-09-18-mayara-v3/ docs/superpowers/specs/2026-10-07-lead-grupo-agencia/`
+Run: `node --test docs/superpowers/specs/2026-10-09-abordagem-assistida/*.test.mjs docs/superpowers/specs/2026-09-18-mayara-v3/*.test.mjs docs/superpowers/specs/2026-10-07-lead-grupo-agencia/*.test.mjs`
 Expected: `fail 0` em todas as suítes (as de `calcular-lacunas` e `lead-grupo`, que existem hoje, continuam passando). Se o teste do node divergir por causa do relógio, o falso `Date` do teste cobre `new Date()`; investigar o corpo gerado antes de mexer no teste.
 
 - [ ] **Step 5: Registrar na especificação e commitar**

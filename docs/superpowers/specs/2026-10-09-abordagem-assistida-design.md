@@ -31,6 +31,7 @@ Sucesso:
 1. **Várias propostas ao mesmo tempo, cada uma numerada.** Leads chegam em sequência; a proposta tem um número (`#12`). O administrador responde `sim 12`, `não 12` ou `editar 12: novo texto`.
 2. **"sim" sem número** só vale se existir **exatamente uma** proposta aberta **e nenhuma regra ou ação pendente**. Se houver mais de uma, a Central lista as abertas e pede o número. Uma regra/ação pendente tem prioridade sobre o "sim" sem número (comportamento atual preservado).
 3. **O card vira fatos e os fatos definem a primeira pergunta.** `redigir.mjs` converte o card em fatos nas chaves padronizadas (`nomeCompleto`, `valorAproximado`, `situacaoFormulario`, `origemLead`, `campanha`, `perfil`), roda `calcularLacunas` e pega a **lacuna prioritária** (por exemplo, banco(s) envolvido(s) ou situação judicial). A resposta "Situação" do card fica só em `situacaoFormulario` e **nunca** vira `situacaoJudicial` (fato não é inferência, regra já usada na captura de formulário).
+   **Regra de abertura (usuário, 10/10):** se o card não traz o tipo de contrato, a primeira pergunta é quais contratos estão em atraso (como no texto aprovado para a Cristina); se traz o tipo, a primeira pergunta é com qual banco ou instituição financeira é o contrato; só depois vale a lacuna prioritária do motor.
    **A IA só escreve o rascunho.** Ela recebe apenas esses fatos e a lacuna escolhida, e devolve: saudação pelo nome, apresentação, o motivo do contato (o que o card já disse) e **uma pergunta** sobre a lacuna. O código valida: tamanho máximo, sem links, sem valores prometidos, sem a palavra "garantia", começa com saudação pelo nome. Texto vindo do cartão é tratado como dado, nunca como instrução.
 4. **O administrador sempre vê o texto exato** que será enviado. `editar N: texto` troca o rascunho e reapresenta para novo "sim".
 5. **Horário (6h–21h, Brasília):** a proposta é criada ao chegar o lead, mas a notificação só sai dentro da janela. O que chegou à noite sai às 6h, em ordem de chegada, no máximo 10 por hora. Aprovar uma proposta envia na hora (o administrador só a recebe dentro da janela).
@@ -96,7 +97,7 @@ Campos: `id`, `telefone`, `telefone_chave`, `nome`, `crm_lead_id`, `fatos` (json
 ## Fases
 
 1. **Banco:** tabela, funções e testes. **Concluída em 10/10/2026** (migrations 0033 a 0035; chave `abordagem_assistida` desligada).
-2. **Biblioteca `redigir.mjs`** com testes e prompt de redação.
+2. **Biblioteca `redigir.mjs`** com testes e prompt de redação. **Concluída em 10/10/2026** (`2026-10-09-abordagem-assistida/redigir.mjs`, 28 testes, corpo gerado para o n8n; modelo determinístico como piso, IA opcional validada).
 3. **Workflows:** `Abordagem: Propor`, `Abordagem: Notificar`, ramo do Roteador, gatilho no sub-workflow de captura (atrás da chave desligada).
 4. **Aceitação real** com leads de teste, ligar a chave, acompanhar a primeira semana.
 
