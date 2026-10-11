@@ -2,13 +2,13 @@
 begin;
 do $t$
 begin
-  -- dia util: resposta 06:00-21:00, follow-up 08:00-19:00 (segunda 2026-10-05)
+  -- dia util: resposta 06:00-21:00, follow-up 06:00-19:00 (segunda 2026-10-05)
   assert not mayara.resposta_permitida('2026-10-05 05:59:00-03'), 'seg 05:59 fechado';
   assert mayara.resposta_permitida('2026-10-05 06:00:00-03'), 'seg 06:00 aberto';
   assert mayara.resposta_permitida('2026-10-05 20:59:00-03'), 'seg 20:59 aberto';
   assert not mayara.resposta_permitida('2026-10-05 21:00:00-03'), 'seg 21:00 fechado';
-  assert not mayara.followup_permitido('2026-10-05 07:59:00-03'), 'follow-up seg 07:59 fechado';
-  assert mayara.followup_permitido('2026-10-05 08:00:00-03'), 'follow-up seg 08:00 aberto';
+  assert not mayara.followup_permitido('2026-10-05 05:59:00-03'), 'follow-up seg 05:59 fechado';
+  assert mayara.followup_permitido('2026-10-05 06:00:00-03'), 'follow-up seg 06:00 aberto';
   assert mayara.followup_permitido('2026-10-05 18:59:00-03'), 'follow-up seg 18:59 aberto';
   assert not mayara.followup_permitido('2026-10-05 19:00:00-03'), 'follow-up seg 19:00 fechado';
 
@@ -46,9 +46,9 @@ begin
   assert mayara.proxima_abertura('2026-10-09 22:00:00-03') = '2026-10-10 06:00:00-03'::timestamptz, 'sexta noite -> sabado 06:00';
 
   -- proxima abertura (follow-up)
-  assert mayara.proxima_abertura('2026-10-09 19:30:00-03', 'followup') = '2026-10-10 08:00:00-03'::timestamptz, 'sexta 19:30 -> sabado 08:00';
-  assert mayara.proxima_abertura('2026-10-10 18:30:00-03', 'followup') = '2026-10-13 08:00:00-03'::timestamptz, 'sabado 18:30 -> terca 08:00';
-  assert mayara.proxima_abertura('2026-10-13 07:00:00-03', 'followup') = '2026-10-13 08:00:00-03'::timestamptz, 'antes de 08:00 -> 08:00';
+  assert mayara.proxima_abertura('2026-10-09 19:30:00-03', 'followup') = '2026-10-10 06:00:00-03'::timestamptz, 'sexta 19:30 -> sabado 06:00';
+  assert mayara.proxima_abertura('2026-10-10 18:30:00-03', 'followup') = '2026-10-13 06:00:00-03'::timestamptz, 'sabado 18:30 -> terca 06:00';
+  assert mayara.proxima_abertura('2026-10-13 05:00:00-03', 'followup') = '2026-10-13 06:00:00-03'::timestamptz, 'antes de 06:00 -> 06:00';
 
   assert not has_function_privilege('anon', 'mayara.resposta_permitida(timestamptz)', 'execute'), 'anon resposta';
   assert not has_function_privilege('authenticated', 'mayara.proxima_abertura(timestamptz,text)', 'execute'), 'authenticated proxima';
