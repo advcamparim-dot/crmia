@@ -173,3 +173,12 @@ A parte do **encaminhamento ao advogado após o agendamento** (verificar agenda,
 1. ~~Dias úteis~~: respondido, 6h às 21h.
 2. Os textos fixos de reserva servem?
 3. Teto de 14, limite de 15 follow-ups por hora e janela de 8h às 19h servem?
+
+## Estado de implementação (11/10/2026)
+
+- **Expediente** (migrations 0038 e 0039; workflows `Processar Evento` com o portão e `Retomar Eventos Adiados`): no ar. Resposta 6h-21h em dias úteis, sábado até 18h, domingo e feriados fechados.
+- **Régua** (migrations 0040 a 0043; biblioteca `2026-10-10-followup-regua/followup.mjs`; workflows `Follow-up: Worker` e `Follow-up: Resumo Diário`): no ar com `followup_modo = ligado`.
+- **Decisões do usuário:** retomar tudo na terça (13/10) às 6h; a janela de follow-up abre às 06:00; o texto da Cristina é o próximo follow-up dela (campo `texto_proximo`), depois ela segue a régua padrão.
+- **Mudança na regra "nunca recuperar atraso":** vale a etapa mais recente já devida e as intermediárias são puladas.
+- **Ensaio de 11/10 (modo simulação, relógio em terça 06:00):** Gilberto etapa 6, Cristina etapa 3 (texto aprovado), Claudemiro etapa 3. O texto da IA foi recusado quando tinha duas perguntas, e uma regra nova recusa frases que fingem ação humana ("estava pensando em você").
+- **Pendente:** comando `/followup` na Central; ramo de envio do worker ainda não exercitado em produção (a reserva única por lead impede duplicidade se algo falhar depois do envio).

@@ -31,6 +31,7 @@ export function textoFixo({ sequencia, etapa, nome, agora }) {
 
 const PROMESSA_PRESSAO = /garant|100\s*%|certeza|assegur|ganh(ar|amos) a causa|sem risco|gr[aá]tis|de gra[cç]a|[uú]ltim[oa]\s+(aviso|chance|oportunidade|tentativa)|voc[eê]\s+(pode|vai|corre o risco de)\s+perder|urgente|prazo\s+(vence|acaba|termina)|n[aã]o\s+perca/i;
 const OPINIAO_JURIDICA = /voc[eê]\s+(tem|ter[aá])\s+direito|cl[aá]usulas?\s+abusivas?|juros\s+abusivos|revis[aã]o\s+de\s+juros\s+garantida/i;
+const FINGE_ACAO_HUMANA = /(estava|estive)\s+(aqui\s+)?(pensando|refletindo|lembrando|me\s+lembrando)|fiquei\s+pensando|lembrei\s+(de\s+)?voc[eê]|passei\s+aqui\s+para\s+ver/i;
 const PEDE_DOCUMENTO = /(envie|mande|me\s+envie|me\s+mande|anexe|encaminhe)\b.{0,40}\b(contrato|extrato|documento|cnpj|cpf|comprovante)/i;
 
 function normalizar(t) {
@@ -56,6 +57,7 @@ export function validarFollowup(texto, { anteriores = [] } = {}) {
   if (PROMESSA_PRESSAO.test(t)) return { valido: false, motivo: 'promessa_ou_pressao' };
   if (OPINIAO_JURIDICA.test(t)) return { valido: false, motivo: 'opiniao_juridica' };
   if (PEDE_DOCUMENTO.test(t)) return { valido: false, motivo: 'pede_documento' };
+  if (FINGE_ACAO_HUMANA.test(t)) return { valido: false, motivo: 'finge_acao_humana' };
   if ((t.replace(/tudo bem\?/gi, '').match(/\?/g) || []).length > 1) return { valido: false, motivo: 'perguntas' };
   for (const a of Array.isArray(anteriores) ? anteriores : []) {
     if (parecidos(t, a)) return { valido: false, motivo: 'repetido' };
@@ -69,6 +71,7 @@ const SYSTEM = [
   'Retome a conversa de forma natural, acolhedora e breve (no máximo 3 frases curtas), usando o que o lead já disse. Use a saudação indicada em "saudacao" e o primeiro nome, se houver.',
   'Faça no máximo uma pergunta. Se a última mensagem da Mayara tinha uma pergunta sem resposta, retome o mesmo objetivo com outras palavras; se não tinha, convide o lead a continuar.',
   'Não repita nem copie nenhum texto de "followups_anteriores". A cada tentativa varie o ângulo, sem inventar fatos, riscos, prazos ou urgência.',
+  'Seja direta e honesta: não diga que estava pensando, refletindo ou lembrando do lead, nem finja ações humanas; não use exclamações exageradas nem mais de uma saudação.',
   'Não use links, não prometa resultado, não dê opinião jurídica, não peça documentos, não pressione.',
   'Devolva somente o texto da mensagem.',
 ].join('\n');

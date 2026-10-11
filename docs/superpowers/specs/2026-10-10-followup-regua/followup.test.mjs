@@ -51,6 +51,8 @@ test('validarFollowup recusa cada problema com o motivo certo', () => {
   assert.equal(m('É urgente, responda agora.'), 'promessa_ou_pressao');
   assert.equal(m('Você tem direito a revisar os juros abusivos.'), 'opiniao_juridica');
   assert.equal(m('Me envie o contrato e o extrato por aqui.'), 'pede_documento');
+  assert.equal(m('Estava aqui pensando na sua situação. Ainda precisa de ajuda?'), 'finge_acao_humana');
+  assert.equal(m('Fiquei pensando no seu caso, ainda faz sentido conversar?'), 'finge_acao_humana');
   assert.equal(m('Qual o banco? E qual o valor?'), 'perguntas');
   assert.equal(m('Oi, Ana. Tudo bem? Ainda precisa de ajuda com a dívida?'), undefined);
 });
