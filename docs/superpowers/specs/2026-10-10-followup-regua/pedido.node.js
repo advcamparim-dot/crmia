@@ -105,10 +105,12 @@ function escolherTexto({ sequencia, etapa, nome, agora, anteriores, textoIA, tex
   return { texto: fixo, fonte: 'fixo', motivoRejeicao: null };
 }
 
-const r = $input.first().json;
-const ctx = r.ctx || {};
-const pedido = montarPedido({
-  sequencia: r.lead_sequencia, etapa: r.lead_etapa, tentativa: ctx.tentativa, nome: ctx.nome || r.lead_nome, agora: new Date(),
-  mensagens: ctx.mensagens, fatos: ctx.fatos, anteriores: ctx.anteriores,
+return $input.all().map((it) => {
+  const r = it.json;
+  const ctx = r.ctx || {};
+  const pedido = montarPedido({
+    sequencia: r.lead_sequencia, etapa: r.lead_etapa, tentativa: ctx.tentativa, nome: ctx.nome || r.lead_nome, agora: new Date(),
+    mensagens: ctx.mensagens, fatos: ctx.fatos, anteriores: ctx.anteriores,
+  });
+  return { json: { ...r, prompt: pedido.system + '\n\nDADOS (JSON):\n' + pedido.user, tem_aprovado: Boolean(r.texto_proximo) } };
 });
-return [{ json: { ...r, prompt: pedido.system + '\n\nDADOS (JSON):\n' + pedido.user, tem_aprovado: Boolean(r.texto_proximo) } }];

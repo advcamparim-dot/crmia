@@ -105,12 +105,15 @@ function escolherTexto({ sequencia, etapa, nome, agora, anteriores, textoIA, tex
   return { texto: fixo, fonte: 'fixo', motivoRejeicao: null };
 }
 
-const base = $('Montar Pedido').first().json;
-const ctx = base.ctx || {};
-const saida = $input.first().json || {};
-const textoIA = typeof saida.text === 'string' ? saida.text : (typeof saida.output === 'string' ? saida.output : '');
-const e = escolherTexto({
-  sequencia: base.lead_sequencia, etapa: base.lead_etapa, nome: ctx.nome || base.lead_nome, agora: new Date(),
-  anteriores: ctx.anteriores, textoIA, textoPreAprovado: base.texto_proximo,
+const bases = $('Montar Pedido').all();
+return $input.all().map((it, i) => {
+  const base = bases[i].json;
+  const ctx = base.ctx || {};
+  const saida = it.json || {};
+  const textoIA = typeof saida.text === 'string' ? saida.text : (typeof saida.output === 'string' ? saida.output : '');
+  const e = escolherTexto({
+    sequencia: base.lead_sequencia, etapa: base.lead_etapa, nome: ctx.nome || base.lead_nome, agora: new Date(),
+    anteriores: ctx.anteriores, textoIA, textoPreAprovado: base.texto_proximo,
+  });
+  return { json: { log_id: base.log_id, modo: base.modo, telefone: ctx.telefone || base.lead_telefone, texto: e.texto, fonte: e.fonte, motivo_rejeicao: e.motivoRejeicao } };
 });
-return [{ json: { log_id: base.log_id, modo: base.modo, telefone: ctx.telefone || base.lead_telefone, texto: e.texto, fonte: e.fonte, motivo_rejeicao: e.motivoRejeicao } }];
