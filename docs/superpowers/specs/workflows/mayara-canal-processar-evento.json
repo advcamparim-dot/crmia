@@ -489,7 +489,7 @@
       ],
       "parameters": {
         "operation": "executeQuery",
-        "query": "select mayara.resposta_permitida() as ok, $1::text as phone",
+        "query": "select mayara.resposta_permitida_para($1) as ok, $1::text as phone",
         "options": {
           "queryReplacement": "={{ [$json.phone] }}"
         }
