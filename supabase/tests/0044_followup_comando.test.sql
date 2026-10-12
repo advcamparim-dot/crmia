@@ -1,0 +1,42 @@
+-- supabase/tests/0044_followup_comando.test.sql
+begin;
+do $t$
+declare r text; n int; c text := mayara.chave_telefone('+5511999990951');
+begin
+  insert into mayara.leads_autorizados (telefone, nome, status) values ('+5511999990951', 'Fabio Comando Teste', 'ativo');
+  r := mayara.executar_central('followup', '', '', 'x');
+  assert r like 'Follow-up: %' and r like '%Canal do WhatsApp:%' and r like '%Fila%' and r like '%revisão humana%', 'status: ' || r;
+  assert mayara.executar_central('followup', 'status', '', 'x') = r, 'status explicito igual ao vazio';
+  r := mayara.comando_followup('modo xyz');
+  assert r like 'Use /followup modo%', 'modo invalido: ' || r;
+  r := mayara.comando_followup('modo simulação');
+  assert r like '%simulacao%' and (select valor from mayara.config where chave = 'followup_modo') = 'simulacao', 'modo simulacao com acento: ' || r;
+  r := mayara.comando_followup('modo desligado');
+  assert (select valor from mayara.config where chave = 'followup_modo') = 'desligado' and r like '%Nenhum follow-up%', 'modo desligado: ' || r;
+  r := mayara.comando_followup('MODO Ligado');
+  assert (select valor from mayara.config where chave = 'followup_modo') = 'ligado', 'modo ligado (caixa): ' || r;
+  r := mayara.comando_followup('encerrar +5511999990951');
+  assert r like 'Encerrei o follow-up de Fabio Comando Teste (final 0951)%' and (select status from mayara.followup_estado where chave = c) = 'encerrado', 'encerrar: ' || r;
+  update mayara.followup_estado set enviados_total = 9, status = 'revisao_humana' where chave = c;
+  assert mayara._followup_status_texto() like '%Fabio Comando Teste (final 0951)%', 'revisao humana aparece no status';
+  r := mayara.comando_followup('retomar fabio comando');
+  assert r like 'Retomei o follow-up de Fabio Comando Teste%' and (select status from mayara.followup_estado where chave = c) = 'ativo' and (select enviados_total from mayara.followup_estado where chave = c) = 0, 'retomar por nome: ' || r;
+  r := mayara.comando_followup('retomar');
+  assert r like 'Diga o lead%', 'retomar sem alvo: ' || r;
+  r := mayara.comando_followup('retomar +5511999990999');
+  assert r like '%não está na lista%', 'desconhecido: ' || r;
+  r := mayara.comando_followup('retomar inexistentezzz');
+  assert r like 'Não achei lead%', 'nome inexistente: ' || r;
+  r := mayara.comando_followup('abc');
+  assert r like 'Use: /followup status%', 'ajuda: ' || r;
+  update mayara.config set valor = 'ligado' where chave = 'followup_modo';
+  update mayara.canal_estado set estado = 'close' where canal_id = 'escritorio';
+  select count(*) into n from mayara.reservar_followups('2026-10-13 06:00:00-03', 10);
+  assert n = 0, 'canal fechado nao reserva: ' || n;
+  update mayara.canal_estado set estado = 'open' where canal_id = 'escritorio';
+  select count(*) into n from mayara.reservar_followups('2026-10-13 06:00:00-03', 10);
+  assert n >= 1, 'canal aberto reserva: ' || n;
+  assert not has_function_privilege('anon', 'mayara.comando_followup(text)', 'execute'), 'anon comando';
+end $t$;
+rollback;
+select 'OK 0044' as resultado;

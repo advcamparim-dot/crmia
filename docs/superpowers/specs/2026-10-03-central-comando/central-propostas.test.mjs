@@ -69,3 +69,14 @@ test('editar aceita espaco no lugar dos dois pontos e explica quando falta o tex
   // frases comuns de ensino que comecam com "editar" nao sao capturadas
   assert.equal(classificarMensagem('editar a regra de honorários', livre).tipo, 'livre');
 });
+
+test('/followup: status, modo, retomar e encerrar viram comando sql da Central', () => {
+  const r = (t) => classificarMensagem(t, livre);
+  assert.deepEqual(r('/followup'), { tipo: 'sql', acao: 'followup', fn: 'followup', arg: '', arg2: '' });
+  assert.deepEqual(r('/followup status'), { tipo: 'sql', acao: 'followup', fn: 'followup', arg: 'status', arg2: '' });
+  assert.deepEqual(r('/followup modo ligado'), { tipo: 'sql', acao: 'followup', fn: 'followup', arg: 'modo ligado', arg2: '' });
+  assert.equal(r('/FollowUp retomar Carla Ramos').arg, 'retomar Carla Ramos');
+  assert.equal(r('/followup encerrar +5566996833126').arg, 'encerrar +5566996833126');
+  assert.equal(r('followup status').tipo, 'livre', 'sem barra continua sendo ensino em modo exclusivo');
+  assert.match(classificarMensagem('/ajuda', livre).resposta, /\/followup/);
+});
