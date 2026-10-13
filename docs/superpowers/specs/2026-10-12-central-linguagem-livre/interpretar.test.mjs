@@ -141,3 +141,52 @@ test('resposta malformada, vazia ou fora de formato nunca lanca excecao', () => 
   assert.equal(lerRespostaIA(42), null);
   assert.equal(lerRespostaIA({ intencao: 'agir' }), null);
 });
+
+import { interpretarResposta } from './interpretar.mjs';
+
+const J = (o) => JSON.stringify({ intencao: 'consultar', acao: null, alvo: { nome: null, telefone: null, numero_regra: null }, periodo: null, regra: null, duvida: null, ...o });
+
+test('consulta e acao viram instrucao sql com o pedido normalizado em JSON', () => {
+  const c = interpretarResposta(J({ acao: 'contagem_leads', periodo: 'hoje' }));
+  assert.equal(c.tipo, 'sql');
+  assert.equal(c.acao, 'livre_contagem_leads');
+  assert.equal(c.fn, 'livre');
+  assert.deepEqual(JSON.parse(c.arg), { acao: 'contagem_leads', telefone: null, nome: '', numero_regra: null, periodo: 'hoje' });
+  const a = interpretarResposta(J({ intencao: 'agir', acao: 'assumir', alvo: { nome: 'Gilberto', telefone: null, numero_regra: null } }));
+  assert.equal(a.acao, 'livre_assumir');
+  assert.deepEqual(JSON.parse(a.arg), { acao: 'assumir', telefone: null, nome: 'Gilberto', numero_regra: null, periodo: null });
+  assert.equal(interpretarResposta(J({ intencao: 'agir', acao: 'pausar' })).acao, 'livre_pausar');
+});
+
+test('ensino entra no fluxo de ensino existente, com a regra limpa', () => {
+  const e = interpretarResposta(J({ intencao: 'ensinar', regra: '  Quando perguntarem de prazos, não prometa datas.  ' }));
+  assert.deepEqual(e, { tipo: 'ensinar', acao: 'livre_ensinar', regra: 'Quando perguntarem de prazos, não prometa datas.' });
+});
+
+test('conversa recebe resposta curta fixa e nao executa nada', () => {
+  const c = interpretarResposta(J({ intencao: 'conversar' }));
+  assert.equal(c.tipo, 'texto');
+  assert.equal(c.acao, 'livre_conversar');
+  assert.match(c.resposta, /\/ajuda/);
+});
+
+test('qualquer falha vira "nao entendi" e nada e executado', () => {
+  for (const ruim of ['', null, 'sem json', '{ "intencao": "agir", "acao": "apagar_tudo" }', J({ intencao: 'agir', acao: 'assumir' }), '{"intencao":"agir","acao":"pausar","sql":"drop table x"}']) {
+    const r = interpretarResposta(ruim);
+    assert.equal(r.tipo, 'texto', String(ruim));
+    assert.equal(r.acao, 'livre_nao_entendi', String(ruim));
+    assert.match(r.resposta, /Não entendi com segurança/);
+    assert.match(r.resposta, /nada foi feito/i);
+  }
+});
+
+test('nenhuma saida de efeito escapa da lista de acoes conhecidas', () => {
+  const permitidas = new Set(['livre_status', 'livre_contagem_leads', 'livre_situacao_lead', 'livre_listar_regras', 'livre_pausar', 'livre_ligar', 'livre_assumir', 'livre_devolver', 'livre_desfazer_regra', 'livre_reativar_regra', 'livre_abordar']);
+  for (const acao of ['status', 'contagem_leads', 'situacao_lead', 'listar_regras', 'pausar', 'ligar', 'assumir', 'devolver', 'desfazer_regra', 'reativar_regra', 'abordar']) {
+    const efeito = ['pausar', 'ligar', 'assumir', 'devolver', 'desfazer_regra', 'reativar_regra', 'abordar'].includes(acao);
+    const alvo = { nome: 'Gilberto', telefone: null, numero_regra: ['desfazer_regra', 'reativar_regra'].includes(acao) ? 3 : null };
+    const r = interpretarResposta(J({ intencao: efeito ? 'agir' : 'consultar', acao, alvo, periodo: 'semana' }));
+    assert.equal(r.tipo, 'sql', acao);
+    assert.ok(permitidas.has(r.acao), r.acao);
+  }
+});

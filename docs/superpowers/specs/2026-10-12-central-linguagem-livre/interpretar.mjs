@@ -96,3 +96,17 @@ export function lerRespostaIA(texto) {
     return null;
   }
 }
+
+const NAO_ENTENDI = 'Não entendi com segurança, então nada foi feito. Reescreva o pedido ou use /ajuda.';
+const CONVERSA = 'Estou por aqui. Posso consultar status, leads e regras, e fazer ações como assumir, devolver, pausar ou ligar a Mayara (sempre com a sua confirmação). Envie /ajuda para ver os comandos.';
+
+export function interpretarResposta(textoIA) {
+  const recusa = { tipo: 'texto', acao: 'livre_nao_entendi', resposta: NAO_ENTENDI };
+  const v = validarFormulario(lerRespostaIA(textoIA));
+  if (!v.ok) return recusa;
+  const p = v.pedido;
+  if (p.intencao === 'conversar') return { tipo: 'texto', acao: 'livre_conversar', resposta: CONVERSA };
+  if (p.intencao === 'ensinar') return { tipo: 'ensinar', acao: 'livre_ensinar', regra: p.regra };
+  const pedido = { acao: p.acao, telefone: p.telefone, nome: p.nome, numero_regra: p.numero_regra, periodo: p.periodo };
+  return { tipo: 'sql', acao: 'livre_' + p.acao, fn: 'livre', arg: JSON.stringify(pedido), arg2: '' };
+}
