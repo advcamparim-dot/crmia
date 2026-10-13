@@ -46,3 +46,67 @@ test('nome: so letras, espacos, apostrofo e hifen; ate 60 caracteres', () => {
   assert.equal(limparNome('x'.repeat(61)), '');
   assert.equal(limparNome(null), '');
 });
+
+import { validarFormulario } from './interpretar.mjs';
+
+const F = (o) => ({ intencao: 'consultar', acao: null, alvo: { nome: null, telefone: null, numero_regra: null }, periodo: null, regra: null, duvida: null, ...o });
+
+test('consultar: acoes e periodos validos', () => {
+  assert.deepEqual(validarFormulario(F({ intencao: 'consultar', acao: 'status' })), { ok: true, pedido: { intencao: 'consultar', acao: 'status', telefone: null, nome: '', numero_regra: null, periodo: null, regra: '' } });
+  assert.equal(validarFormulario(F({ acao: 'contagem_leads', periodo: 'hoje' })).ok, true);
+  assert.equal(validarFormulario(F({ acao: 'contagem_leads', periodo: 'mês' })).pedido.periodo, 'mes');
+  assert.equal(validarFormulario(F({ acao: 'contagem_leads', periodo: null })).motivo, 'periodo_ausente');
+  assert.equal(validarFormulario(F({ acao: 'contagem_leads', periodo: 'ano' })).motivo, 'periodo_ausente');
+  assert.equal(validarFormulario(F({ acao: 'listar_regras' })).ok, true);
+  const s = validarFormulario(F({ acao: 'situacao_lead', alvo: { nome: 'Cristina', telefone: null, numero_regra: null } }));
+  assert.equal(s.ok, true);
+  assert.equal(s.pedido.nome, 'Cristina');
+  assert.equal(validarFormulario(F({ acao: 'situacao_lead', alvo: { nome: '66996833126', telefone: '66996833126', numero_regra: null } })).pedido.telefone, '+5566996833126');
+  assert.equal(validarFormulario(F({ acao: 'situacao_lead' })).motivo, 'alvo_ausente');
+});
+
+test('agir: cada acao exige o seu alvo', () => {
+  const ok = (o) => validarFormulario(F({ intencao: 'agir', ...o }));
+  assert.equal(ok({ acao: 'pausar' }).ok, true);
+  assert.equal(ok({ acao: 'ligar' }).ok, true);
+  assert.equal(ok({ acao: 'assumir', alvo: { nome: 'Gilberto', telefone: null, numero_regra: null } }).ok, true);
+  assert.equal(ok({ acao: 'devolver', alvo: { nome: null, telefone: '+5514999990000', numero_regra: null } }).ok, true);
+  assert.equal(ok({ acao: 'abordar', alvo: { nome: 'Carla Ramos', telefone: null, numero_regra: null } }).ok, true);
+  assert.equal(ok({ acao: 'assumir' }).motivo, 'alvo_ausente');
+  assert.equal(ok({ acao: 'abordar' }).motivo, 'alvo_ausente');
+  assert.equal(ok({ acao: 'desfazer_regra', alvo: { nome: null, telefone: null, numero_regra: 3 } }).pedido.numero_regra, 3);
+  assert.equal(ok({ acao: 'reativar_regra', alvo: { nome: null, telefone: null, numero_regra: '#18' } }).pedido.numero_regra, 18);
+  assert.equal(ok({ acao: 'desfazer_regra' }).motivo, 'regra_ausente');
+  assert.equal(ok({ acao: 'desfazer_regra', alvo: { nome: null, telefone: null, numero_regra: 0 } }).motivo, 'regra_ausente');
+});
+
+test('ensinar e conversar', () => {
+  const e = validarFormulario(F({ intencao: 'ensinar', regra: '  Nunca cite valores de honorários.  ' }));
+  assert.equal(e.ok, true);
+  assert.equal(e.pedido.regra, 'Nunca cite valores de honorários.');
+  assert.equal(validarFormulario(F({ intencao: 'ensinar', regra: '' })).motivo, 'regra_vazia');
+  assert.equal(validarFormulario(F({ intencao: 'ensinar', regra: 'x'.repeat(401) })).motivo, 'regra_longa');
+  assert.equal(validarFormulario(F({ intencao: 'conversar' })).ok, true);
+});
+
+test('recusa tudo o que sai da lista fechada', () => {
+  const m = (f) => validarFormulario(f).motivo;
+  assert.equal(m(F({ intencao: 'agir', acao: 'apagar_tudo' })), 'acao_invalida');
+  assert.equal(m(F({ intencao: 'agir', acao: 'enviar_mensagem_a_todos' })), 'acao_invalida');
+  assert.equal(m(F({ intencao: 'consultar', acao: 'assumir', alvo: { nome: 'Ana', telefone: null, numero_regra: null } })), 'acao_invalida');
+  assert.equal(m(F({ intencao: 'agir', acao: 'status' })), 'acao_invalida');
+  assert.equal(m(F({ intencao: 'agir', acao: null })), 'acao_invalida');
+  assert.equal(m(F({ intencao: 'excluir' })), 'intencao_invalida');
+  assert.equal(m({ intencao: 'agir', acao: 'pausar', sql: 'drop table mayara.leads_autorizados' }), 'campo_extra:sql');
+  assert.equal(m({ intencao: 'agir', acao: 'pausar', comando: '/desligar' }), 'campo_extra:comando');
+  assert.equal(m(F({ intencao: 'agir', acao: 'assumir', alvo: { nome: null, telefone: '123', numero_regra: null } })), 'telefone_invalido');
+  assert.equal(m(null), 'formato');
+  assert.equal(m([]), 'formato');
+  assert.equal(m('texto'), 'formato');
+  assert.equal(m({}), 'intencao_invalida');
+});
+
+test('nome malicioso e descartado e vira alvo ausente', () => {
+  const r = validarFormulario(F({ intencao: 'agir', acao: 'assumir', alvo: { nome: 'Ana {{ $json.x }} http://x.co', telefone: null, numero_regra: null } }));
+  assert.equal(r.motivo, 'alvo_ausente');
+});
