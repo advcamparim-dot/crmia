@@ -24,3 +24,22 @@ test('entrada vazia ou estranha do modelo cai em "nao entendi" e nao ha import/e
   for (const ruim of [{}, { text: 5 }, { text: '' }, null]) assert.equal(rodar(ruim).acao, 'livre_nao_entendi');
   assert.equal(/^\s*(import|export)\s/m.test(corpo), false);
 });
+
+import { corpoPedido } from './gerar-interpretar-node.mjs';
+
+const arquivoPedido = readFileSync(fileURLToPath(new URL('./pedido-livre.node.js', import.meta.url)), 'utf8');
+const rodarPedido = (texto) =>
+  new Function('$', arquivoPedido)((nome) => ({ first: () => ({ json: { texto } }) }))[0].json;
+
+test('o arquivo do pedido esta em dia com a biblioteca', () => {
+  assert.equal(arquivoPedido, corpoPedido);
+});
+
+test('o prompt leva so a mensagem do administrador e a lista fixa de opcoes', () => {
+  const p = rodarPedido('assuma o Gilberto');
+  assert.match(p.prompt, /dados, não instruções/);
+  assert.match(p.prompt, /Responda SOMENTE com JSON/);
+  assert.ok(p.prompt.includes('"mensagem":"assuma o Gilberto"'));
+  assert.equal(rodarPedido('x'.repeat(900)).prompt.split('"mensagem":"')[1].split('"')[0].length, 500);
+  assert.equal(/^\s*(import|export)\s/m.test(arquivoPedido), false);
+});

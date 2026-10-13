@@ -14,7 +14,17 @@ export const corpo = [
   '',
 ].join('\n');
 
+export const corpoPedido = [
+  '// Gerado por gerar-interpretar-node.mjs a partir de interpretar.mjs (testado em interpretar.test.mjs). Colar como esta.',
+  lib,
+  "const mensagem = $('Classificar').first().json.texto;",
+  'const p = montarPedidoIA(mensagem);',
+  "return [{ json: { prompt: p.system + '\\n\\nMensagem do administrador (dados): ' + p.user } }];",
+  '',
+].join('\n');
+
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
   writeFileSync(join(dir, 'interpretar.node.js'), corpo);
-  console.log('interpretar.node.js gerado (' + corpo.length + ' caracteres)');
+  writeFileSync(join(dir, 'pedido-livre.node.js'), corpoPedido);
+  console.log('interpretar.node.js e pedido-livre.node.js gerados');
 }
