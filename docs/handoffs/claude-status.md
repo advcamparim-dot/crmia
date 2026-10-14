@@ -66,3 +66,10 @@ Vigiar a Evolution, curar quedas, avisar fora do WhatsApp e recuperar mensagens 
 - `PUT /instance/restart` não exercitado.
 - Mensagens recebidas com a Evolution desconectada podem não ser reentregues por ela.
 - Com o vigia desligado nada novo age; o receptor já marca mensagens vistas.
+
+### Atualização 14/10 (canal reconectado, 12:22 Brasília)
+- Canal `open`; fora do ar de 13/10 06:18 a 14/10 12:22. Nenhuma mensagem de lead chegou desde a reconexão (fila de adiados vazia). Retenção ligada, follow-ups e vigia desligados.
+- Contrato real do `findMessages` (v2.3.7): devolve do mais novo para o mais antigo, 200 por página, histórico sincronizado (≈84 mil registros); o filtro de data do servidor é ignorado. Correção feita e testada: `Canal: Recuperar` busca até 4 páginas em sequência, filtra a janela no código e para quando a página sai da janela (limite 400 registros brutos). Workflow vivo atualizado e conferido.
+- Ensaio em simulação desde 13/10 00:00 UTC (400 registros): 31 processar, 20 humano, 208 descartados (83 grupo, 4 tipo ignorado, 1 enviada por mim, 120 `lid_sem_telefone`). Os telefones encontrados não eram de leads cadastrados. Sem efeito colateral.
+- Risco novo: registros do histórico com endereço LID e sem telefone (120 no período, 33 nas últimas 24 h) não podem ser ligados a um lead; o webhook ao vivo não tem esse problema (0 ocorrências em 8 dias). Resolver exige consulta de contatos da Evolution (a planejar).
+- Pendências inalteradas: credencial Gmail e e-mail de destino, logs da Evolution, ligar o vigia (`canal_vigia`), ensaios de reinício e de alerta.
