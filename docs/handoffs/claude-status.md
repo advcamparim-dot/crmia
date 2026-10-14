@@ -76,7 +76,7 @@ Vigiar a Evolution, curar quedas, avisar fora do WhatsApp e recuperar mensagens 
 
 ### Atualização 14/10 15:40 UTC: vigia ligado
 - `Canal: Vigia` publicado e `canal_vigia = true` (autorizado pelo usuário). Primeiro ciclo: `recuperar` desde 12:01 UTC (cursor da implantação); segundo ciclo: `nada`. Execuções sem erro.
-- Primeira recuperação real: 20 mensagens marcadas como vistas, cursor avançado, 14 eventos entregues ao `Processar Evento`, 6 respostas humanas tratadas (todas de remetentes que não são leads: nenhum lead assumido, nenhuma memória gravada). Retenção ativa: 11 mensagens de um único número fora da lista (final 8888) ficaram em `eventos_adiados`; nenhuma resposta a lead foi enviada.
+- Primeira recuperação real: 20 mensagens marcadas como vistas, cursor avançado, 14 eventos entregues ao `Processar Evento`, 6 respostas humanas tratadas (todas de remetentes que não são leads: nenhum lead assumido, nenhuma memória gravada). Retenção ativa: 11 mensagens de um único número fora da lista de leads ficaram em `eventos_adiados`; nenhuma resposta a lead foi enviada.
 - Efeito indesejado detectado: 3 mensagens do administrador sem texto foram reprocessadas e a Central respondeu 3 vezes "Esse canal aceita comandos que começam com /". Sem ação, regra ou pendência alterada.
 - Correção aplicada antes do próximo ciclo (teste primeiro, 25 testes verdes): comando do administrador com mais de 10 minutos não é reexecutado na recuperação (descartado como `comando_atrasado`). Workflow vivo atualizado e conferido.
 - Continuam ligados: retenção das respostas (`respostas_retidas`); desligados: follow-ups. Pendências: credencial Gmail e e-mail de destino, logs da Evolution, ensaios de reinício e de alerta, LIDs sem telefone no histórico, contexto das respostas manuais a leads.
@@ -87,9 +87,9 @@ Vigiar a Evolution, curar quedas, avisar fora do WhatsApp e recuperar mensagens 
 - Observação de qualidade (a investigar): a resposta ao primeiro "Boa tarde" do lead repetiu a apresentação e perguntou de novo se era dívida bancária, embora a abordagem já tivesse perguntado o banco. Regra "apresentar-se só na primeira mensagem" (regra 19) não está ativa.
 
 ### Atualização 14/10 (item 1 da revisão): uma sessão por lead
-- Causa: a sessão (memória) era chaveada pelo número exato; o WhatsApp entrega alguns números sem o nono dígito e o CRM/abordagem usa o número com o nono dígito, gerando duas sessões e fazendo a Mayara recomeçar do zero (caso do Emerson; Claudemiro e Jonathas tinham o mesmo par).
+- Causa: a sessão (memória) era chaveada pelo número exato; o WhatsApp entrega alguns números sem o nono dígito e o CRM/abordagem usa o número com o nono dígito, gerando duas sessões e fazendo a Mayara recomeçar do zero (caso do lead A; os leads B e C tinham o mesmo par).
 - Migration `0051` (teste `OK 0051`, regressão `OK 0042`, 0024 e 0049): `sessao_do_lead` (sessão com mais histórico, inclusive sessões só de histórico), `com_sessao_canonica(evento)`, `iniciar_sessao_reativacao` e `registrar_followup`/`registrar_mensagem_humana` passam a usar a sessão canônica, `unir_sessoes_duplicadas` (nada é apagado; `unida_em`/`unida_para`; log das linhas de histórico movidas em `mayara.sessoes_unidas_log` para permitir desfazer).
-- Dados: 3 duplicatas unidas (Emerson, Claudemiro, Jonathas). Sessões canônicas agora com fatos do formulário e histórico somado.
+- Dados: 3 duplicatas unidas (leads A, B e C). Sessões canônicas agora com fatos do formulário e histórico somado.
 - n8n: `Canal: Processar Evento` ganhou `Resolver Sessão` e `Aplicar Sessão` antes de `Evento Autorizado?` (fail-open: se a consulta falhar, segue o evento original). Backup do estado anterior fora do repositório; reexportado em `docs/superpowers/specs/workflows/`.
 - Ainda não coberto: o nó `Criar Sessão` do workflow do formulário de landing (chave legada da Meta) não foi alterado. A validação ponta a ponta com mensagem real de lead depende de liberar a retenção.
 - Próximos itens da revisão: cursor da recuperação (achado 2), contexto das respostas manuais, retenção sem prazo (achado 3).
