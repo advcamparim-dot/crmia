@@ -41,6 +41,20 @@ function temMaisPaginas(resposta, janela, tamanho = 200) {
   return segundos(r[r.length - 1].messageTimestamp) >= janela.gte;
 }
 
+// Diz se a busca cobriu a janela inteira. So uma busca completa autoriza avancar o cursor da recuperacao.
+function statusBusca(paginas, janela, tamanho = 200, maxPaginas = 4) {
+  const falha = { completo: false, motivo: 'busca_falhou' };
+  if (!Array.isArray(paginas) || paginas.length === 0) return falha;
+  for (const p of paginas) {
+    if (!p || typeof p !== 'object' || !p.messages || !Array.isArray(p.messages.records)) return falha;
+  }
+  const ultima = paginas[paginas.length - 1].messages.records;
+  if (ultima.length < tamanho) return { completo: true, motivo: 'ok' };
+  if (segundos(ultima[ultima.length - 1].messageTimestamp) < janela.gte) return { completo: true, motivo: 'ok' };
+  if (paginas.length >= maxPaginas) return { completo: false, motivo: 'janela_truncada' };
+  return { completo: true, motivo: 'ok' };
+}
+
 function prepararLote(resposta, instancia, janela, limite) {
   const dentro = extrairRegistros(resposta)
     .map((r) => ({ r, t: segundos(r && r.messageTimestamp) }))
@@ -166,10 +180,11 @@ function extrairEstado(corpo, instanciaEsperada = 'escritorio') {
 
 const janela = $('Janela').first().json;
 const paginas = ['Buscar 1', 'Buscar 2', 'Buscar 3', 'Buscar 4'].filter((n) => $(n).isExecuted).map((n) => $(n).first().json);
+const status = statusBusca(paginas, janela, 200, 4);
 const todos = { records: paginas.flatMap((p) => extrairRegistros(p)) };
 const lote = prepararLote(todos, "escritorio", janela, 400);
 return lote.map((i) => {
-  if (i.fim) return { json: { fim: true, ateIso: i.ateIso, simular: janela.simular } };
+  if (i.fim) return { json: { fim: true, ateIso: i.ateIso, simular: janela.simular, completo: status.completo, motivo: status.motivo } };
   const norm = normalizarEvolution(i.evento, "escritorio");
   return { json: { fim: false, simular: janela.simular, messageId: i.evento.data.key.id, timestamp: i.timestamp, norm } };
 });

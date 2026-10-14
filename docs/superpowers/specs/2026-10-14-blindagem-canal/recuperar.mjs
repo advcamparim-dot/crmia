@@ -39,6 +39,20 @@ export function temMaisPaginas(resposta, janela, tamanho = 200) {
   return segundos(r[r.length - 1].messageTimestamp) >= janela.gte;
 }
 
+// Diz se a busca cobriu a janela inteira. So uma busca completa autoriza avancar o cursor da recuperacao.
+export function statusBusca(paginas, janela, tamanho = 200, maxPaginas = 4) {
+  const falha = { completo: false, motivo: 'busca_falhou' };
+  if (!Array.isArray(paginas) || paginas.length === 0) return falha;
+  for (const p of paginas) {
+    if (!p || typeof p !== 'object' || !p.messages || !Array.isArray(p.messages.records)) return falha;
+  }
+  const ultima = paginas[paginas.length - 1].messages.records;
+  if (ultima.length < tamanho) return { completo: true, motivo: 'ok' };
+  if (segundos(ultima[ultima.length - 1].messageTimestamp) < janela.gte) return { completo: true, motivo: 'ok' };
+  if (paginas.length >= maxPaginas) return { completo: false, motivo: 'janela_truncada' };
+  return { completo: true, motivo: 'ok' };
+}
+
 export function prepararLote(resposta, instancia, janela, limite) {
   const dentro = extrairRegistros(resposta)
     .map((r) => ({ r, t: segundos(r && r.messageTimestamp) }))

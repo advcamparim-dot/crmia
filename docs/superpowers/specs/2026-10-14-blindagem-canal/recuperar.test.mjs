@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { janelaBusca, corpoBusca, temMaisPaginas, extrairRegistros, registroParaEvento, prepararLote } from './recuperar.mjs';
+import { janelaBusca, corpoBusca, temMaisPaginas, statusBusca, extrairRegistros, registroParaEvento, prepararLote } from './recuperar.mjs';
 
 const AGORA = '2026-10-20T15:00:00.000Z';
 const reg = (id, ts, extra = {}) => ({ key: { id, fromMe: false, remoteJid: '5511999990401@s.whatsapp.net' }, messageTimestamp: ts, message: { conversation: 'oi ' + id }, ...extra });
@@ -68,4 +68,28 @@ test('timestamp em objeto {low} tambem entra na janela', () => {
   r.messageTimestamp = { low: epoch('2026-10-20T14:30:00.000Z'), high: 0 };
   const lote = prepararLote([r], 'escritorio', j, 100);
   assert.equal(lote.length, 2);
+});
+
+test('status da busca: so e completa se nenhuma pagina falhou e a janela inteira foi coberta', () => {
+  const j = janelaBusca('2026-10-20T14:00:00.000Z', AGORA);
+  const cheia = (tsAntigo) => ({ messages: { records: [...Array(199).fill(0).map((_, i) => reg('N' + i, epoch(AGORA) - i)), reg('ANT', tsAntigo)] } });
+  const curta = { messages: { records: [reg('A', j.gte + 60)] } };
+  const vazia = { messages: { total: 0, records: [] } };
+  // pagina curta ou vazia: acabou o historico
+  assert.deepEqual(statusBusca([curta], j, 200, 4), { completo: true, motivo: 'ok' });
+  assert.deepEqual(statusBusca([vazia], j, 200, 4), { completo: true, motivo: 'ok' });
+  // pagina cheia que ja saiu da janela: coberta
+  assert.deepEqual(statusBusca([cheia(j.gte - 60)], j, 200, 4), { completo: true, motivo: 'ok' });
+  // varias paginas, a ultima fecha a janela
+  assert.deepEqual(statusBusca([cheia(j.gte + 60), cheia(j.gte + 30), curta], j, 200, 4), { completo: true, motivo: 'ok' });
+  // falha de busca: nenhuma pagina, erro, resposta sem records
+  assert.deepEqual(statusBusca([], j, 200, 4), { completo: false, motivo: 'busca_falhou' });
+  assert.deepEqual(statusBusca([{ error: { message: 'timeout' } }], j, 200, 4), { completo: false, motivo: 'busca_falhou' });
+  assert.deepEqual(statusBusca([cheia(j.gte + 60), { error: {} }], j, 200, 4), { completo: false, motivo: 'busca_falhou' });
+  assert.deepEqual(statusBusca([null], j, 200, 4), { completo: false, motivo: 'busca_falhou' });
+  assert.deepEqual(statusBusca([{ messages: {} }], j, 200, 4), { completo: false, motivo: 'busca_falhou' });
+  // no limite de paginas e ainda dentro da janela: truncada
+  const quatro = [cheia(j.gte + 90), cheia(j.gte + 80), cheia(j.gte + 70), cheia(j.gte + 60)];
+  assert.deepEqual(statusBusca(quatro, j, 200, 4), { completo: false, motivo: 'janela_truncada' });
+  assert.deepEqual(statusBusca([cheia(j.gte + 90), cheia(j.gte + 80), cheia(j.gte + 70), cheia(j.gte - 5)], j, 200, 4), { completo: true, motivo: 'ok' });
 });

@@ -93,3 +93,9 @@ Vigiar a Evolution, curar quedas, avisar fora do WhatsApp e recuperar mensagens 
 - n8n: `Canal: Processar Evento` ganhou `Resolver Sessão` e `Aplicar Sessão` antes de `Evento Autorizado?` (fail-open: se a consulta falhar, segue o evento original). Backup do estado anterior fora do repositório; reexportado em `docs/superpowers/specs/workflows/`.
 - Ainda não coberto: o nó `Criar Sessão` do workflow do formulário de landing (chave legada da Meta) não foi alterado. A validação ponta a ponta com mensagem real de lead depende de liberar a retenção.
 - Próximos itens da revisão: cursor da recuperação (achado 2), contexto das respostas manuais, retenção sem prazo (achado 3).
+
+### Atualização 14/10 (item 2 da revisão): cursor da recuperação
+- Defeito: `Canal: Recuperar` avançava `sincronizado_ate` mesmo com a busca falha ou cortada pelo limite de 4 páginas.
+- Correção (teste primeiro, 88 testes verdes): `statusBusca` (biblioteca `recuperar.mjs`) diz se a busca foi completa (`ok`), falhou (`busca_falhou`) ou foi cortada (`janela_truncada`). O sentinela do lote leva `completo` e `motivo`; o nó `Concluir?` só deixa o cursor avançar com `completo = true`. Caso contrário, `Incompleta?` e `Registrar Incompleta` gravam em `canal_eventos` um descarte com motivo `recuperacao_incompleta:<motivo>` (não grava em simulação) e a próxima rodada tenta de novo da mesma janela.
+- Workflow vivo atualizado e conferido (27 nós). Backup do estado anterior fora do repositório.
+- Limite conhecido: se a janela passar de 800 registros brutos (4 páginas), o cursor fica parado e a recuperação repete a mesma janela a cada 15 minutos (a deduplicação evita reprocessar). Aviso ativo desse caso ainda não existe; hoje fica só no log (`canal_eventos`).

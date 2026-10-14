@@ -108,6 +108,30 @@ test('recuperar: comando do administrador atrasado nao e reexecutado', () => {
   assert.equal(atrasado({ rota: 'comando', norm: { acao: 'humano', timestamp: antigo } }), false);
 });
 
+test('recuperar: o cursor so avanca com busca completa; senao registra o motivo', () => {
+  const w = montarRecuperar(PROC);
+  const expr = no(w, 'Concluir?').parameters.conditions.conditions[0].leftValue.replace(/^=\{\{/, '').replace(/\}\}$/, '');
+  const decide = (simular, itens) => new Function('$', 'return ' + expr)((nome) => (nome === 'Janela'
+    ? { first: () => ({ json: { simular } }) } : { all: () => itens.map((json) => ({ json })) }));
+  assert.equal(decide('false', [{ fim: true, completo: true }]), true);
+  assert.equal(decide('false', [{ fim: true, completo: false }]), false);
+  assert.equal(decide('false', [{ fim: false }, { fim: true, completo: true }]), true);
+  assert.equal(decide('true', [{ fim: true, completo: true }]), false);
+  assert.deepEqual(destinos(w, 'Concluir?', 0), ['Concluir']);
+  assert.deepEqual(destinos(w, 'Concluir?', 1), ['Incompleta?']);
+  assert.deepEqual(destinos(w, 'Incompleta?', 0), ['Registrar Incompleta']);
+  assert.deepEqual(destinos(w, 'Incompleta?', 1), []);
+  const q = no(w, 'Registrar Incompleta').parameters;
+  assert.ok(q.query.includes('registrar_evento_canal'));
+  assert.ok(q.options.queryReplacement.includes("'recuperacao_incompleta:'") && q.options.queryReplacement.includes('motivo'));
+  assert.equal(no(w, 'Registrar Incompleta').executeOnce, true);
+  assert.equal(no(w, 'Incompleta?').executeOnce, true);
+  const exprI = no(w, 'Incompleta?').parameters.conditions.conditions[0].leftValue.replace(/^=\{\{/, '').replace(/\}\}$/, '');
+  const inc = (simular) => new Function('$', 'return ' + exprI)(() => ({ first: () => ({ json: { simular } }) }));
+  assert.equal(inc('false'), true);
+  assert.equal(inc('true'), false);
+});
+
 test('alertar fora: e-mail com destino da configuracao e tarefa no CRM so quando pedido', () => {
   const w = montarAlertarFora({ id: 'GMAIL_ID', name: 'Gmail account' });
   assert.deepEqual(nomes(w), ['Execute Workflow Trigger', 'Destino', 'Enviar E-mail', 'Tarefa?', 'Criar Tarefa no CRM']);

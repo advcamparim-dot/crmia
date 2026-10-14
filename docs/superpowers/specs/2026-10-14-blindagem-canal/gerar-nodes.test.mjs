@@ -54,5 +54,16 @@ test('lote junta as paginas que foram buscadas e ignora as que nao rodaram', () 
   const itens = rodar(corpoLote, { Janela: janela, 'Buscar 1': { messages: { records: [msg('B', 1760972600)] } }, 'Buscar 2': { messages: { records: [msg('A', 1760972100)] } } }).map((i) => i.json);
   assert.deepEqual(itens.filter((i) => !i.fim).map((i) => i.messageId), ['A', 'B']);
   const vazio = rodar(corpoLote, { Janela: janela }).map((i) => i.json);
-  assert.deepEqual(vazio, [{ fim: true, ateIso: janela.ateIso, simular: 'false' }]);
+  assert.deepEqual(vazio, [{ fim: true, ateIso: janela.ateIso, simular: 'false', completo: false, motivo: 'busca_falhou' }]);
+});
+
+test('sentinela do lote diz se a busca foi completa', () => {
+  const janela = { gte: 1760972000, lte: 1760973000, ateIso: '2026-10-20T15:00:00.000Z', simular: 'false' };
+  const msg = (id, ts) => ({ key: { id, fromMe: false, remoteJid: '5511999990403@s.whatsapp.net' }, messageTimestamp: ts, message: { conversation: 'oi' } });
+  const fim = (entradas) => rodar(corpoLote, entradas).map((i) => i.json).find((i) => i.fim);
+  assert.deepEqual([fim({ Janela: janela, 'Buscar 1': { messages: { records: [msg('A', 1760972500)] } } }).completo, fim({ Janela: janela, 'Buscar 1': { messages: { records: [msg('A', 1760972500)] } } }).motivo], [true, 'ok']);
+  const falha = fim({ Janela: janela, 'Buscar 1': { error: { message: 'timeout' } } });
+  assert.deepEqual([falha.completo, falha.motivo], [false, 'busca_falhou']);
+  const semBusca = fim({ Janela: janela });
+  assert.deepEqual([semBusca.completo, semBusca.motivo], [false, 'busca_falhou']);
 });
