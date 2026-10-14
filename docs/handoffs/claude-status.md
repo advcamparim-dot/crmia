@@ -73,3 +73,10 @@ Vigiar a Evolution, curar quedas, avisar fora do WhatsApp e recuperar mensagens 
 - Ensaio em simulação desde 13/10 00:00 UTC (400 registros): 31 processar, 20 humano, 208 descartados (83 grupo, 4 tipo ignorado, 1 enviada por mim, 120 `lid_sem_telefone`). Os telefones encontrados não eram de leads cadastrados. Sem efeito colateral.
 - Risco novo: registros do histórico com endereço LID e sem telefone (120 no período, 33 nas últimas 24 h) não podem ser ligados a um lead; o webhook ao vivo não tem esse problema (0 ocorrências em 8 dias). Resolver exige consulta de contatos da Evolution (a planejar).
 - Pendências inalteradas: credencial Gmail e e-mail de destino, logs da Evolution, ligar o vigia (`canal_vigia`), ensaios de reinício e de alerta.
+
+### Atualização 14/10 15:40 UTC: vigia ligado
+- `Canal: Vigia` publicado e `canal_vigia = true` (autorizado pelo usuário). Primeiro ciclo: `recuperar` desde 12:01 UTC (cursor da implantação); segundo ciclo: `nada`. Execuções sem erro.
+- Primeira recuperação real: 20 mensagens marcadas como vistas, cursor avançado, 14 eventos entregues ao `Processar Evento`, 6 respostas humanas tratadas (todas de remetentes que não são leads: nenhum lead assumido, nenhuma memória gravada). Retenção ativa: 11 mensagens de um único número fora da lista (final 8888) ficaram em `eventos_adiados`; nenhuma resposta a lead foi enviada.
+- Efeito indesejado detectado: 3 mensagens do administrador sem texto foram reprocessadas e a Central respondeu 3 vezes "Esse canal aceita comandos que começam com /". Sem ação, regra ou pendência alterada.
+- Correção aplicada antes do próximo ciclo (teste primeiro, 25 testes verdes): comando do administrador com mais de 10 minutos não é reexecutado na recuperação (descartado como `comando_atrasado`). Workflow vivo atualizado e conferido.
+- Continuam ligados: retenção das respostas (`respostas_retidas`); desligados: follow-ups. Pendências: credencial Gmail e e-mail de destino, logs da Evolution, ensaios de reinício e de alerta, LIDs sem telefone no histórico, contexto das respostas manuais a leads.
