@@ -39,8 +39,26 @@ test('recuperar: laco por mensagem, idempotencia e simulacao', () => {
   const w = montarRecuperar(PROC);
   assert.equal(w.name, 'Mayara — Canal: Recuperar [Sub-workflow]');
   assert.deepEqual(no(w, 'Execute Workflow Trigger').parameters.workflowInputs.values.map((v) => v.name), ['desde', 'simular']);
-  assert.equal(no(w, 'Buscar').parameters.url, 'https://evolution.camparimadvogados.com.br/chat/findMessages/escritorio');
-  assert.equal(no(w, 'Buscar').onError, 'continueRegularOutput');
+  for (let n = 1; n <= 4; n++) {
+    const b = no(w, 'Buscar ' + n);
+    assert.equal(b.parameters.url, 'https://evolution.camparimadvogados.com.br/chat/findMessages/escritorio');
+    assert.equal(b.onError, 'continueRegularOutput');
+    assert.ok(b.parameters.jsonBody.includes('page: ' + n) && b.parameters.jsonBody.includes('where: {}'));
+  }
+  assert.deepEqual(destinos(w, 'Janela'), ['Buscar 1']);
+  assert.deepEqual(destinos(w, 'Buscar 1'), ['Mais 1?']);
+  assert.deepEqual(destinos(w, 'Mais 1?', 0), ['Buscar 2']);
+  assert.deepEqual(destinos(w, 'Mais 2?', 0), ['Buscar 3']);
+  assert.deepEqual(destinos(w, 'Mais 3?', 0), ['Buscar 4']);
+  for (const n of ['Mais 1?', 'Mais 2?', 'Mais 3?']) assert.deepEqual(destinos(w, n, 1), ['Lote'], n);
+  assert.deepEqual(destinos(w, 'Buscar 4'), ['Lote']);
+  const expr = no(w, 'Mais 1?').parameters.conditions.conditions[0].leftValue.replace(/^=\{\{/, '').replace(/\}\}$/, '');
+  const mais = (json, gte) => new Function('$json', '$', 'return ' + expr)(json, () => ({ first: () => ({ json: { gte } }) }));
+  const cheia = (ts) => ({ messages: { records: [...Array(199).fill({ messageTimestamp: 9e9 }), { messageTimestamp: ts }] } });
+  assert.equal(mais(cheia(2000), 1000), true);
+  assert.equal(mais(cheia(500), 1000), false);
+  assert.equal(mais({ messages: { records: [{ messageTimestamp: 2000 }] } }, 1000), false);
+  assert.equal(mais({ error: {} }, 1000), false);
   assert.equal(no(w, 'Cada Mensagem').type, 'n8n-nodes-base.splitInBatches');
   assert.equal(no(w, 'Cada Mensagem').parameters.batchSize, 1);
   assert.deepEqual(destinos(w, 'Cada Mensagem', 0), ['Concluir?']);

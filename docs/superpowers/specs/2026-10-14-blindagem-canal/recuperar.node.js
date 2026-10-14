@@ -12,8 +12,10 @@ function janelaBusca(desdeIso, agoraIso) {
   return { gte: Math.floor(desde / 1000), lte: Math.floor(agora / 1000), ateIso: new Date(agora).toISOString() };
 }
 
-function corpoBusca(janela, pagina = 1, tamanho = 200) {
-  return { where: { messageTimestamp: { gte: janela.gte, lte: janela.lte } }, page: pagina, offset: tamanho };
+// A Evolution v2.3.7 ignora filtro de data em findMessages e devolve do mais novo para o mais antigo:
+// o filtro por janela e feito aqui (prepararLote) e a paginacao para quando a pagina ja saiu da janela.
+function corpoBusca(pagina = 1, tamanho = 200) {
+  return { where: {}, page: pagina, offset: tamanho };
 }
 
 function extrairRegistros(resposta) {
@@ -33,6 +35,12 @@ function segundos(ts) {
   return Number.isFinite(n) ? n : 0;
 }
 
+function temMaisPaginas(resposta, janela, tamanho = 200) {
+  const r = extrairRegistros(resposta);
+  if (r.length < tamanho) return false;
+  return segundos(r[r.length - 1].messageTimestamp) >= janela.gte;
+}
+
 function prepararLote(resposta, instancia, janela, limite) {
   const dentro = extrairRegistros(resposta)
     .map((r) => ({ r, t: segundos(r && r.messageTimestamp) }))
@@ -45,4 +53,4 @@ function prepararLote(resposta, instancia, janela, limite) {
 
 const e = $('Execute Workflow Trigger').first().json;
 const j = janelaBusca(e.desde, new Date().toISOString());
-return [{ json: { ...j, simular: String(e.simular || 'false'), corpo: corpoBusca(j, 1, 200) } }];
+return [{ json: { ...j, simular: String(e.simular || 'false') } }];

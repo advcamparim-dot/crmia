@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { janelaBusca, corpoBusca, extrairRegistros, registroParaEvento, prepararLote } from './recuperar.mjs';
+import { janelaBusca, corpoBusca, temMaisPaginas, extrairRegistros, registroParaEvento, prepararLote } from './recuperar.mjs';
 
 const AGORA = '2026-10-20T15:00:00.000Z';
 const reg = (id, ts, extra = {}) => ({ key: { id, fromMe: false, remoteJid: '5511999990401@s.whatsapp.net' }, messageTimestamp: ts, message: { conversation: 'oi ' + id }, ...extra });
@@ -16,9 +16,20 @@ test('janela: respeita o desde, o minimo de 5 min e o teto de 48 h', () => {
   assert.equal(janelaBusca('lixo', AGORA).gte, epoch(AGORA) - 1800);
 });
 
-test('corpo de busca usa a janela e a paginacao', () => {
+test('corpo de busca nao filtra por data (a Evolution v2.3.7 ignora o filtro) e so pagina', () => {
+  assert.deepEqual(corpoBusca(1, 200), { where: {}, page: 1, offset: 200 });
+  assert.deepEqual(corpoBusca(3, 200), { where: {}, page: 3, offset: 200 });
+});
+
+test('busca mais paginas so se a pagina veio cheia e o registro mais antigo ainda esta na janela', () => {
   const j = janelaBusca('2026-10-20T14:00:00.000Z', AGORA);
-  assert.deepEqual(corpoBusca(j, 1, 200), { where: { messageTimestamp: { gte: j.gte, lte: j.lte } }, page: 1, offset: 200 });
+  const cheia = (tsAntigo) => ({ messages: { records: [...Array(199).fill(0).map((_, i) => reg('N' + i, epoch(AGORA) - i)), reg('ANT', tsAntigo)] } });
+  assert.equal(temMaisPaginas(cheia(j.gte + 60), j, 200), true);
+  assert.equal(temMaisPaginas(cheia(j.gte - 60), j, 200), false);
+  assert.equal(temMaisPaginas({ messages: { records: [reg('A', j.gte + 60)] } }, j, 200), false);
+  assert.equal(temMaisPaginas({ messages: { records: [] } }, j, 200), false);
+  assert.equal(temMaisPaginas(null, j, 200), false);
+  assert.equal(temMaisPaginas({ error: 'x' }, j, 200), false);
 });
 
 test('extrai registros de array, de messages.records e de records', () => {

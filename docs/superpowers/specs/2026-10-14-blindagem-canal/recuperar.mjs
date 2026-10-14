@@ -10,8 +10,10 @@ export function janelaBusca(desdeIso, agoraIso) {
   return { gte: Math.floor(desde / 1000), lte: Math.floor(agora / 1000), ateIso: new Date(agora).toISOString() };
 }
 
-export function corpoBusca(janela, pagina = 1, tamanho = 200) {
-  return { where: { messageTimestamp: { gte: janela.gte, lte: janela.lte } }, page: pagina, offset: tamanho };
+// A Evolution v2.3.7 ignora filtro de data em findMessages e devolve do mais novo para o mais antigo:
+// o filtro por janela e feito aqui (prepararLote) e a paginacao para quando a pagina ja saiu da janela.
+export function corpoBusca(pagina = 1, tamanho = 200) {
+  return { where: {}, page: pagina, offset: tamanho };
 }
 
 export function extrairRegistros(resposta) {
@@ -29,6 +31,12 @@ export function registroParaEvento(registro, instancia) {
 function segundos(ts) {
   const n = Number(ts && typeof ts === 'object' ? ts.low : ts);
   return Number.isFinite(n) ? n : 0;
+}
+
+export function temMaisPaginas(resposta, janela, tamanho = 200) {
+  const r = extrairRegistros(resposta);
+  if (r.length < tamanho) return false;
+  return segundos(r[r.length - 1].messageTimestamp) >= janela.gte;
 }
 
 export function prepararLote(resposta, instancia, janela, limite) {

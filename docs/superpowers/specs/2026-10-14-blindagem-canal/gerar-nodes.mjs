@@ -17,11 +17,13 @@ export const corpoVigia = [CAB, vigia,
 export const corpoJanela = [CAB, recuperar,
   "const e = $('Execute Workflow Trigger').first().json;",
   'const j = janelaBusca(e.desde, new Date().toISOString());',
-  "return [{ json: { ...j, simular: String(e.simular || 'false'), corpo: corpoBusca(j, 1, 200) } }];", ''].join('\n');
+  "return [{ json: { ...j, simular: String(e.simular || 'false') } }];", ''].join('\n');
 
 export const corpoLote = [CAB, recuperar, evolucao,
   "const janela = $('Janela').first().json;",
-  'const lote = prepararLote($input.first().json, "escritorio", janela, 100);',
+  "const paginas = ['Buscar 1', 'Buscar 2', 'Buscar 3', 'Buscar 4'].filter((n) => $(n).isExecuted).map((n) => $(n).first().json);",
+  'const todos = { records: paginas.flatMap((p) => extrairRegistros(p)) };',
+  'const lote = prepararLote(todos, "escritorio", janela, 400);',
   'return lote.map((i) => {',
   "  if (i.fim) return { json: { fim: true, ateIso: i.ateIso, simular: janela.simular } };",
   '  const norm = normalizarEvolution(i.evento, "escritorio");',

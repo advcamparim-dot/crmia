@@ -12,8 +12,10 @@ function janelaBusca(desdeIso, agoraIso) {
   return { gte: Math.floor(desde / 1000), lte: Math.floor(agora / 1000), ateIso: new Date(agora).toISOString() };
 }
 
-function corpoBusca(janela, pagina = 1, tamanho = 200) {
-  return { where: { messageTimestamp: { gte: janela.gte, lte: janela.lte } }, page: pagina, offset: tamanho };
+// A Evolution v2.3.7 ignora filtro de data em findMessages e devolve do mais novo para o mais antigo:
+// o filtro por janela e feito aqui (prepararLote) e a paginacao para quando a pagina ja saiu da janela.
+function corpoBusca(pagina = 1, tamanho = 200) {
+  return { where: {}, page: pagina, offset: tamanho };
 }
 
 function extrairRegistros(resposta) {
@@ -31,6 +33,12 @@ function registroParaEvento(registro, instancia) {
 function segundos(ts) {
   const n = Number(ts && typeof ts === 'object' ? ts.low : ts);
   return Number.isFinite(n) ? n : 0;
+}
+
+function temMaisPaginas(resposta, janela, tamanho = 200) {
+  const r = extrairRegistros(resposta);
+  if (r.length < tamanho) return false;
+  return segundos(r[r.length - 1].messageTimestamp) >= janela.gte;
 }
 
 function prepararLote(resposta, instancia, janela, limite) {
@@ -157,7 +165,9 @@ function extrairEstado(corpo, instanciaEsperada = 'escritorio') {
 }
 
 const janela = $('Janela').first().json;
-const lote = prepararLote($input.first().json, "escritorio", janela, 100);
+const paginas = ['Buscar 1', 'Buscar 2', 'Buscar 3', 'Buscar 4'].filter((n) => $(n).isExecuted).map((n) => $(n).first().json);
+const todos = { records: paginas.flatMap((p) => extrairRegistros(p)) };
+const lote = prepararLote(todos, "escritorio", janela, 400);
 return lote.map((i) => {
   if (i.fim) return { json: { fim: true, ateIso: i.ateIso, simular: janela.simular } };
   const norm = normalizarEvolution(i.evento, "escritorio");
