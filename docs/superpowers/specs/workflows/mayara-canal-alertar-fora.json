@@ -1,0 +1,189 @@
+{
+  "name": "Mayara — Canal: Alertar Fora do WhatsApp [Sub-workflow]",
+  "nodes": [
+    {
+      "id": "cc000000-0000-4000-8000-000000000001",
+      "name": "Execute Workflow Trigger",
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1.1,
+      "position": [
+        0,
+        300
+      ],
+      "parameters": {
+        "inputSource": "workflowInputs",
+        "workflowInputs": {
+          "values": [
+            {
+              "name": "assunto",
+              "type": "string"
+            },
+            {
+              "name": "texto",
+              "type": "string"
+            },
+            {
+              "name": "criarTarefa",
+              "type": "string"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "cc000000-0000-4000-8000-000000000002",
+      "name": "Destino",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        220,
+        300
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "nNpCUIhnDuVvTApU",
+          "name": "Postgres account"
+        }
+      },
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "select valor from mayara.config where chave = 'alerta_email_destino'",
+        "options": {}
+      }
+    },
+    {
+      "id": "cc000000-0000-4000-8000-000000000003",
+      "name": "Enviar E-mail",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [
+        440,
+        300
+      ],
+      "onError": "continueRegularOutput",
+      "parameters": {
+        "resource": "message",
+        "operation": "send",
+        "sendTo": "={{ $json.valor }}",
+        "subject": "={{ $('Execute Workflow Trigger').first().json.assunto }}",
+        "emailType": "text",
+        "message": "={{ $('Execute Workflow Trigger').first().json.texto }}",
+        "options": {}
+      },
+      "disabled": true
+    },
+    {
+      "id": "cc000000-0000-4000-8000-000000000004",
+      "name": "Tarefa?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        660,
+        300
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "cc000000-0000-4000-8000-000000000004-c",
+              "leftValue": "={{ $('Execute Workflow Trigger').first().json.criarTarefa === 'true' }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "cc000000-0000-4000-8000-000000000005",
+      "name": "Criar Tarefa no CRM",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        880,
+        300
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "3CNvCGWMMDOyGD2n",
+          "name": "EspoCRM Integração n8n — Mayara"
+        }
+      },
+      "onError": "continueRegularOutput",
+      "parameters": {
+        "method": "POST",
+        "url": "https://crm.camparimadvogados.com.br/api/v1/Task",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ ({ name: $('Execute Workflow Trigger').first().json.assunto, status: 'Not Started', priority: 'High', dateStart: $now.toUTC().toFormat('yyyy-MM-dd HH:mm:ss'), assignedUserId: '6a899b5713e9849fa', description: $('Execute Workflow Trigger').first().json.texto, cAlertOrigin: 'WhatsApp', cAlertSeverity: 'Alta', cAlertKey: 'WHATSAPP_LINHA_CAIDA_V1:escritorio:' + $now.toUTC().toFormat('yyyyMMddHHmm'), cSourceEntityType: 'WhatsAppMessage', cSourceRecordId: 'escritorio', cDetectedAt: $now.toUTC().toFormat('yyyy-MM-dd HH:mm:ss'), cAlertRule: 'WHATSAPP_LINHA_CAIDA_V1' }) }}",
+        "options": {
+          "timeout": 20000
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Execute Workflow Trigger": {
+      "main": [
+        [
+          {
+            "node": "Destino",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Destino": {
+      "main": [
+        [
+          {
+            "node": "Enviar E-mail",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Enviar E-mail": {
+      "main": [
+        [
+          {
+            "node": "Tarefa?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Tarefa?": {
+      "main": [
+        [
+          {
+            "node": "Criar Tarefa no CRM",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "errorWorkflow": "CQyjBKLX0UheNh1q"
+  }
+}
