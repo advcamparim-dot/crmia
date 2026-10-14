@@ -557,6 +557,43 @@
           "name": "Postgres account"
         }
       }
+    },
+    {
+      "id": "5e550000-0000-4000-8000-000000000001",
+      "name": "Resolver Sessão",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "onError": "continueRegularOutput",
+      "position": [
+        1700,
+        300
+      ],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "select mayara.com_sessao_canonica($1::jsonb) as evento",
+        "options": {
+          "queryReplacement": "={{ [JSON.stringify($json)] }}"
+        }
+      },
+      "credentials": {
+        "postgres": {
+          "id": "nNpCUIhnDuVvTApU",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "id": "5e550000-0000-4000-8000-000000000002",
+      "name": "Aplicar Sessão",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1900,
+        300
+      ],
+      "parameters": {
+        "jsCode": "const e = $json.evento;\nif (e && typeof e === 'object' && !Array.isArray(e)) return [{ json: e }];\nreturn [{ json: $('Execute Workflow Trigger').first().json }];"
+      }
     }
   ],
   "connections": {
@@ -582,7 +619,7 @@
         ],
         [
           {
-            "node": "Evento Autorizado?",
+            "node": "Resolver Sessão",
             "type": "main",
             "index": 0
           }
@@ -665,7 +702,7 @@
       "main": [
         [
           {
-            "node": "Evento Autorizado?",
+            "node": "Resolver Sessão",
             "type": "main",
             "index": 0
           }
@@ -736,11 +773,34 @@
           }
         ]
       ]
+    },
+    "Resolver Sessão": {
+      "main": [
+        [
+          {
+            "node": "Aplicar Sessão",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Aplicar Sessão": {
+      "main": [
+        [
+          {
+            "node": "Evento Autorizado?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     }
   },
   "settings": {
     "executionOrder": "v1",
     "errorWorkflow": "CQyjBKLX0UheNh1q",
-    "callerPolicy": "workflowsFromSameOwner"
+    "callerPolicy": "workflowsFromSameOwner",
+    "availableInMCP": false
   }
 }
