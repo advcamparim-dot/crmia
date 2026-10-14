@@ -38,3 +38,31 @@ Atualizado em 2026-10-14. Projeto: Mayara / Central de Comando (Supabase, n8n, E
 - O prompt da interpretação ainda não foi validado contra o modelo real; ações de efeito continuam exigindo "sim", o que limita o dano de uma interpretação errada.
 - O sub-workflow precisa permanecer publicado, senão a Central publicada recusa o ramo.
 - n8n-mcp é instável ("Connection closed" pode ter aplicado a mudança): sempre reler por GET antes de repetir.
+
+---
+
+## Etapa: Blindagem do canal WhatsApp (executada em 14/10/2026, parcialmente)
+
+### Objetivo
+Vigiar a Evolution, curar quedas, avisar fora do WhatsApp e recuperar mensagens perdidas (inclusive respostas feitas pelo celular) sem duplicar e sem a Mayara responder sem contexto. Plano: `docs/superpowers/plans/2026-10-14-blindagem-do-canal-whatsapp.md`.
+
+### Feito
+- Migration `0049` aplicada e testada (`OK 0049`): mensagens vistas, `tratar_mensagem_humana`, `leitura_canal` (política do vigia), `concluir_recuperacao`. Cursor inicial `sincronizado_ate` gravado na implantação; `canal_vigia = false`.
+- Bibliotecas `vigia.mjs` e `recuperar.mjs`; evento humano com texto e data em `evolucao.mjs`; geradores de nós e de workflows (testes: 82 passam).
+- n8n: criados `Canal: Alertar Fora do WhatsApp` (publicado), `Canal: Recuperar` (publicado) e `Canal: Vigia` (INATIVO). Receptor `Canal: Receber Evolution` atualizado (marca mensagens vistas e usa `tratar_mensagem_humana`).
+- Sonda da API (workflow temporário, apagado): contrato em `docs/superpowers/specs/2026-10-14-blindagem-canal/evolution-contrato.md`.
+- Ensaio da recuperação em modo simulação com o canal fechado: lote vazio, sem efeito colateral (0 mensagens vistas, cursor intacto, 0 envios).
+- Runbook: `docs/runbooks/canal-whatsapp.md`.
+
+### Pendências (dependem do usuário)
+1. Reconectar o canal (QR).
+2. Criar a credencial Gmail OAuth2 no n8n e informar o ID; hoje o nó `Enviar E-mail` está desabilitado (o alerta cria só a tarefa no CRM). Informar o e-mail de destino (`alerta_email_destino`).
+3. Com o canal aberto: repetir o ensaio em simulação (confirmar forma dos registros e o filtro por data), publicar o `Canal: Vigia`, ligar `canal_vigia`, ensaiar um reinício e um alerta.
+4. Causa raiz das quedas: logs da Evolution (checklist no runbook).
+5. Retenção das respostas (`respostas_retidas = true`) e follow-ups desligados continuam até conferir o contexto dos leads.
+
+### Riscos
+- Formato dos registros do `findMessages` e o filtro por data ainda não confirmados com dados reais; o código descarta registros fora da janela e limita a 100 por execução.
+- `PUT /instance/restart` não exercitado.
+- Mensagens recebidas com a Evolution desconectada podem não ser reentregues por ela.
+- Com o vigia desligado nada novo age; o receptor já marca mensagens vistas.
