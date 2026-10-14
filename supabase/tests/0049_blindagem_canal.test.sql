@@ -18,12 +18,12 @@ begin
   -- mensagem humana: memoria e assuncao do lead
   insert into mayara.leads_autorizados (telefone, nome, status) values ('+5511999990491', 'Humano Teste', 'ativo');
   insert into mayara.session_state (session_key, estado, phone) values ('whatsapp:escritorio:+5511999990491', 'S2_QUALIFICACAO', '+5511999990491');
-  r := mayara.tratar_mensagem_humana('teste_vigia', '+5511999990491', 'HUM1', 'Olá, aqui é do escritório. Posso ligar hoje?', t0);
+  r := mayara.tratar_mensagem_humana('teste_vigia', '+5511999990491', 'HUM1', 'Olá, aqui é do escritório. Posso ligar hoje?', timestamptz '2026-10-10 12:00:00+00');
   assert r ->> 'acao' = 'assumido' and (r ->> 'memoria') = 'true', 'humano assume e grava: ' || r::text;
   assert (select status from mayara.leads_autorizados where telefone = '+5511999990491') = 'bloqueado', 'lead assumido';
   select h.message ->> 'content' into sid from public.n8n_chat_histories h
    where h.session_id = 'whatsapp:escritorio:+5511999990491' order by h.id desc limit 1;
-  assert sid = 'Mensagem enviada por uma pessoa do escritório: Olá, aqui é do escritório. Posso ligar hoje?', 'memoria: ' || coalesce(sid, 'null');
+  assert sid = 'Mensagem enviada por uma pessoa do escritório em 10/10 09:00: Olá, aqui é do escritório. Posso ligar hoje?', 'memoria: ' || coalesce(sid, 'null');
   assert (select (message ->> 'type') from public.n8n_chat_histories where session_id = 'whatsapp:escritorio:+5511999990491' order by id desc limit 1) = 'ai', 'tipo ai';
   assert mayara.registrar_mensagem_humana('+5511999990491', '   ', t0) = false, 'texto vazio nao grava';
   assert mayara.registrar_mensagem_humana('+5500000000000', 'x', t0) = false, 'telefone sem lead nao grava';
