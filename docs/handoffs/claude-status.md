@@ -80,3 +80,8 @@ Vigiar a Evolution, curar quedas, avisar fora do WhatsApp e recuperar mensagens 
 - Efeito indesejado detectado: 3 mensagens do administrador sem texto foram reprocessadas e a Central respondeu 3 vezes "Esse canal aceita comandos que começam com /". Sem ação, regra ou pendência alterada.
 - Correção aplicada antes do próximo ciclo (teste primeiro, 25 testes verdes): comando do administrador com mais de 10 minutos não é reexecutado na recuperação (descartado como `comando_atrasado`). Workflow vivo atualizado e conferido.
 - Continuam ligados: retenção das respostas (`respostas_retidas`); desligados: follow-ups. Pendências: credencial Gmail e e-mail de destino, logs da Evolution, ensaios de reinício e de alerta, LIDs sem telefone no histórico, contexto das respostas manuais a leads.
+
+### Atualização 14/10 16:06 UTC: retenção e abordagem autorizada
+- Causa de um lead abordado não receber retorno: `respostas_retidas = true` segurava até a resposta de lead com abordagem autorizada pelo administrador (2 mensagens do lead ficaram em `eventos_adiados` por cerca de 11 minutos).
+- Migration `0050` (teste `OK 0050`): a retenção não vale para lead `ativo` com `abordagem_ate` no futuro (`resposta_permitida_para` e `reservar_eventos_adiados`). Para os demais leads a retenção continua. O worker `Retomar Eventos Adiados` liberou os eventos no ciclo seguinte e a Mayara respondeu.
+- Observação de qualidade (a investigar): a resposta ao primeiro "Boa tarde" do lead repetiu a apresentação e perguntou de novo se era dívida bancária, embora a abordagem já tivesse perguntado o banco. Regra "apresentar-se só na primeira mensagem" (regra 19) não está ativa.
