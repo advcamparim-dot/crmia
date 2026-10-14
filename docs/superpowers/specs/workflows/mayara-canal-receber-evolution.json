@@ -4,13 +4,13 @@
     {
       "id": "c9100000-0000-4000-8000-000000000001",
       "name": "Webhook Evolution",
+      "webhookId": "c9100000-0000-4000-8000-000000000101",
       "type": "n8n-nodes-base.webhook",
       "typeVersion": 2.1,
       "position": [
         0,
         300
       ],
-      "webhookId": "c9100000-0000-4000-8000-000000000101",
       "parameters": {
         "httpMethod": "POST",
         "path": "canal-evolution",
@@ -28,17 +28,17 @@
         240,
         300
       ],
-      "credentials": {
-        "postgres": {
-          "id": "nNpCUIhnDuVvTApU",
-          "name": "Postgres account"
-        }
-      },
       "parameters": {
         "operation": "executeQuery",
         "query": "select mayara.conferir_segredo_canal($1) as ok",
         "options": {
           "queryReplacement": "={{ [String($json.headers['x-canal-segredo'] || '')] }}"
+        }
+      },
+      "credentials": {
+        "postgres": {
+          "id": "nNpCUIhnDuVvTApU",
+          "name": "Postgres account"
         }
       }
     },
@@ -97,7 +97,7 @@
         300
       ],
       "parameters": {
-        "jsCode": "// evolucao.mjs\n// Normaliza o webhook MESSAGES_UPSERT da Evolution API para o evento normalizado do Gateway.\n// Sem import e sem dependencias: o corpo e copiado para um Code node do n8n (o \"export \" e removido).\n\nconst TIPOS_IGNORADOS = ['reactionMessage', 'protocolMessage', 'editedMessage', 'senderKeyDistributionMessage', 'messageContextInfo'];\nconst TIPOS_MIDIA = ['audioMessage', 'imageMessage', 'documentMessage', 'stickerMessage', 'videoMessage', 'ptvMessage', 'contactMessage', 'locationMessage'];\n\nfunction extrairTexto(message) {\n  const m = message && typeof message === 'object' ? message : {};\n  const texto = m.conversation\n    || (m.extendedTextMessage && m.extendedTextMessage.text)\n    || (m.buttonsResponseMessage && m.buttonsResponseMessage.selectedDisplayText)\n    || (m.listResponseMessage && m.listResponseMessage.title)\n    || (m.templateButtonReplyMessage && m.templateButtonReplyMessage.selectedDisplayText)\n    || '';\n  return String(texto).trim();\n}\n\nfunction nomeDoEvento(e) {\n  return String(e ?? '').toLowerCase().replace(/_/g, '.');\n}\n\nfunction telefoneDoJid(jid) {\n  const s = String(jid ?? '');\n  if (!s.endsWith('@s.whatsapp.net')) return '';\n  const digitos = s.split('@')[0].split(':')[0].replace(/\\D/g, '');\n  return digitos.length >= 10 && digitos.length <= 15 ? digitos : '';\n}\n\nfunction descartar(motivo) {\n  return { acao: 'descartar', motivo };\n}\n\nfunction paraIso(ts) {\n  const n = Number(ts && typeof ts === 'object' ? ts.low : ts);\n  return Number.isFinite(n) && n > 0 ? new Date(n * 1000).toISOString() : new Date().toISOString();\n}\n\nconst EMBRULHOS = ['ephemeralMessage', 'viewOnceMessage', 'viewOnceMessageV2', 'viewOnceMessageV2Extension', 'documentWithCaptionMessage'];\nconst PREFIXO_MAYARA = '*Mayara:*';\n\n// Mensagens temporarias, de visualizacao unica e documento com legenda chegam embrulhadas em\n// <embrulho>.message. Desembrulha ate 4 niveis (protecao contra payload ciclico ou absurdo).\nfunction desembrulhar(message) {\n  let atual = message && typeof message === 'object' ? message : {};\n  for (let nivel = 0; nivel < 4; nivel++) {\n    const chave = EMBRULHOS.find((k) => atual[k] && typeof atual[k] === 'object' && atual[k].message && typeof atual[k].message === 'object');\n    if (!chave) break;\n    atual = atual[chave].message;\n  }\n  return atual;\n}\n\nfunction normalizarEvolution(corpo, instanciaEsperada = 'escritorio') {\n  if (!corpo || typeof corpo !== 'object' || Array.isArray(corpo)) return descartar('payload_incompleto');\n  if (nomeDoEvento(corpo.event) !== 'messages.upsert') return descartar('evento_nao_mensagem');\n  if (String(corpo.instance ?? '') !== instanciaEsperada) return descartar('instancia_inesperada');\n  const data = corpo.data && typeof corpo.data === 'object' ? corpo.data : null;\n  const key = data && data.key && typeof data.key === 'object' ? data.key : null;\n  if (!key) return descartar('payload_incompleto');\n  const jid = String(key.remoteJid ?? '');\n  if (jid.endsWith('@g.us')) return descartar('grupo');\n  if (jid === 'status@broadcast') return descartar('status');\n  if (jid.endsWith('@newsletter')) return descartar('newsletter');\n  const message = desembrulhar(data.message);\n  const tipos = Object.keys(message);\n  const texto = extrairTexto(message);\n  const ehMidia = tipos.some((t) => TIPOS_MIDIA.includes(t));\n  if (!texto && !ehMidia && tipos.some((t) => TIPOS_IGNORADOS.includes(t))) return descartar('tipo_ignorado');\n  let digitos = telefoneDoJid(jid);\n  if (!digitos && jid.endsWith('@lid')) {\n    digitos = telefoneDoJid(key.remoteJidAlt);\n    if (!digitos) return descartar('lid_sem_telefone');\n  }\n  const messageId = String(key.id ?? '');\n  if (!digitos || !messageId) return descartar('payload_incompleto');\n  const phone = '+' + digitos;\n  const canalId = instanciaEsperada;\n  if (key.fromMe === true) {\n    // Enviada pelo numero do escritorio: se for da propria Mayara (prefixo), ignora; senao um humano respondeu.\n    if (texto.startsWith(PREFIXO_MAYARA)) return descartar('enviada_por_mim');\n    return { acao: 'humano', canalId, phone, messageId };\n  }\n  const requiresHuman = !texto && (ehMidia || tipos.length === 0 || !tipos.some((t) => TIPOS_IGNORADOS.includes(t)));\n  if (!texto && !requiresHuman) return descartar('tipo_ignorado');\n  const tipoMsg = texto ? 'text' : String(tipos.find((t) => TIPOS_MIDIA.includes(t)) || data.messageType || tipos[0] || 'unknown');\n  return {\n    acao: 'processar',\n    evento: {\n      accepted: true, reason: 'ACEITO', channel: 'WhatsApp', provedor: 'evolution',\n      phone, profileName: String(data.pushName ?? ''), message: texto, messageType: tipoMsg,\n      messageId, timestamp: paraIso(data.messageTimestamp),\n      phoneNumberId: canalId, canalId, displayPhoneNumber: '',\n      sessionKey: 'whatsapp:' + canalId + ':' + phone, dedupeKey: messageId,\n      campaignSourceId: '', campaignSourceUrl: '', campaignHeadline: '',\n      requiresHuman, processingBlocked: true,\n    },\n  };\n}\n\nfunction ehEventoDeEstado(corpo) {\n  return !!corpo && typeof corpo === 'object' && !Array.isArray(corpo) && nomeDoEvento(corpo.event) === 'connection.update';\n}\n\nfunction extrairEstado(corpo, instanciaEsperada = 'escritorio') {\n  if (!ehEventoDeEstado(corpo)) return { valido: false, motivo: 'evento_nao_estado' };\n  if (String(corpo.instance ?? '') !== instanciaEsperada) return { valido: false, motivo: 'instancia_inesperada' };\n  const data = corpo.data && typeof corpo.data === 'object' ? corpo.data : {};\n  const estado = String(data.state ?? '').toLowerCase();\n  if (estado !== 'open' && estado !== 'connecting' && estado !== 'close') return { valido: false, motivo: 'estado_desconhecido' };\n  return { valido: true, canalId: instanciaEsperada, estado };\n}\n\n\nconst corpo = $('Webhook Evolution').first().json.body;\nreturn [{ json: normalizarEvolution(corpo) }];\n"
+        "jsCode": "// evolucao.mjs\n// Normaliza o webhook MESSAGES_UPSERT da Evolution API para o evento normalizado do Gateway.\n// Sem import e sem dependencias: o corpo e copiado para um Code node do n8n (o \"export \" e removido).\n\nconst TIPOS_IGNORADOS = ['reactionMessage', 'protocolMessage', 'editedMessage', 'senderKeyDistributionMessage', 'messageContextInfo'];\nconst TIPOS_MIDIA = ['audioMessage', 'imageMessage', 'documentMessage', 'stickerMessage', 'videoMessage', 'ptvMessage', 'contactMessage', 'locationMessage'];\n\nfunction extrairTexto(message) {\n  const m = message && typeof message === 'object' ? message : {};\n  const texto = m.conversation\n    || (m.extendedTextMessage && m.extendedTextMessage.text)\n    || (m.buttonsResponseMessage && m.buttonsResponseMessage.selectedDisplayText)\n    || (m.listResponseMessage && m.listResponseMessage.title)\n    || (m.templateButtonReplyMessage && m.templateButtonReplyMessage.selectedDisplayText)\n    || '';\n  return String(texto).trim();\n}\n\nfunction nomeDoEvento(e) {\n  return String(e ?? '').toLowerCase().replace(/_/g, '.');\n}\n\nfunction telefoneDoJid(jid) {\n  const s = String(jid ?? '');\n  if (!s.endsWith('@s.whatsapp.net')) return '';\n  const digitos = s.split('@')[0].split(':')[0].replace(/\\D/g, '');\n  return digitos.length >= 10 && digitos.length <= 15 ? digitos : '';\n}\n\nfunction descartar(motivo) {\n  return { acao: 'descartar', motivo };\n}\n\nfunction paraIso(ts) {\n  const n = Number(ts && typeof ts === 'object' ? ts.low : ts);\n  return Number.isFinite(n) && n > 0 ? new Date(n * 1000).toISOString() : new Date().toISOString();\n}\n\nconst EMBRULHOS = ['ephemeralMessage', 'viewOnceMessage', 'viewOnceMessageV2', 'viewOnceMessageV2Extension', 'documentWithCaptionMessage'];\nconst PREFIXO_MAYARA = '*Mayara:*';\n\n// Mensagens temporarias, de visualizacao unica e documento com legenda chegam embrulhadas em\n// <embrulho>.message. Desembrulha ate 4 niveis (protecao contra payload ciclico ou absurdo).\nfunction desembrulhar(message) {\n  let atual = message && typeof message === 'object' ? message : {};\n  for (let nivel = 0; nivel < 4; nivel++) {\n    const chave = EMBRULHOS.find((k) => atual[k] && typeof atual[k] === 'object' && atual[k].message && typeof atual[k].message === 'object');\n    if (!chave) break;\n    atual = atual[chave].message;\n  }\n  return atual;\n}\n\nfunction normalizarEvolution(corpo, instanciaEsperada = 'escritorio') {\n  if (!corpo || typeof corpo !== 'object' || Array.isArray(corpo)) return descartar('payload_incompleto');\n  if (nomeDoEvento(corpo.event) !== 'messages.upsert') return descartar('evento_nao_mensagem');\n  if (String(corpo.instance ?? '') !== instanciaEsperada) return descartar('instancia_inesperada');\n  const data = corpo.data && typeof corpo.data === 'object' ? corpo.data : null;\n  const key = data && data.key && typeof data.key === 'object' ? data.key : null;\n  if (!key) return descartar('payload_incompleto');\n  const jid = String(key.remoteJid ?? '');\n  if (jid.endsWith('@g.us')) return descartar('grupo');\n  if (jid === 'status@broadcast') return descartar('status');\n  if (jid.endsWith('@newsletter')) return descartar('newsletter');\n  const message = desembrulhar(data.message);\n  const tipos = Object.keys(message);\n  const texto = extrairTexto(message);\n  const ehMidia = tipos.some((t) => TIPOS_MIDIA.includes(t));\n  if (!texto && !ehMidia && tipos.some((t) => TIPOS_IGNORADOS.includes(t))) return descartar('tipo_ignorado');\n  let digitos = telefoneDoJid(jid);\n  if (!digitos && jid.endsWith('@lid')) {\n    digitos = telefoneDoJid(key.remoteJidAlt);\n    if (!digitos) return descartar('lid_sem_telefone');\n  }\n  const messageId = String(key.id ?? '');\n  if (!digitos || !messageId) return descartar('payload_incompleto');\n  const phone = '+' + digitos;\n  const canalId = instanciaEsperada;\n  if (key.fromMe === true) {\n    // Enviada pelo numero do escritorio: se for da propria Mayara (prefixo), ignora; senao um humano respondeu.\n    if (texto.startsWith(PREFIXO_MAYARA)) return descartar('enviada_por_mim');\n    return { acao: 'humano', canalId, phone, messageId, texto, timestamp: paraIso(data.messageTimestamp) };\n  }\n  const requiresHuman = !texto && (ehMidia || tipos.length === 0 || !tipos.some((t) => TIPOS_IGNORADOS.includes(t)));\n  if (!texto && !requiresHuman) return descartar('tipo_ignorado');\n  const tipoMsg = texto ? 'text' : String(tipos.find((t) => TIPOS_MIDIA.includes(t)) || data.messageType || tipos[0] || 'unknown');\n  return {\n    acao: 'processar',\n    evento: {\n      accepted: true, reason: 'ACEITO', channel: 'WhatsApp', provedor: 'evolution',\n      phone, profileName: String(data.pushName ?? ''), message: texto, messageType: tipoMsg,\n      messageId, timestamp: paraIso(data.messageTimestamp),\n      phoneNumberId: canalId, canalId, displayPhoneNumber: '',\n      sessionKey: 'whatsapp:' + canalId + ':' + phone, dedupeKey: messageId,\n      campaignSourceId: '', campaignSourceUrl: '', campaignHeadline: '',\n      requiresHuman, processingBlocked: true,\n    },\n  };\n}\n\nfunction ehEventoDeEstado(corpo) {\n  return !!corpo && typeof corpo === 'object' && !Array.isArray(corpo) && nomeDoEvento(corpo.event) === 'connection.update';\n}\n\nfunction extrairEstado(corpo, instanciaEsperada = 'escritorio') {\n  if (!ehEventoDeEstado(corpo)) return { valido: false, motivo: 'evento_nao_estado' };\n  if (String(corpo.instance ?? '') !== instanciaEsperada) return { valido: false, motivo: 'instancia_inesperada' };\n  const data = corpo.data && typeof corpo.data === 'object' ? corpo.data : {};\n  const estado = String(data.state ?? '').toLowerCase();\n  if (estado !== 'open' && estado !== 'connecting' && estado !== 'close') return { valido: false, motivo: 'estado_desconhecido' };\n  return { valido: true, canalId: instanciaEsperada, estado };\n}\n\n\nconst corpo = $('Webhook Evolution').first().json.body;\nreturn [{ json: normalizarEvolution(corpo) }];\n"
       }
     },
     {
@@ -139,22 +139,22 @@
       "name": "Registrar Aceito",
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2.6,
+      "onError": "continueRegularOutput",
       "position": [
         1200,
         220
       ],
-      "credentials": {
-        "postgres": {
-          "id": "nNpCUIhnDuVvTApU",
-          "name": "Postgres account"
-        }
-      },
-      "onError": "continueRegularOutput",
       "parameters": {
         "operation": "executeQuery",
         "query": "select mayara.registrar_evento_canal($1, $2, $3, nullif($4, ''), nullif($5, ''), nullif($6, ''), nullif($7, '')::int, nullif($8, '')::boolean)",
         "options": {
           "queryReplacement": "={{ [$json.evento.canalId, 'evolution', 'aceito', '', $json.evento.phone, $json.evento.messageType, String($json.evento.message.length), String($json.evento.requiresHuman)] }}"
+        }
+      },
+      "credentials": {
+        "postgres": {
+          "id": "nNpCUIhnDuVvTApU",
+          "name": "Postgres account"
         }
       }
     },
@@ -163,22 +163,22 @@
       "name": "Registrar Descartado",
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2.6,
-      "position": [
-        1440,
-        440
-      ],
-      "credentials": {
-        "postgres": {
-          "id": "nNpCUIhnDuVvTApU",
-          "name": "Postgres account"
-        }
-      },
       "onError": "continueRegularOutput",
+      "position": [
+        1200,
+        400
+      ],
       "parameters": {
         "operation": "executeQuery",
         "query": "select mayara.registrar_evento_canal($1, $2, $3, nullif($4, ''), nullif($5, ''), nullif($6, ''), nullif($7, '')::int, nullif($8, '')::boolean)",
         "options": {
           "queryReplacement": "={{ ['escritorio', 'evolution', 'descartado', $json.motivo, '', '', '', ''] }}"
+        }
+      },
+      "credentials": {
+        "postgres": {
+          "id": "nNpCUIhnDuVvTApU",
+          "name": "Postgres account"
         }
       }
     },
@@ -200,11 +200,11 @@
       "name": "Processar Evento",
       "type": "n8n-nodes-base.executeWorkflow",
       "typeVersion": 1.3,
+      "onError": "continueRegularOutput",
       "position": [
         1680,
         220
       ],
-      "onError": "continueRegularOutput",
       "parameters": {
         "workflowId": {
           "__rl": true,
@@ -229,10 +229,10 @@
       "parameters": {
         "conditions": {
           "options": {
-            "caseSensitive": true,
+            "version": 2,
             "leftValue": "",
-            "typeValidation": "strict",
-            "version": 2
+            "caseSensitive": true,
+            "typeValidation": "strict"
           },
           "conditions": [
             {
@@ -269,11 +269,11 @@
       "name": "Chamar Estado",
       "type": "n8n-nodes-base.executeWorkflow",
       "typeVersion": 1.3,
+      "onError": "continueRegularOutput",
       "position": [
         1080,
         640
       ],
-      "onError": "continueRegularOutput",
       "parameters": {
         "workflowId": {
           "__rl": true,
@@ -298,10 +298,10 @@
       "parameters": {
         "conditions": {
           "options": {
-            "caseSensitive": true,
+            "version": 2,
             "leftValue": "",
-            "typeValidation": "strict",
-            "version": 2
+            "caseSensitive": true,
+            "typeValidation": "strict"
           },
           "conditions": [
             {
@@ -323,13 +323,13 @@
     {
       "id": "c9100000-0000-4000-8000-000000000015",
       "name": "Aguardar Registro de Envio",
+      "webhookId": "324d080c-2260-4ab0-80ca-b1740664ecf1",
       "type": "n8n-nodes-base.wait",
       "typeVersion": 1.1,
       "position": [
         1440,
         340
       ],
-      "webhookId": "c9100000-0000-4000-8000-000000000201",
       "parameters": {
         "amount": 5,
         "unit": "seconds"
@@ -340,22 +340,173 @@
       "name": "Registrar Humano",
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2.6,
+      "onError": "continueRegularOutput",
       "position": [
         1680,
         340
       ],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "select mayara.tratar_mensagem_humana($1, $2, $3, $4, $5::timestamptz) as r",
+        "options": {
+          "queryReplacement": "={{ [$('Normalizar Evento').first().json.canalId, $('Normalizar Evento').first().json.phone, $('Normalizar Evento').first().json.messageId, $('Normalizar Evento').first().json.texto, $('Normalizar Evento').first().json.timestamp] }}"
+        }
+      },
       "credentials": {
         "postgres": {
           "id": "nNpCUIhnDuVvTApU",
           "name": "Postgres account"
         }
-      },
+      }
+    },
+    {
+      "id": "c9100000-0000-4000-8000-000000000021",
+      "name": "Grupo da Agência?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        720,
+        640
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "version": 2,
+            "leftValue": "",
+            "caseSensitive": true,
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "grupo-agencia",
+              "leftValue": "={{ (() => { const b = $('Webhook Evolution').first().json.body || {}; return String(b.event || '').toLowerCase().replace(/_/g, '.') === 'messages.upsert' && String(b.instance || '') === 'escritorio' && String((b.data && b.data.key && b.data.key.remoteJid) || '') === '120363429995424499@g.us'; })() }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "c9100000-0000-4000-8000-000000000022",
+      "name": "Preparar Lead do Grupo",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        960,
+        780
+      ],
+      "parameters": {
+        "jsCode": "return [{ json: $('Webhook Evolution').first().json.body }];"
+      }
+    },
+    {
+      "id": "c9100000-0000-4000-8000-000000000023",
+      "name": "Chamar Lead do Grupo",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.3,
       "onError": "continueRegularOutput",
+      "position": [
+        1200,
+        780
+      ],
+      "parameters": {
+        "workflowId": {
+          "__rl": true,
+          "value": "LkiVmBMUzRm8q9Re",
+          "mode": "list",
+          "cachedResultName": "Mayara — Lead do Grupo da Agência [Sub-workflow]"
+        },
+        "options": {
+          "waitForSubWorkflow": false
+        }
+      }
+    },
+    {
+      "id": "c9100000-0000-4000-8000-000000000024",
+      "name": "Outro Grupo?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        960,
+        560
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "version": 2,
+            "leftValue": "",
+            "caseSensitive": true,
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "outro-grupo",
+              "leftValue": "={{ String(($('Webhook Evolution').first().json.body && $('Webhook Evolution').first().json.body.data && $('Webhook Evolution').first().json.body.data.key && $('Webhook Evolution').first().json.body.data.key.remoteJid) || '').endsWith('@g.us') }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "cd000000-0000-4000-8000-000000000001",
+      "name": "Marcar Vista",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "onError": "continueRegularOutput",
+      "position": [
+        1320,
+        120
+      ],
       "parameters": {
         "operation": "executeQuery",
-        "query": "select mayara.humano_assumiu($1, $2, $3) as r",
+        "query": "select mayara.marcar_mensagem_vista($1, $2, 'entrada', 'webhook') as novo",
         "options": {
-          "queryReplacement": "={{ [$json.canalId, $json.phone, $json.messageId] }}"
+          "queryReplacement": "={{ [$('Normalizar Evento').first().json.evento.canalId, $('Normalizar Evento').first().json.evento.messageId] }}"
+        }
+      },
+      "credentials": {
+        "postgres": {
+          "id": "nNpCUIhnDuVvTApU",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "id": "cd000000-0000-4000-8000-000000000002",
+      "name": "Marcar Vista Humano",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "onError": "continueRegularOutput",
+      "position": [
+        1320,
+        340
+      ],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "select mayara.marcar_mensagem_vista($1, $2, 'saida_humana', 'webhook') as novo",
+        "options": {
+          "queryReplacement": "={{ [$('Normalizar Evento').first().json.canalId, $('Normalizar Evento').first().json.messageId] }}"
+        }
+      },
+      "credentials": {
+        "postgres": {
+          "id": "nNpCUIhnDuVvTApU",
+          "name": "Postgres account"
         }
       }
     }
@@ -401,62 +552,11 @@
         ]
       ]
     },
-    "Evento de Estado?": {
-      "main": [
-        [
-          {
-            "node": "Preparar Estado",
-            "type": "main",
-            "index": 0
-          }
-        ],
-        [
-          {
-            "node": "Normalizar Evento",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Preparar Estado": {
-      "main": [
-        [
-          {
-            "node": "Chamar Estado",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
     "Normalizar Evento": {
       "main": [
         [
           {
             "node": "Aceito?",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Registrar Aceito": {
-      "main": [
-        [
-          {
-            "node": "Preparar Evento",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Preparar Evento": {
-      "main": [
-        [
-          {
-            "node": "Processar Evento",
             "type": "main",
             "index": 0
           }
@@ -481,11 +581,62 @@
         ]
       ]
     },
+    "Registrar Aceito": {
+      "main": [
+        [
+          {
+            "node": "Marcar Vista",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Preparar Evento": {
+      "main": [
+        [
+          {
+            "node": "Processar Evento",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Evento de Estado?": {
+      "main": [
+        [
+          {
+            "node": "Preparar Estado",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Grupo da Agência?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Preparar Estado": {
+      "main": [
+        [
+          {
+            "node": "Chamar Estado",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
     "Humano?": {
       "main": [
         [
           {
-            "node": "Aguardar Registro de Envio",
+            "node": "Marcar Vista Humano",
             "type": "main",
             "index": 0
           }
@@ -509,12 +660,81 @@
           }
         ]
       ]
+    },
+    "Grupo da Agência?": {
+      "main": [
+        [
+          {
+            "node": "Preparar Lead do Grupo",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Outro Grupo?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Preparar Lead do Grupo": {
+      "main": [
+        [
+          {
+            "node": "Chamar Lead do Grupo",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Outro Grupo?": {
+      "main": [
+        [
+          {
+            "node": "Descartar em Silencio",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Normalizar Evento",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Marcar Vista": {
+      "main": [
+        [
+          {
+            "node": "Preparar Evento",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Marcar Vista Humano": {
+      "main": [
+        [
+          {
+            "node": "Aguardar Registro de Envio",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     }
   },
   "settings": {
     "executionOrder": "v1",
     "errorWorkflow": "CQyjBKLX0UheNh1q",
-    "callerPolicy": "workflowsFromSameOwner"
-  },
-  "id": "9eUWHVFoYoW5nZDs"
+    "callerPolicy": "workflowsFromSameOwner",
+    "availableInMCP": false
+  }
 }
