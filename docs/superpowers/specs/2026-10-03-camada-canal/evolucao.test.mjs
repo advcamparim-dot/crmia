@@ -63,11 +63,12 @@ test('descartes que nao tocam o banco: grupo, status, newsletter, outra instanci
 
 test('mensagem enviada pelo escritorio: a da propria Mayara e descartada; a de um humano vira acao humano', () => {
   const doHumano = normalizarEvolution(base({ key: { remoteJid: '5514997022609@s.whatsapp.net', fromMe: true, id: 'H1' }, message: { conversation: 'Oi, aqui e o Dr. Santo' } }));
-  assert.deepEqual(doHumano, { acao: 'humano', canalId: 'escritorio', phone: '+5514997022609', messageId: 'H1' });
+  assert.deepEqual(doHumano, { acao: 'humano', canalId: 'escritorio', phone: '+5514997022609', messageId: 'H1', texto: 'Oi, aqui e o Dr. Santo', timestamp: new Date(1790000000 * 1000).toISOString() });
   const daMayara = normalizarEvolution(base({ key: { remoteJid: '5514997022609@s.whatsapp.net', fromMe: true, id: 'M1' }, message: { conversation: '*Mayara:*\nOi!' } }));
   assert.deepEqual([daMayara.acao, daMayara.motivo], ['descartar', 'enviada_por_mim']);
   const midiaDoHumano = normalizarEvolution(base({ key: { remoteJid: '5514997022609@s.whatsapp.net', fromMe: true, id: 'H2' }, message: { imageMessage: {} }, messageType: 'imageMessage' }));
   assert.equal(midiaDoHumano.acao, 'humano');
+  assert.equal(midiaDoHumano.texto, '');
   const lid = normalizarEvolution(base({ key: { remoteJid: '99887766@lid', remoteJidAlt: '5514997022609@s.whatsapp.net', fromMe: true, id: 'H3' }, message: { conversation: 'oi' } }));
   assert.equal(lid.phone, '+5514997022609');
   const lidSem = normalizarEvolution(base({ key: { remoteJid: '99887766@lid', fromMe: true, id: 'H4' }, message: { conversation: 'oi' } }));

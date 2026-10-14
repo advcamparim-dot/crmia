@@ -79,7 +79,7 @@ export function normalizarEvolution(corpo, instanciaEsperada = 'escritorio') {
   if (key.fromMe === true) {
     // Enviada pelo numero do escritorio: se for da propria Mayara (prefixo), ignora; senao um humano respondeu.
     if (texto.startsWith(PREFIXO_MAYARA)) return descartar('enviada_por_mim');
-    return { acao: 'humano', canalId, phone, messageId };
+    return { acao: 'humano', canalId, phone, messageId, texto, timestamp: paraIso(data.messageTimestamp) };
   }
   const requiresHuman = !texto && (ehMidia || tipos.length === 0 || !tipos.some((t) => TIPOS_IGNORADOS.includes(t)));
   if (!texto && !requiresHuman) return descartar('tipo_ignorado');
