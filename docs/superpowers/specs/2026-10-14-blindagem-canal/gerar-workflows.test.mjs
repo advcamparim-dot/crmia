@@ -88,6 +88,26 @@ test('recuperar: nenhum caminho do laco fica sem voltar a Cada Mensagem', () => 
   assert.deepEqual(destinos(w, 'Concluir?', 0), ['Concluir']);
 });
 
+test('recuperar: comando do administrador atrasado nao e reexecutado', () => {
+  const w = montarRecuperar(PROC);
+  assert.ok(no(w, 'Marcar Vista').parameters.query.includes('rota_mensagem'));
+  assert.deepEqual(destinos(w, 'Novo?', 0), ['Comando Atrasado?']);
+  assert.deepEqual(destinos(w, 'Comando Atrasado?', 0), ['Descartar Atrasado']);
+  assert.deepEqual(destinos(w, 'Comando Atrasado?', 1), ['Simular?']);
+  assert.ok(destinos(w, 'Descartar Atrasado', 0).includes('Cada Mensagem'));
+  assert.ok(no(w, 'Descartar Atrasado').parameters.query.includes('registrar_evento_canal'));
+  assert.ok(no(w, 'Descartar Atrasado').parameters.options.queryReplacement.includes('comando_atrasado'));
+  const expr = no(w, 'Comando Atrasado?').parameters.conditions.conditions[0].leftValue.replace(/^=\{\{/, '').replace(/\}\}$/, '');
+  const atrasado = (json) => new Function('$json', 'return ' + expr)(json);
+  const antigo = new Date(Date.now() - 3600 * 1000).toISOString();
+  const recente = new Date(Date.now() - 60 * 1000).toISOString();
+  const ev = (ts) => ({ rota: 'comando', norm: { acao: 'processar', evento: { timestamp: ts } } });
+  assert.equal(atrasado(ev(antigo)), true);
+  assert.equal(atrasado(ev(recente)), false);
+  assert.equal(atrasado({ rota: 'lead', norm: { acao: 'processar', evento: { timestamp: antigo } } }), false);
+  assert.equal(atrasado({ rota: 'comando', norm: { acao: 'humano', timestamp: antigo } }), false);
+});
+
 test('alertar fora: e-mail com destino da configuracao e tarefa no CRM so quando pedido', () => {
   const w = montarAlertarFora({ id: 'GMAIL_ID', name: 'Gmail account' });
   assert.deepEqual(nomes(w), ['Execute Workflow Trigger', 'Destino', 'Enviar E-mail', 'Tarefa?', 'Criar Tarefa no CRM']);

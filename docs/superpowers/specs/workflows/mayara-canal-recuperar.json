@@ -335,9 +335,9 @@
       },
       "parameters": {
         "operation": "executeQuery",
-        "query": "={{ $json.simular === 'true' ? 'select not mayara.mensagem_ja_vista($1, $2) as novo, $3::text as direcao' : \"select mayara.marcar_mensagem_vista($1, $2, $3, 'recuperacao') as novo\" }}",
+        "query": "={{ $json.simular === 'true' ? 'select not mayara.mensagem_ja_vista($1, $2) as novo, $3::text as direcao, mayara.rota_mensagem($4, $5) as rota' : \"select mayara.marcar_mensagem_vista($1, $2, $3, 'recuperacao') as novo, mayara.rota_mensagem($4, $5) as rota\" }}",
         "options": {
-          "queryReplacement": "={{ ['escritorio', $json.messageId, $json.norm.acao === 'humano' ? 'saida_humana' : 'entrada'] }}"
+          "queryReplacement": "={{ ['escritorio', $json.messageId, $json.norm.acao === 'humano' ? 'saida_humana' : 'entrada', $json.norm.phone || ($json.norm.evento && $json.norm.evento.phone) || '', ($json.norm.evento && $json.norm.evento.message) || ''] }}"
         }
       }
     },
@@ -351,7 +351,7 @@
         400
       ],
       "parameters": {
-        "jsCode": "return [{ json: { ...$('Util?').item.json, novo: $json.novo === true } }];"
+        "jsCode": "return [{ json: { ...$('Util?').item.json, novo: $json.novo === true, rota: $json.rota } }];"
       }
     },
     {
@@ -387,6 +387,64 @@
         },
         "options": {}
       }
+    },
+    {
+      "id": "cb000000-0000-4000-8000-000000000018",
+      "name": "Comando Atrasado?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        1980,
+        300
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "cb000000-0000-4000-8000-000000000018-c",
+              "leftValue": "={{ $json.rota === 'comando' && $json.norm.acao === 'processar' && (Date.now() - Date.parse($json.norm.evento.timestamp)) > 600000 }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "cb000000-0000-4000-8000-000000000019",
+      "name": "Descartar Atrasado",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        2200,
+        200
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "nNpCUIhnDuVvTApU",
+          "name": "Postgres account"
+        }
+      },
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "select mayara.registrar_evento_canal($1, $2, $3, nullif($4, ''), nullif($5, ''), nullif($6, ''), nullif($7, '')::int, nullif($8, '')::boolean)",
+        "options": {
+          "queryReplacement": "={{ ['escritorio', 'evolution', 'descartado', 'comando_atrasado', $json.norm.evento.phone, '', '', ''] }}"
+        }
+      },
+      "onError": "continueRegularOutput"
     },
     {
       "id": "cb000000-0000-4000-8000-000000000010",
@@ -835,11 +893,40 @@
       "main": [
         [
           {
-            "node": "Simular?",
+            "node": "Comando Atrasado?",
             "type": "main",
             "index": 0
           }
         ],
+        [
+          {
+            "node": "Cada Mensagem",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Comando Atrasado?": {
+      "main": [
+        [
+          {
+            "node": "Descartar Atrasado",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Simular?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Descartar Atrasado": {
+      "main": [
         [
           {
             "node": "Cada Mensagem",
