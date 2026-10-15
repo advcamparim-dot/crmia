@@ -26,8 +26,9 @@ function normalizarPeriodo(v) {
 
 function limparNome(v) {
   const t = String(v ?? '').replace(/\s+/g, ' ').trim();
-  if (t.length < 2 || t.length > 60) return '';
-  return /^[\p{L}][\p{L}' -]*$/u.test(t) ? t : '';
+  if (t.length < 2 || t.length > 80) return '';
+  // Nomes de pessoa e de empresa: letras, numeros, espaco e ' . & , -. Sem % e _ (curingas do LIKE), $, {, <, :, / e afins.
+  return /^[\p{L}\p{N}][\p{L}\p{N}' .&,-]*$/u.test(t) ? t : '';
 }
 
 const INTENCOES = ['ensinar', 'consultar', 'agir', 'conversar'];

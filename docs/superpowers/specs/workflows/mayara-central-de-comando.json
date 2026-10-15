@@ -594,7 +594,7 @@
         "operation": "executeQuery",
         "query": "select mayara.finalizar_comando($1, $2, $3) as resposta",
         "options": {
-          "queryReplacement": "={{ [$('Classificar').first().json.messageId, $('Classificar').first().json.acao, $json.resposta] }}"
+          "queryReplacement": "={{ [$('Classificar').first().json.messageId, ($('Interpretar Livre').isExecuted ? ($('Interpretar Livre').first().json.acao || 'livre_erro') : $('Classificar').first().json.acao), $json.resposta] }}"
         }
       },
       "credentials": {

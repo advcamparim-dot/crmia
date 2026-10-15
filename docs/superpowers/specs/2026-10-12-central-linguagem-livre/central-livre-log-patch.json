@@ -1,0 +1,9 @@
+[
+  {
+    "type": "updateNode",
+    "nodeName": "Finalizar",
+    "updates": {
+      "parameters.options.queryReplacement": "={{ [$('Classificar').first().json.messageId, ($('Interpretar Livre').isExecuted ? ($('Interpretar Livre').first().json.acao || 'livre_erro') : $('Classificar').first().json.acao), $json.resposta] }}"
+    }
+  }
+]

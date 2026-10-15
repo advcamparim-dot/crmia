@@ -43,8 +43,20 @@ test('nome: so letras, espacos, apostrofo e hifen; ate 60 caracteres', () => {
   assert.equal(limparNome('Ana {{ $json.x }}'), '');
   assert.equal(limparNome('http://x.com'), '');
   assert.equal(limparNome('A'), '');
-  assert.equal(limparNome('x'.repeat(61)), '');
+  assert.equal(limparNome('x'.repeat(81)), '');
   assert.equal(limparNome(null), '');
+});
+
+test('nome de empresa: aceita ponto, e comercial, virgula e numero; recusa curingas, simbolos e links', () => {
+  assert.equal(limparNome('Silva & Filhos'), 'Silva & Filhos');
+  assert.equal(limparNome('Willian J. Wohlers'), 'Willian J. Wohlers');
+  assert.equal(limparNome('Empresa 2'), 'Empresa 2');
+  assert.equal(limparNome('Imperial Garden Paisagismo Ltda.'), 'Imperial Garden Paisagismo Ltda.');
+  assert.equal(limparNome('Comercial Souza, Lima e Cia'), 'Comercial Souza, Lima e Cia');
+  assert.equal(limparNome('x'.repeat(80)), 'x'.repeat(80));
+  for (const ruim of ['100%', 'a_b', '$1', '<b>x</b>', '--', '.', '&Ana', 'Ana; drop table x', 'Ana\\Silva', 'a:b', 'www/x', 'Ana `x`', '{{x}}']) {
+    assert.equal(limparNome(ruim), '', ruim);
+  }
 });
 
 import { validarFormulario } from './interpretar.mjs';

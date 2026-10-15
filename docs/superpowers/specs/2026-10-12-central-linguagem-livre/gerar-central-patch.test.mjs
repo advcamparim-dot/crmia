@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { operacoes } from './gerar-central-patch.mjs';
+import { operacoes, operacoesLog } from './gerar-central-patch.mjs';
 
 const ops = operacoes('SUBWORKFLOW_ID');
 const nos = ops.filter((o) => o.type === 'addNode').map((o) => o.node);
@@ -77,4 +77,23 @@ test('ensino do livre repassa a regra ao Validar Ensino existente', () => {
   const f = new Function('$json', no('Ensino do Livre').parameters.jsCode);
   const r = f({ regra: 'Trate o lead pelo primeiro nome.' })[0].json;
   assert.deepEqual(JSON.parse(r.text), { tipo: 'instrucao', regra: 'Trate o lead pelo primeiro nome.' });
+});
+
+test('finalizar registra no log a acao interpretada do modo livre e preserva a dos outros ramos', () => {
+  const ops2 = operacoesLog();
+  assert.equal(ops2.length, 1);
+  assert.equal(ops2[0].type, 'updateNode');
+  assert.equal(ops2[0].nodeName, 'Finalizar');
+  const expr = ops2[0].updates['parameters.options.queryReplacement'].replace(/^=\{\{/, '').replace(/\}\}$/, '');
+  const rodar = (livreExecutado, livre, classificar, resposta) => new Function('$', '$json', 'return ' + expr)(
+    (nome) => (nome === 'Classificar'
+      ? { first: () => ({ json: classificar }) }
+      : { isExecuted: livreExecutado, first: () => ({ json: livre }) }),
+    { resposta });
+  const classificar = { messageId: 'M1', acao: 'ensino' };
+  assert.deepEqual(rodar(true, { acao: 'livre_assumir' }, classificar, 'ok'), ['M1', 'livre_assumir', 'ok']);
+  assert.deepEqual(rodar(true, { acao: 'livre_nao_entendi' }, classificar, 'x'), ['M1', 'livre_nao_entendi', 'x']);
+  assert.deepEqual(rodar(true, { error: { message: 'timeout' } }, classificar, 'x'), ['M1', 'livre_erro', 'x']);
+  assert.deepEqual(rodar(false, {}, { messageId: 'M2', acao: 'status' }, 'y'), ['M2', 'status', 'y']);
+  assert.deepEqual(rodar(false, {}, classificar, 'z'), ['M1', 'ensino', 'z']);
 });

@@ -86,9 +86,22 @@ export function operacoes(subId) {
   ];
 }
 
+// No ramo livre o Finalizar gravava no log de comandos a acao 'ensino' (a do Classificar) para qualquer pedido.
+// Passa a gravar a acao interpretada (livre_assumir, livre_pausar...), ou livre_erro se o modelo falhou.
+export function operacoesLog() {
+  return [{
+    type: 'updateNode', nodeName: 'Finalizar',
+    updates: {
+      'parameters.options.queryReplacement':
+        "={{ [$('Classificar').first().json.messageId, ($('Interpretar Livre').isExecuted ? ($('Interpretar Livre').first().json.acao || 'livre_erro') : $('Classificar').first().json.acao), $json.resposta] }}",
+    },
+  }];
+}
+
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
   const sub = process.argv[2];
   if (!sub) { console.error('Uso: node gerar-central-patch.mjs <id-do-sub-workflow>'); process.exit(1); }
   writeFileSync(join(dir, 'central-livre-patch.json'), JSON.stringify(operacoes(sub), null, 2));
+  writeFileSync(join(dir, 'central-livre-log-patch.json'), JSON.stringify(operacoesLog(), null, 2));
   console.log('central-livre-patch.json (' + operacoes(sub).length + ' operacoes)');
 }
