@@ -27,12 +27,14 @@ Sucesso:
 
 | Tema | Decisão |
 |---|---|
-| Quem entra | Os leads do CRM fora da lista (59 em 16/10) **e os 10 que já estão na lista**, incluindo os três que estão com atendimento humano. |
+| Quem entra | Os leads do CRM fora da lista (59 em 16/10) **e os 10 que já estão na lista**, incluindo os três que estavam com atendimento humano. Esses três são **devolvidos à Mayara** e depois analisados e reativados como os demais. |
 | Histórico | O administrador exporta do celular do escritório as conversas que importam. Quem não tiver exportação usa só o que o CRM e a memória da Mayara têm. |
 | Aprovação | **Mensagem por mensagem.** Sem lotes, sem faixa (`sim 1-10`). |
 | Redação | Individual, pelo contexto de cada conversa. |
-| Ritmo | **10 envios por dia**, mais recentes primeiro, dias úteis, 9h às 17h, 25 minutos ou mais entre envios. Com 69 leads, são cerca de 7 dias úteis, assumindo que todos os rascunhos sejam aprovados. |
-| Depois do 1º envio | O lead entra na régua de follow-up. Quem responder segue o atendimento normal. |
+| Horário | O mesmo horário de atendimento de todos os leads: dias úteis das **6h às 21h** e sábados das **6h às 18h**; sem domingos e feriados nacionais (expediente já existente). |
+| Ritmo | **10 envios por dia**, mais recentes primeiro, 25 minutos ou mais entre envios. Com 69 leads, são cerca de 7 dias de atendimento, assumindo que todos os rascunhos sejam aprovados. |
+| Texto | **Sem frase de saída** ("se preferir não receber mensagens…"). O pedido de parar de quem escrever continua sendo tratado como opt-out. |
+| Depois do 1º envio | O lead entra na régua de follow-up, **todos da mesma forma, sem tratamento especial para quem já tinha conversa**. Quem responder segue o atendimento normal. |
 
 ## Situação atual (verificada em 16/10/2026)
 
@@ -51,7 +53,7 @@ Sucesso:
 3. **Ligação confirmada.** Um arquivo de exportação só vira contexto de um lead depois que o administrador confirma a ligação.
 4. **Porta de entrada da régua.** Só entra na régua o lead com `integrado_em` preenchido. Cadastrar na lista não coloca ninguém na régua.
 5. **Parada imediata.** Interruptor `reativacao_ligada` e o comando `/reativacao pausar`.
-6. **Opt-out.** "Pare", "não quero", "remova" e equivalentes marcam o lead como `sem_interesse`; ele nunca mais recebe mensagem.
+6. **Opt-out.** Se o lead escrever "pare", "não quero", "remova" ou equivalentes, ele é marcado como `sem_interesse` e nunca mais recebe mensagem. O texto da reativação não traz frase de saída.
 7. **Dados fora do Git.** Exportações, rascunhos e notas ficam no banco e em `dados-privados/` (ignorado pelo Git). Nenhum nome ou telefone vai para documentos, handoff ou commits.
 
 ## Arquitetura
@@ -85,22 +87,22 @@ Saídas: `respondeu`, `sem_interesse`, `sem_whatsapp`, `falhou`, `descartado` (o
 
 ## Fluxo por lead
 
-1. **Cadastro.** O lead entra na lista como `ativo`, **sem `abordagem_ate` e sem estado de régua**. Se escrever antes de ser contatado, a retenção guarda a mensagem (nada responde sozinho).
+1. **Cadastro.** O lead entra na lista como `ativo`, **sem `abordagem_ate` e sem estado de régua**. Os três leads que estavam assumidos são devolvidos à Mayara (`devolver_lead`) neste passo. Se um lead escrever antes de ser contatado, a retenção guarda a mensagem (nada responde sozinho).
 2. **Contexto.** Fonte, em ordem de preferência:
    - `exportacao`: conversa exportada e confirmada;
    - `memoria`: histórico real da Mayara (leads que já conversaram, incluindo as notas de contexto);
    - `crm`: dados do CRM (nome, data de chegada, status, motivo "Não Respondeu", anotações, se houver).
-3. **Rascunho.** Uma mensagem por lead. Com histórico: retoma de onde parou, sem repetir apresentação nem pergunta já respondida. Só CRM: curta, personalizada pelo nome e pela data em que o lead procurou o escritório, sem inventar fatos (banco, valor, tipo de dívida), com uma pergunta aberta e uma saída fácil ("se preferir não receber mensagens, é só avisar").
+3. **Rascunho.** Uma mensagem por lead. Com histórico: retoma de onde parou, sem repetir apresentação nem pergunta já respondida. Só CRM: curta, personalizada pelo nome e pela data em que o lead procurou o escritório, sem inventar fatos (banco, valor, tipo de dívida), terminando em uma pergunta aberta.
 4. **Proposta.** O rascunho vira uma proposta aberta. O administrador recebe **uma mensagem por proposta**, com o nome do lead (final do telefone), a fonte do contexto e o texto.
 5. **Aprovação.** `sim N` aprova, `editar N: texto` troca o texto e mostra de novo, `não N` descarta, `ver N` mostra o contexto usado. A proposta expira em 24 horas (já existe); o lead volta ao fim da fila.
-6. **Fila.** Aprovado entra na fila. O worker libera até **10 por dia**, de dia útil, 9h às 17h, com **25 minutos ou mais** entre envios, em ordem decrescente de data de chegada ao CRM. Respeita feriados e domingos (`dia_aberto`), exige canal aberto e a retenção de respostas não bloqueia quem está com janela de abordagem.
+6. **Fila.** Aprovado entra na fila. O worker libera até **10 por dia**, no horário de atendimento (dias úteis 6h às 21h, sábados 6h às 18h), com **25 minutos ou mais** entre envios, em ordem decrescente de data de chegada ao CRM. Respeita domingos e feriados (`dia_aberto`, `resposta_permitida`), exige canal aberto, e a retenção de respostas não bloqueia quem está com janela de abordagem.
 7. **Envio.** Pelo `Canal: Enviar`. Se a Evolution disser que o número não existe, tenta a variante com o nono dígito uma vez; se continuar sem WhatsApp, marca `sem_whatsapp` e avisa o administrador. Ao enviar: abre a janela de 24 horas, grava a mensagem na memória da sessão canônica e registra o envio.
-8. **Integração à régua.** No envio, o lead recebe estado de régua: sequência `conversa` se há conversa real (exportação ou memória com fala do lead), senão `nunca_respondeu`; a mensagem de reativação é a etapa 1 e o ciclo conta a partir do envio. `integrado_em` é preenchido.
+8. **Integração à régua.** No envio, o lead recebe estado de régua explícito, com a **sequência escolhida pela mesma regra que a régua já usa para todos os leads** (`conversa` se o lead já respondeu alguma vez; `nunca_respondeu` caso contrário), sem exceção para quem tinha conversa anterior. A mensagem de reativação é a etapa 1 e o ciclo conta a partir do envio. `integrado_em` é preenchido.
 9. **Resposta.** Qualquer resposta do lead é atendida normalmente pela Mayara (fluxo atual), a régua do lead se encerra pelas regras existentes e o estado vira `respondeu`.
 
-### Lead que está com atendimento humano
+### Leads que estavam com atendimento humano
 
-Para os leads assumidos pelo administrador, **aprovar o rascunho equivale a devolver o lead à Mayara**: no `sim N`, o sistema executa `devolver_lead` e só então envia. O texto de apresentação da proposta avisa isso ("este lead está com você; aprovar devolve à Mayara"). Se o administrador não quiser devolver, usa `não N`.
+Os três leads assumidos pelo administrador são **devolvidos à Mayara no cadastro** e passam pelo mesmo caminho dos demais: contexto (a memória da Mayara e as notas de contexto já gravadas valem como fonte), rascunho individual, aprovação mensagem por mensagem, envio e régua. Eles não têm prioridade nem tratamento especial na fila. Até a vez deles, se escreverem, a mensagem fica retida para o administrador, como acontece com qualquer lead ainda não reativado.
 
 ## Importador das exportações
 
@@ -113,19 +115,19 @@ Para os leads assumidos pelo administrador, **aprovar o rascunho equivale a devo
 ## Redação
 
 - **Entrada do modelo:** nome (primeiro nome), data de chegada, fatos do CRM, resumo do estado, e as últimas até 30 linhas da conversa, tudo em campos delimitados e marcados como dados.
-- **Saída esperada:** uma mensagem de até 600 caracteres, em português, tom da Mayara, sem links, sem valores, sem promessa de resultado, sem fingir ação humana ("vou ligar"), sem se reapresentar se já se apresentou, terminando em pergunta simples.
+- **Saída esperada:** uma mensagem de até 600 caracteres, em português, tom da Mayara, sem links, sem valores, sem promessa de resultado, sem fingir ação humana ("vou ligar"), sem frase de saída, sem se reapresentar se já se apresentou, terminando em pergunta simples.
 - **Validação (código):** tamanho, ausência de link e de padrões proibidos, ausência de nome de outra pessoa, nome do lead presente, no máximo uma pergunta. Rascunho inválido é regerado até 2 vezes; depois vira `pulado` com motivo, e o administrador é avisado.
 - **Sem histórico:** usa o modelo determinístico (como `redigir.mjs`) quando o contexto é só CRM, para reduzir risco de invenção; o modelo de linguagem fica para quem tem conversa.
 
 ## Aprovação e apresentação
 
 - Uma mensagem de apresentação por proposta, no formato já usado pela abordagem assistida, com o acréscimo de "Contexto: exportação | memória | CRM" e, para lead assumido, o aviso de devolução.
-- **Cota de apresentação:** o sistema apresenta no máximo as propostas necessárias para cobrir o limite do dia (10), nunca mais de 10 abertas ao mesmo tempo, e só entre 6h e 21h em dias úteis (regra existente).
+- **Cota de apresentação:** o sistema apresenta no máximo as propostas necessárias para cobrir o limite do dia (10), nunca mais de 10 abertas ao mesmo tempo, e no horário do expediente (regra existente).
 - Sem comando em lote. `propostas` lista as abertas; `ver N` mostra o contexto.
 
 ## Envio, ritmo e proteção do número
 
-- Limite diário 10 (`reativacao_limite_dia`), janela 9h-17h (`reativacao_janela`), intervalo mínimo 25 minutos (`reativacao_intervalo_min`), dias úteis e feriados pelo expediente existente.
+- Limite diário 10 (`reativacao_limite_dia`), intervalo mínimo 25 minutos (`reativacao_intervalo_min`) e o horário de atendimento do expediente existente (dias úteis 6h às 21h, sábados 6h às 18h, sem domingos e feriados). Não há janela própria da reativação.
 - **Parada automática:** se 3 envios seguidos falharem por motivo que não seja "número sem WhatsApp", o worker se pausa e avisa o administrador.
 - **Canal:** exige `canal_estado = open`. Em queda, a fila espera.
 - **Retomada:** envios aprovados e não realizados no dia seguem no próximo dia útil, mantendo a ordem.
@@ -178,13 +180,17 @@ Para os leads assumidos pelo administrador, **aprovar o rascunho equivale a devo
 | Mensagem com contexto errado | Ligação de exportação só com confirmação; aprovação individual; `ver N` mostra o contexto. |
 | Injeção por texto do lead | Texto de lead delimitado como dado no prompt e validação do rascunho. |
 | Lead assumido receber texto da Mayara sem querer | Aviso explícito na proposta; devolução só no `sim N`. |
-| Reclamação ou pedido de parada | Opt-out imediato e permanente; texto sempre oferece saída. |
+| Reclamação ou pedido de parada | Opt-out imediato e permanente assim que o lead pedir; o administrador aprova cada texto antes do envio. |
 | Número do CRM errado (nono dígito) | Tentativa com a variante e marcação `sem_whatsapp` se persistir. |
 | Régua disparando para quem não foi integrado | Porta de entrada `integrado_em`, testada. |
 
+## Decisões fechadas na revisão (16/10/2026)
+
+1. Horário: o do atendimento normal (dias úteis 6h às 21h, sábados 6h às 18h).
+2. Sem frase de saída nos textos.
+3. Leads assumidos são devolvidos à Mayara e reativados como os demais.
+4. Quem já tinha conversa entra na régua como todos os outros, pela regra de sequência que a régua já aplica.
+
 ## Perguntas em aberto
 
-1. A faixa de 9h às 17h vale também aos sábados (hoje o expediente permite sábado até 18h)? Proposto: só dias úteis.
-2. O texto de saída ("se preferir não receber mensagens, é só avisar") deve estar em toda reativação? Proposto: sim.
-3. Para os leads assumidos, aprovar significa devolver. Confirmar.
-4. Sequência de régua para leads com conversa anterior: `conversa` (proposto) ou `nunca_respondeu`.
+Nenhuma.
