@@ -118,3 +118,18 @@ Vigiar a Evolution, curar quedas, avisar fora do WhatsApp e recuperar mensagens 
 - Lead só do CRM: migration `0055` (`OK 0055`, regressão do 0047 verde). `assumir` e `devolver` no modo livre só valem para lead da lista de atendimento; para lead só do CRM a resposta é clara e nenhuma pendência é gravada. `abordar` e `situacao_lead` seguem aceitando lead do CRM.
 - Em aberto da revisão do modo livre: teste das 36 frases com o modelo real (falta chave no ambiente), ensino com mais de 400 caracteres cai em "não entendi", e a chamada ao modelo sem tempo limite.
 - Time Chaves: credencial do EspoCRM corrigida pelo usuário (cabeçalho `X-Api-Key`); leitura de Leads validada (200, 69 leads). A função do usuário de API foi aberta para todas as permissões; recomendado voltar a somente leitura.
+
+### Atualização 16/10: modo livre da Central ligado e roteiro executado
+- `central_linguagem_livre = true` (autorizado pelo usuário em 15/10). Roteiro de 9 mensagens pelo WhatsApp de administrador, conferido no `comandos_log`:
+  1. contagem de leads do dia: `livre_contagem_leads`, resposta direta (texto "1 leads", plural a ajustar).
+  2. situação de um lead por nome: `livre_situacao_lead`.
+  3. listar regras ativas: `livre_listar_regras`.
+  4. pausar a Mayara + "não": confirmação pedida, ação cancelada, Mayara segue ligada.
+  5. assumir por nome com dois candidatos: lista os dois com final do telefone, pede o telefone, não cria pendência. Enviar só o telefone na mensagem seguinte vira conversa (sem contexto entre mensagens, por desenho).
+  6. frase ambígua: classificada como conversa, responde a apresentação e não executa nada (ideal seria "não entendi").
+  7. ensino de regra: pede confirmação (a resposta enviada foi "sim", e a regra 20 ficou ativa por engano).
+  8. desfazer a regra criada + "sim": executado, regra desfeita; log registra `livre_desfazer_regra`.
+  9. abordar um lead: "Essa ação ainda não está habilitada." sem pendência e sem envio (Fase 4).
+- Não exercitado: pausar/ligar com "sim" (único caminho que usa o marcador de efeito da Central; altera o modo real da Mayara).
+- Ajustes pequenos em aberto: plural "1 leads"; frase ambígua deveria responder "não entendi"; teste das 36 frases com o modelo real; ensino com mais de 400 caracteres; timeout da chamada ao modelo.
+- Observação: proposta de abordagem falhou por número do CRM sem o nono dígito (DDD 41); cogitar tentar a variante com o 9 quando a Evolution responde que o número não existe.
