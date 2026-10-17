@@ -747,3 +747,6 @@ git commit -m "docs(handoff): liberacao automatica de atendimento para leads nov
   - Ruling: `administradores.telefone_chave` é coluna gerada; o teste insere só `telefone` e `nome`.
   - Ruling: o teste usa horários simulados (`segunda`) também nas janelas de 48 h e de 1 hora; o desempate `id desc` foi acrescentado à contagem das três últimas falhas (em produção os horários diferem, no teste são idênticos). Aplicado como `apply_migration` adicional (`..._desempate_falhas`) e incorporado ao arquivo da 0059.
   - Regressão dos testes antigos (0033 a 0036, 0050) dispensada: nenhuma função existente foi alterada, só funções novas e duas chaves de configuração.
+- **Task 3 concluída em 17/10** (`OK 0060`, migration aplicada).
+  - Ruling: `reservar_notificacoes(p_agora)` expira propostas com `expira_em` anterior a `p_agora`; o teste usa horário simulado no futuro, então fixa `expira_em` das propostas de teste. Sem efeito em produção.
+  - Regressão dispensada: com a chave desligada o comportamento é idêntico (provado no primeiro cenário do teste).
