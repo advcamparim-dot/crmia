@@ -1,6 +1,8 @@
 -- supabase/tests/0012_canais.test.sql
 -- Rodar inteiro (execute_sql). Numeros ficticios; termina em rollback.
 begin;
+-- janela de 48 h ligada para este teste (a janela pode estar desligada com evolution_janela_horas = 0)
+update mayara.config set valor = '48' where chave = 'evolution_janela_horas';
 
 insert into mayara.canais (canal_id, provedor, rotulo) values
   ('t-meta', 'meta', 'Teste Meta'),

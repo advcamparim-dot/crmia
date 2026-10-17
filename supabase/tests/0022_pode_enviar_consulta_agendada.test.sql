@@ -1,6 +1,8 @@
 -- supabase/tests/0022_pode_enviar_consulta_agendada.test.sql
 -- Rodar inteiro (execute_sql). Dados ficticios; termina em rollback.
 begin;
+-- janela de 48 h ligada para este teste (a janela pode estar desligada com evolution_janela_horas = 0)
+update mayara.config set valor = '48' where chave = 'evolution_janela_horas';
 
 do $t$
 declare r jsonb;
