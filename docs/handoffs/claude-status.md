@@ -133,3 +133,10 @@ Vigiar a Evolution, curar quedas, avisar fora do WhatsApp e recuperar mensagens 
 - Não exercitado: pausar/ligar com "sim" (único caminho que usa o marcador de efeito da Central; altera o modo real da Mayara).
 - Ajustes pequenos em aberto: plural "1 leads"; frase ambígua deveria responder "não entendi"; teste das 36 frases com o modelo real; ensino com mais de 400 caracteres; timeout da chamada ao modelo.
 - Observação: proposta de abordagem falhou por número do CRM sem o nono dígito (DDD 41); cogitar tentar a variante com o 9 quando a Evolution responde que o número não existe.
+
+### Atualização 17/10: reativação em massa, spec e plano de execução
+- Objetivo: cadastrar na lista da Mayara os leads do CRM que estão fora dela (e reativar os já listados, inclusive os assumidos, devolvidos à Mayara), preparar uma mensagem individual por lead pelo contexto, apresentar uma a uma ao administrador (`sim N`), enviar só as aprovadas (10 por dia, intervalo mínimo de 25 min, horário de atendimento, mais recentes primeiro) e integrar cada lead à régua de follow-up depois do envio.
+- Arquivos: `docs/superpowers/specs/2026-10-16-reativacao-em-massa-design.md` (spec, já commitada) e `docs/superpowers/plans/2026-10-17-reativacao-em-massa.md` (plano mestre; Fase 1 com código e testes SQL completos, migrations 0056 a 0058; Fases 2 a 7 em esboço, cada uma com plano próprio ao começar).
+- Testes executados: nenhum ainda; só documentação escrita. Nada foi alterado no banco, nos workflows ou nas chaves (`reativacao_ligada` nem existe ainda; retenção ligada, follow-ups desligados, modo livre ligado, vigia ligada).
+- Pendências: aprovação do plano pelo usuário e escolha do método de execução; exportação de uma conversa de exemplo do WhatsApp (formato) antes da Fase 2.
+- Riscos: reativação envia mensagem a leads antigos pelo número do escritório (proteção: aprovação mensagem a mensagem, limite diário, parada automática após três falhas); desvio do spec registrado no plano (estado final `enviado` com `integrado_em`, sem estado `integrado` separado).
