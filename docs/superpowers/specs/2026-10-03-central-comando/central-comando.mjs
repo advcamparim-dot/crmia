@@ -25,11 +25,12 @@ export const AJUDA = [
   '/desfazer 3: desativa a instrução 3',
   '/reativar 3: reativa a instrução 3',
   '/followup status | modo desligado, simulacao ou ligado | retomar <lead> | encerrar <lead>: régua de follow-up',
+  '/abordagem automatica status | ligar | desligar: liberação automática do primeiro contato a leads novos',
   '/ajuda: esta lista',
   'No modo exclusivo, escreva livremente para ensinar a Mayara e responda sim ou não para confirmar.',
 ].join('\n');
 
-const COMANDOS = ['status', 'ligar', 'desligar', 'assumir', 'devolver', 'regras', 'desfazer', 'reativar', 'ajuda', 'followup'];
+const COMANDOS = ['status', 'ligar', 'desligar', 'assumir', 'devolver', 'regras', 'desfazer', 'reativar', 'ajuda', 'followup', 'abordagem'];
 const SIM = ['sim', 's', 'confirmo', 'confirma', 'confirmar', 'pode', 'isso'];
 const NAO = ['nao', 'n', 'cancela', 'cancelar', 'descarta', 'descartar'];
 
@@ -56,6 +57,7 @@ function comando(cmd, args) {
       return sql(cmd, args);
     }
     case 'followup': return sql('followup', args);
+    case 'abordagem': return sql('abordagem', args);
     default: return { tipo: 'texto', acao: 'comando_desconhecido', resposta: 'Não conheci esse comando.\n\n' + AJUDA };
   }
 }

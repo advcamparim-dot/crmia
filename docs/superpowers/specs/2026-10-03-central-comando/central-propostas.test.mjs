@@ -80,3 +80,13 @@ test('/followup: status, modo, retomar e encerrar viram comando sql da Central',
   assert.equal(r('followup status').tipo, 'livre', 'sem barra continua sendo ensino em modo exclusivo');
   assert.match(classificarMensagem('/ajuda', livre).resposta, /\/followup/);
 });
+
+test('/abordagem automatica: ligar, desligar e status viram comando sql da Central', () => {
+  const r = (t) => classificarMensagem(t, livre);
+  assert.deepEqual(r('/abordagem automatica ligar'), { tipo: 'sql', acao: 'abordagem', fn: 'abordagem', arg: 'automatica ligar', arg2: '' });
+  assert.equal(r('/abordagem automatica desligar').arg, 'automatica desligar');
+  assert.equal(r('/abordagem automatica status').arg, 'automatica status');
+  assert.equal(r('/abordagem').tipo, 'sql');
+  assert.equal(r('abordagem automatica ligar').tipo, 'livre', 'sem barra continua sendo ensino em modo exclusivo');
+  assert.match(classificarMensagem('/ajuda', livre).resposta, /\/abordagem automatica/);
+});
