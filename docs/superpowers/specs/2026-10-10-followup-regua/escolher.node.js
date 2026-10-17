@@ -21,10 +21,49 @@ function saudacaoPorHora(agora) {
   return 'Boa noite';
 }
 
-function textoFixo({ sequencia, etapa, nome, agora }) {
+function assuntoDoLead(fatos) {
+  const f = fatos && typeof fatos === 'object' ? fatos : {};
+  const empresa = f.documento === 'CNPJ' || /jur[ií]dica|cnpj/i.test(String(f.perfil ?? ''));
+  return empresa ? 'as dívidas bancárias da empresa' : 'as suas dívidas bancárias';
+}
+
+// Quem nunca respondeu recebe uma mensagem diferente a cada etapa: um angulo para a IA e um texto de reserva proprio.
+// abre: 'S' = "<saudacao>, <nome>. <corpo>"; 'N' = "<nome>, <corpo>" (sem nome vira "<saudacao>. <Corpo>").
+const NUNCA_RESPONDEU = [
+  { abre: 'S', angulo: 'confirmar que a mensagem anterior chegou, de forma leve, e pedir que responda quando puder', corpo: () => 'Aqui é a Mayara, do Camparim Advogados. Só confirmando que você recebeu minha mensagem. Pode me responder por aqui quando puder?' },
+  { abre: 'N', angulo: 'uma única pergunta objetiva e simples: com qual banco é o contrato', corpo: () => 'para eu avançar com o seu atendimento, preciso de uma informação simples: com qual banco é o contrato?' },
+  { abre: 'N', angulo: 'facilitar a resposta: basta uma palavra, o nome do banco ou o tipo de dívida (capital de giro, Pronampe, cartão)', corpo: () => 'se for mais fácil, responda só com uma palavra: o nome do banco ou o tipo de dívida (capital de giro, Pronampe, cartão…). Eu continuo daí.' },
+  { abre: 'S', angulo: 'retomar o pedido e perguntar se já recebeu cobrança ou notificação do banco', corpo: (a) => `Retomando o seu pedido sobre ${a}: você já recebeu alguma cobrança ou notificação do banco?` },
+  { abre: 'N', angulo: 'apresentar a conversa online e gratuita com o Dr. Santo e oferecer verificar um horário', corpo: () => 'a conversa com o Dr. Santo é online e gratuita. Quer que eu veja um horário para vocês?' },
+  { abre: 'N', angulo: 'dizer que muita gente só precisa de uma orientação inicial e convidar a contar a situação em poucas palavras', corpo: () => 'muita gente só precisa de uma orientação inicial para saber por onde começar. Quer me contar em poucas palavras o que está acontecendo?' },
+  { abre: 'S', angulo: 'explicar o primeiro passo (entender o contrato e a situação) e perguntar qual a dívida em aberto hoje', corpo: () => 'O primeiro passo é entender o seu contrato e a sua situação. Pode me dizer qual é a dívida em aberto hoje?' },
+  { abre: 'N', angulo: 'flexibilizar: pedir o período do dia que fica melhor para conversar, sem fazer pergunta', corpo: () => 'se o seu dia está corrido, posso me adaptar: diga o período em que fica melhor para conversarmos e eu organizo.' },
+  { abre: 'S', angulo: 'lembrar que a solicitação continua registrada e perguntar se houve alguma mudança', corpo: (a) => `Sua solicitação sobre ${a} continua registrada aqui. Houve alguma mudança desde que você nos procurou?` },
+  { abre: 'N', angulo: 'dizer que tudo bem se já resolveu ou está com outro profissional e pedir que avise para atualizar o cadastro', corpo: () => 'se você já resolveu ou está falando com outro profissional, tudo bem. Pode me avisar para eu atualizar o seu cadastro?' },
+  { abre: 'S', angulo: 'convite curto: responder apenas "sim" para retomar de onde pararam', corpo: (a) => `Se ainda tiver interesse em ajuda com ${a}, responda só 'sim' e eu retomo de onde paramos.` },
+  { abre: 'N', angulo: 'perguntar qual a maior dificuldade hoje: pagar as parcelas, negociar com o banco ou entender o contrato', corpo: () => 'qual é a sua maior dificuldade hoje: pagar as parcelas, negociar com o banco ou entender o contrato?' },
+  { abre: 'S', angulo: 'avisar que o cadastro fica aberto por mais alguns dias e que basta pedir para não receber mais mensagens, sem fazer pergunta', corpo: () => 'Vou manter seu cadastro aberto por mais alguns dias. Se preferir não receber mais mensagens, é só me avisar.' },
+  { abre: 'N', angulo: 'despedida gentil: última mensagem por enquanto, porta aberta para o futuro, sem pergunta', corpo: (a) => `esta é minha última mensagem por enquanto. Se no futuro precisar de ajuda com ${a}, é só chamar por aqui. Obrigada pela atenção!` },
+];
+
+function anguloDaEtapa(sequencia, etapa) {
+  if (sequencia !== 'nunca_respondeu') return undefined;
+  const i = Math.min(Math.max(Number(etapa) || 1, 1), NUNCA_RESPONDEU.length) - 1;
+  return NUNCA_RESPONDEU[i].angulo;
+}
+
+function textoFixo({ sequencia, etapa, nome, agora, fatos }) {
   const n = primeiroNome(nome);
-  const abertura = saudacaoPorHora(agora) + (n ? ', ' + n : '') + '. ';
   const e = Number(etapa) || 1;
+  if (sequencia === 'nunca_respondeu') {
+    const t = NUNCA_RESPONDEU[Math.min(Math.max(e, 1), NUNCA_RESPONDEU.length) - 1];
+    const corpo = t.corpo(assuntoDoLead(fatos));
+    const s = saudacaoPorHora(agora);
+    if (t.abre === 'S') return s + (n ? ', ' + n : '') + '. ' + corpo;
+    if (n) return n + ', ' + corpo;
+    return s + '. ' + corpo.charAt(0).toUpperCase() + corpo.slice(1);
+  }
+  const abertura = saudacaoPorHora(agora) + (n ? ', ' + n : '') + '. ';
   if (e <= 3) return abertura + 'Quando puder, me responde por aqui para eu continuar o seu atendimento?';
   if (e <= 9) return abertura + 'Sua solicitação sobre as dívidas bancárias continua em aberto por aqui. Se ainda fizer sentido conversar, é só me responder.';
   return abertura + 'Passando para saber se ainda precisa de ajuda com a dívida bancária. Se não for mais o momento, é só me avisar que eu encerro por aqui.';
@@ -74,6 +113,8 @@ const SYSTEM = [
   'Não repita nem copie nenhum texto de "followups_anteriores". A cada tentativa varie o ângulo, sem inventar fatos, riscos, prazos ou urgência.',
   'Seja direta e honesta: não diga que estava pensando, refletindo ou lembrando do lead, nem finja ações humanas; não use exclamações exageradas nem mais de uma saudação.',
   'Não use links, não prometa resultado, não dê opinião jurídica, não peça documentos, não pressione.',
+  'Se houver "angulo", escreva a mensagem seguindo exatamente esse ângulo: ele é o foco desta etapa, e cada etapa deve soar diferente das anteriores. Use "assunto" para falar da dívida.',
+  'Se "sequencia" for nunca_respondeu, o lead nunca respondeu: não diga que ele disse algo, não cobre por não ter respondido e use apenas os fatos do cadastro.',
   'Devolva somente o texto da mensagem.',
 ].join('\n');
 
@@ -88,6 +129,7 @@ function montarPedido({ sequencia, etapa, tentativa, nome, agora, mensagens, fat
       sequencia: sequencia === 'nunca_respondeu' ? 'nunca_respondeu' : 'conversa',
       etapa: Number(etapa) || 1,
       tentativa: Number(tentativa) || 1,
+      ...(sequencia === 'nunca_respondeu' ? { angulo: anguloDaEtapa(sequencia, etapa), assunto: assuntoDoLead(fatos) } : {}),
       mensagens: msgs,
       fatos: fatos && typeof fatos === 'object' ? fatos : {},
       followups_anteriores: (Array.isArray(anteriores) ? anteriores : []).slice(-5).map((a) => String(a).slice(0, 400)),
@@ -95,11 +137,11 @@ function montarPedido({ sequencia, etapa, tentativa, nome, agora, mensagens, fat
   };
 }
 
-function escolherTexto({ sequencia, etapa, nome, agora, anteriores, textoIA, textoPreAprovado }) {
+function escolherTexto({ sequencia, etapa, nome, agora, anteriores, textoIA, textoPreAprovado, fatos }) {
   const aprovado = typeof textoPreAprovado === 'string' ? textoPreAprovado.trim() : '';
   if (aprovado) return { texto: aprovado, fonte: 'aprovado', motivoRejeicao: null };
   const ia = typeof textoIA === 'string' ? textoIA.trim() : '';
-  const fixo = textoFixo({ sequencia, etapa, nome, agora });
+  const fixo = textoFixo({ sequencia, etapa, nome, agora, fatos });
   if (ia) {
     const v = validarFollowup(ia, { anteriores });
     if (v.valido) return { texto: ia, fonte: 'ia', motivoRejeicao: null };
@@ -116,7 +158,7 @@ return $input.all().map((it, i) => {
   const textoIA = typeof saida.text === 'string' ? saida.text : (typeof saida.output === 'string' ? saida.output : '');
   const e = escolherTexto({
     sequencia: base.lead_sequencia, etapa: base.lead_etapa, nome: ctx.nome || base.lead_nome, agora: new Date(),
-    anteriores: ctx.anteriores, textoIA, textoPreAprovado: base.texto_proximo,
+    anteriores: ctx.anteriores, textoIA, textoPreAprovado: base.texto_proximo, fatos: ctx.fatos,
   });
   return { json: { log_id: base.log_id, modo: base.modo, telefone: ctx.telefone || base.lead_telefone, texto: e.texto, fonte: e.fonte, motivo_rejeicao: e.motivoRejeicao } };
 });

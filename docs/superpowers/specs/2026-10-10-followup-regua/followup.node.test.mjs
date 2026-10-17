@@ -36,7 +36,7 @@ test('lote: processa varios itens na ordem e pareia cada saida do modelo com o s
   assert.equal(out[0].json.fonte, 'ia');
   assert.equal(out[1].json.log_id, 12);
   assert.equal(out[1].json.fonte, 'fixo');
-  assert.match(out[1].json.texto, /Bia\./);
+  assert.match(out[1].json.texto, /^Bia, se for mais fácil, responda só com uma palavra/);
 });
 
 test('Escolher Texto: IA valida, IA invalida, sem IA e texto aprovado', () => {

@@ -104,3 +104,53 @@ test('escolherTexto: pre-aprovado vence; IA valida e usada; IA invalida cai no f
   const repetido = escolherTexto({ ...base, textoIA: 'Oi, Ana. Quando puder, me responde por aqui para eu continuar o seu atendimento?', anteriores: [textoFixo({ sequencia: 'conversa', etapa: 1, nome: 'Ana', agora: MANHA })] });
   assert.equal(repetido.fonte, 'fixo');
 });
+
+test('nunca_respondeu: 14 textos de reserva, um por etapa, todos validos e diferentes entre si', () => {
+  const tel = (fatos) => Array.from({ length: 14 }, (_, i) => textoFixo({ sequencia: 'nunca_respondeu', etapa: i + 1, nome: 'Cesar', agora: MANHA, fatos }));
+  for (const fatos of [{}, { documento: 'CNPJ' }, { perfil: 'Pessoa Jurídica (CNPJ)' }, { documento: 'CPF' }]) {
+    const textos = tel(fatos);
+    textos.forEach((t, i) => {
+      const v = validarFollowup(t, { anteriores: textos.slice(0, i) });
+      assert.equal(v.valido, true, `etapa ${i + 1}: ${v.motivo} :: ${t}`);
+    });
+    assert.equal(new Set(textos).size, 14, 'todos diferentes');
+  }
+  const sem = Array.from({ length: 14 }, (_, i) => textoFixo({ sequencia: 'nunca_respondeu', etapa: i + 1, nome: '', agora: TARDE, fatos: {} }));
+  sem.forEach((t, i) => assert.equal(validarFollowup(t, { anteriores: sem.slice(0, i) }).valido, true, `sem nome etapa ${i + 1}: ${t}`));
+  assert.ok(sem.every((t) => !/^,|\s,\s|\{|\}|undefined/.test(t)), 'sem sobras de template');
+});
+
+test('nunca_respondeu: assunto muda para empresa ou pessoa e o texto tem o conteudo da etapa', () => {
+  const t = (etapa, fatos) => textoFixo({ sequencia: 'nunca_respondeu', etapa, nome: 'Ana', agora: MANHA, fatos });
+  assert.match(t(4, { documento: 'CNPJ' }), /^Bom dia, Ana\. Retomando o seu pedido sobre as dívidas bancárias da empresa/);
+  assert.match(t(4, { documento: 'CPF' }), /sobre as suas dívidas bancárias/);
+  assert.match(t(1, {}), /Só confirmando que você recebeu minha mensagem/);
+  assert.match(t(5, {}), /online e gratuita/);
+  assert.match(t(13, {}), /não receber mais mensagens/);
+  assert.match(t(14, { documento: 'CNPJ' }), /última mensagem por enquanto/);
+  assert.equal(t(20, {}), t(14, {}), 'depois da 14 repete a despedida');
+});
+
+test('conversa: textos de reserva continuam os mesmos de antes', () => {
+  assert.match(textoFixo({ sequencia: 'conversa', etapa: 2, nome: 'Ana', agora: MANHA }), /Quando puder, me responde por aqui/);
+  assert.match(textoFixo({ sequencia: 'conversa', etapa: 11, nome: 'Ana', agora: MANHA }), /encerro por aqui/);
+});
+
+test('pedido: nunca_respondeu leva o angulo da etapa e o assunto; conversa nao leva angulo', () => {
+  const base = { tentativa: 1, nome: 'Ana', agora: MANHA, mensagens: [], anteriores: [] };
+  const a = montarPedido({ ...base, sequencia: 'nunca_respondeu', etapa: 5, fatos: { documento: 'CNPJ' } });
+  const d = JSON.parse(a.user);
+  assert.match(d.angulo, /Dr\. Santo/);
+  assert.equal(d.assunto, 'as dívidas bancárias da empresa');
+  assert.match(a.system, /ângulo/);
+  assert.match(a.system, /não cobre/i);
+  const etapas = Array.from({ length: 14 }, (_, i) => JSON.parse(montarPedido({ ...base, sequencia: 'nunca_respondeu', etapa: i + 1, fatos: {} }).user).angulo);
+  assert.equal(new Set(etapas).size, 14, 'um angulo diferente por etapa');
+  assert.equal(JSON.parse(montarPedido({ ...base, sequencia: 'conversa', etapa: 5, fatos: {} }).user).angulo, undefined);
+});
+
+test('escolherTexto usa o texto de reserva da etapa com o assunto do lead', () => {
+  const r = escolherTexto({ sequencia: 'nunca_respondeu', etapa: 11, nome: 'Ana', agora: MANHA, anteriores: [], textoIA: '', textoPreAprovado: '', fatos: { documento: 'CNPJ' } });
+  assert.equal(r.fonte, 'fixo');
+  assert.match(r.texto, /ajuda com as dívidas bancárias da empresa, responda só 'sim'/);
+});

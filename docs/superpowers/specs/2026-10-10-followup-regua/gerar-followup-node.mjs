@@ -29,7 +29,7 @@ return $input.all().map((it, i) => {
   const textoIA = typeof saida.text === 'string' ? saida.text : (typeof saida.output === 'string' ? saida.output : '');
   const e = escolherTexto({
     sequencia: base.lead_sequencia, etapa: base.lead_etapa, nome: ctx.nome || base.lead_nome, agora: new Date(),
-    anteriores: ctx.anteriores, textoIA, textoPreAprovado: base.texto_proximo,
+    anteriores: ctx.anteriores, textoIA, textoPreAprovado: base.texto_proximo, fatos: ctx.fatos,
   });
   return { json: { log_id: base.log_id, modo: base.modo, telefone: ctx.telefone || base.lead_telefone, texto: e.texto, fonte: e.fonte, motivo_rejeicao: e.motivoRejeicao } };
 });
