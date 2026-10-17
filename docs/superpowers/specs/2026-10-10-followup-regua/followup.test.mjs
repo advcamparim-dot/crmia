@@ -33,7 +33,6 @@ test('textos fixos: validos para todas as etapas e com ou sem nome', () => {
   assert.match(textoFixo({ sequencia: 'conversa', etapa: 1, nome: 'Ana', agora: MANHA }), /^Bom dia, Ana\./);
   assert.match(textoFixo({ sequencia: 'conversa', etapa: 5, nome: '', agora: TARDE }), /^Boa tarde\./);
   assert.notEqual(textoFixo({ sequencia: 'conversa', etapa: 1, nome: 'Ana', agora: MANHA }), textoFixo({ sequencia: 'conversa', etapa: 5, nome: 'Ana', agora: MANHA }));
-  assert.match(textoFixo({ sequencia: 'conversa', etapa: 11, nome: 'Ana', agora: MANHA }), /encerro por aqui/);
 });
 
 test('validarFollowup recusa cada problema com o motivo certo', () => {
@@ -101,7 +100,9 @@ test('escolherTexto: pre-aprovado vence; IA valida e usada; IA invalida cai no f
   const sem = escolherTexto({ ...base, textoIA: '' });
   assert.equal(sem.fonte, 'fixo');
   assert.equal(sem.motivoRejeicao, null);
-  const repetido = escolherTexto({ ...base, textoIA: 'Oi, Ana. Quando puder, me responde por aqui para eu continuar o seu atendimento?', anteriores: [textoFixo({ sequencia: 'conversa', etapa: 1, nome: 'Ana', agora: MANHA })] });
+  const anterior = textoFixo({ sequencia: 'conversa', etapa: 1, nome: 'Ana', agora: MANHA });
+  const repetido = escolherTexto({ ...base, textoIA: anterior.replace('Bom dia', 'Oi'), anteriores: [anterior] });
+  assert.equal(repetido.motivoRejeicao, 'repetido');
   assert.equal(repetido.fonte, 'fixo');
 });
 
@@ -131,12 +132,7 @@ test('nunca_respondeu: assunto muda para empresa ou pessoa e o texto tem o conte
   assert.equal(t(20, {}), t(14, {}), 'depois da 14 repete a despedida');
 });
 
-test('conversa: textos de reserva continuam os mesmos de antes', () => {
-  assert.match(textoFixo({ sequencia: 'conversa', etapa: 2, nome: 'Ana', agora: MANHA }), /Quando puder, me responde por aqui/);
-  assert.match(textoFixo({ sequencia: 'conversa', etapa: 11, nome: 'Ana', agora: MANHA }), /encerro por aqui/);
-});
-
-test('pedido: nunca_respondeu leva o angulo da etapa e o assunto; conversa nao leva angulo', () => {
+test('pedido: nunca_respondeu leva o angulo da etapa e o assunto', () => {
   const base = { tentativa: 1, nome: 'Ana', agora: MANHA, mensagens: [], anteriores: [] };
   const a = montarPedido({ ...base, sequencia: 'nunca_respondeu', etapa: 5, fatos: { documento: 'CNPJ' } });
   const d = JSON.parse(a.user);
@@ -146,11 +142,51 @@ test('pedido: nunca_respondeu leva o angulo da etapa e o assunto; conversa nao l
   assert.match(a.system, /não cobre/i);
   const etapas = Array.from({ length: 14 }, (_, i) => JSON.parse(montarPedido({ ...base, sequencia: 'nunca_respondeu', etapa: i + 1, fatos: {} }).user).angulo);
   assert.equal(new Set(etapas).size, 14, 'um angulo diferente por etapa');
-  assert.equal(JSON.parse(montarPedido({ ...base, sequencia: 'conversa', etapa: 5, fatos: {} }).user).angulo, undefined);
 });
 
 test('escolherTexto usa o texto de reserva da etapa com o assunto do lead', () => {
   const r = escolherTexto({ sequencia: 'nunca_respondeu', etapa: 11, nome: 'Ana', agora: MANHA, anteriores: [], textoIA: '', textoPreAprovado: '', fatos: { documento: 'CNPJ' } });
   assert.equal(r.fonte, 'fixo');
   assert.match(r.texto, /ajuda com as dívidas bancárias da empresa, responda só 'sim'/);
+});
+
+test('conversa: 14 textos de reserva, um por etapa, todos validos e diferentes entre si', () => {
+  for (const fatos of [{}, { documento: 'CNPJ' }, { documento: 'CPF' }]) {
+    const textos = Array.from({ length: 14 }, (_, i) => textoFixo({ sequencia: 'conversa', etapa: i + 1, nome: 'Ana', agora: TARDE, fatos }));
+    textos.forEach((t, i) => {
+      const v = validarFollowup(t, { anteriores: textos.slice(0, i) });
+      assert.equal(v.valido, true, `etapa ${i + 1}: ${v.motivo} :: ${t}`);
+    });
+    assert.equal(new Set(textos).size, 14, 'todos diferentes');
+  }
+  const sem = Array.from({ length: 14 }, (_, i) => textoFixo({ sequencia: 'conversa', etapa: i + 1, nome: '', agora: MANHA, fatos: {} }));
+  sem.forEach((t, i) => assert.equal(validarFollowup(t, { anteriores: sem.slice(0, i) }).valido, true, `sem nome etapa ${i + 1}: ${t}`));
+  assert.ok(sem.every((t) => !/^,|\s,\s|\{|\}|undefined/.test(t)), 'sem sobras de template');
+});
+
+test('conversa: conteudo de etapas-chave e despedida depois da 14', () => {
+  const t = (etapa, fatos = {}) => textoFixo({ sequencia: 'conversa', etapa, nome: 'Ana', agora: MANHA, fatos });
+  assert.match(t(1), /^Bom dia, Ana\. Conseguiu ver a minha última mensagem/);
+  assert.match(t(5), /online e gratuita/);
+  assert.match(t(9, { documento: 'CNPJ' }), /sobre as dívidas bancárias da empresa continua em aberto/);
+  assert.match(t(14), /última mensagem por enquanto/);
+  assert.equal(t(30), t(14));
+});
+
+test('conversa e nunca_respondeu nao compartilham o mesmo texto na mesma etapa', () => {
+  for (let e = 1; e <= 14; e++) {
+    const a = textoFixo({ sequencia: 'conversa', etapa: e, nome: 'Ana', agora: MANHA, fatos: {} });
+    const b = textoFixo({ sequencia: 'nunca_respondeu', etapa: e, nome: 'Ana', agora: MANHA, fatos: {} });
+    assert.notEqual(a, b, `etapa ${e}`);
+  }
+});
+
+test('pedido: conversa leva angulo proprio por etapa (14 diferentes) e nao cobra por silencio', () => {
+  const base = { tentativa: 1, nome: 'Ana', agora: MANHA, mensagens: [{ papel: 'lead', texto: 'Tenho um Pronampe.' }], anteriores: [] };
+  const angulos = Array.from({ length: 14 }, (_, i) => JSON.parse(montarPedido({ ...base, sequencia: 'conversa', etapa: i + 1, fatos: {} }).user).angulo);
+  assert.equal(new Set(angulos).size, 14);
+  assert.ok(angulos.every((a) => typeof a === 'string' && a.length > 10));
+  const d = JSON.parse(montarPedido({ ...base, sequencia: 'conversa', etapa: 7, fatos: { documento: 'CNPJ' } }).user);
+  assert.equal(d.assunto, 'as dívidas bancárias da empresa');
+  assert.match(montarPedido({ ...base, sequencia: 'conversa', etapa: 7, fatos: {} }).system, /sequencia. for conversa/);
 });

@@ -45,27 +45,46 @@ const NUNCA_RESPONDEU = [
   { abre: 'N', angulo: 'despedida gentil: última mensagem por enquanto, porta aberta para o futuro, sem pergunta', corpo: (a) => `esta é minha última mensagem por enquanto. Se no futuro precisar de ajuda com ${a}, é só chamar por aqui. Obrigada pela atenção!` },
 ];
 
+// Quem ja conversou: a IA usa o que o lead disse e a pergunta pendente; o texto de reserva e generico, mas proprio da etapa.
+const CONVERSA = [
+  { abre: 'S', angulo: 'retomar a última pergunta pendente com outras palavras, de forma leve, perguntando se o lead conseguiu ver', corpo: () => 'Conseguiu ver a minha última mensagem? Quando puder, me responde por aqui para eu continuar o seu atendimento.' },
+  { abre: 'N', angulo: 'facilitar a resposta: pedir que responda em poucas palavras o que souber agora', corpo: () => 'pode responder em poucas palavras, o que você tiver agora já ajuda a andar com o seu atendimento.' },
+  { abre: 'N', angulo: 'tranquilizar: se o momento está corrido, pode responder com calma e a conversa continua de onde parou, sem fazer pergunta', corpo: () => 'se agora estiver corrido, pode responder com calma. Eu continuo daqui quando você voltar.' },
+  { abre: 'S', angulo: 'resumir em uma frase o que o lead já contou e dizer que falta um ponto para seguir, pedindo para ele responder', corpo: (a) => `Retomando o que conversamos sobre ${a}: ainda falta eu entender um ponto para seguir. Pode me responder por aqui?` },
+  { abre: 'N', angulo: 'oferecer a conversa online e gratuita com o Dr. Santo e verificar um horário', corpo: () => 'quando quiser, o Dr. Santo pode analisar o seu caso em uma conversa online e gratuita. Quer que eu veja um horário?' },
+  { abre: 'N', angulo: 'perguntar qual a maior dificuldade hoje: pagar as parcelas, negociar com o banco ou entender o contrato', corpo: () => 'qual é a sua maior dificuldade hoje: pagar as parcelas, negociar com o banco ou entender o contrato?' },
+  { abre: 'S', angulo: 'perguntar se houve alguma novidade desde a conversa, como nova cobrança, notificação do banco ou processo', corpo: () => 'Desde a nossa conversa, houve alguma novidade, como nova cobrança, notificação do banco ou processo?' },
+  { abre: 'N', angulo: 'flexibilizar: pedir o período do dia que fica melhor para conversar, sem fazer pergunta', corpo: () => 'se o seu horário é apertado, diga o período do dia em que fica melhor para conversarmos e eu me organizo.' },
+  { abre: 'S', angulo: 'lembrar que o atendimento continua em aberto e que basta responder para seguir de onde pararam, sem fazer pergunta', corpo: (a) => `Sua solicitação sobre ${a} continua em aberto por aqui. Se ainda fizer sentido conversar, é só me responder e seguimos de onde paramos.` },
+  { abre: 'N', angulo: 'dizer que tudo bem se já resolveu ou escolheu outro profissional e pedir que avise para atualizar o cadastro', corpo: () => 'se você já resolveu ou preferiu seguir com outro profissional, tudo bem. Pode me avisar para eu atualizar o seu cadastro?' },
+  { abre: 'S', angulo: 'convite curto: responder apenas "sim" para retomar de onde pararam', corpo: (a) => `Se ainda quiser ajuda com ${a}, responda só 'sim' e eu retomo exatamente de onde paramos.` },
+  { abre: 'N', angulo: 'avisar que o cadastro continua aberto por mais alguns dias e que basta pedir para não receber mais mensagens, sem fazer pergunta', corpo: () => 'seu cadastro continua aberto por mais alguns dias. Se preferir não receber mais mensagens, é só me avisar.' },
+  { abre: 'S', angulo: 'oferecer deixar o atendimento em pausa e retomar mais adiante, sem fazer pergunta', corpo: () => 'Posso deixar o seu atendimento em pausa por enquanto. Se quiser retomar mais para frente, é só me chamar por aqui.' },
+  { abre: 'N', angulo: 'despedida gentil: última mensagem por enquanto, porta aberta para o futuro, sem pergunta', corpo: (a) => `esta é minha última mensagem por enquanto. Se precisar de ajuda com ${a} no futuro, é só chamar por aqui. Obrigada pela atenção!` },
+];
+
+const REGUA_TEXTOS = { nunca_respondeu: NUNCA_RESPONDEU, conversa: CONVERSA };
+
+function listaDaSequencia(sequencia) {
+  return REGUA_TEXTOS[sequencia === 'nunca_respondeu' ? 'nunca_respondeu' : 'conversa'];
+}
+
 export function anguloDaEtapa(sequencia, etapa) {
-  if (sequencia !== 'nunca_respondeu') return undefined;
-  const i = Math.min(Math.max(Number(etapa) || 1, 1), NUNCA_RESPONDEU.length) - 1;
-  return NUNCA_RESPONDEU[i].angulo;
+  const lista = listaDaSequencia(sequencia);
+  const i = Math.min(Math.max(Number(etapa) || 1, 1), lista.length) - 1;
+  return lista[i].angulo;
 }
 
 export function textoFixo({ sequencia, etapa, nome, agora, fatos }) {
   const n = primeiroNome(nome);
   const e = Number(etapa) || 1;
-  if (sequencia === 'nunca_respondeu') {
-    const t = NUNCA_RESPONDEU[Math.min(Math.max(e, 1), NUNCA_RESPONDEU.length) - 1];
-    const corpo = t.corpo(assuntoDoLead(fatos));
-    const s = saudacaoPorHora(agora);
-    if (t.abre === 'S') return s + (n ? ', ' + n : '') + '. ' + corpo;
-    if (n) return n + ', ' + corpo;
-    return s + '. ' + corpo.charAt(0).toUpperCase() + corpo.slice(1);
-  }
-  const abertura = saudacaoPorHora(agora) + (n ? ', ' + n : '') + '. ';
-  if (e <= 3) return abertura + 'Quando puder, me responde por aqui para eu continuar o seu atendimento?';
-  if (e <= 9) return abertura + 'Sua solicitação sobre as dívidas bancárias continua em aberto por aqui. Se ainda fizer sentido conversar, é só me responder.';
-  return abertura + 'Passando para saber se ainda precisa de ajuda com a dívida bancária. Se não for mais o momento, é só me avisar que eu encerro por aqui.';
+  const lista = listaDaSequencia(sequencia);
+  const t = lista[Math.min(Math.max(e, 1), lista.length) - 1];
+  const corpo = t.corpo(assuntoDoLead(fatos));
+  const sd = saudacaoPorHora(agora);
+  if (t.abre === 'S') return sd + (n ? ', ' + n : '') + '. ' + corpo;
+  if (n) return n + ', ' + corpo;
+  return sd + '. ' + corpo.charAt(0).toUpperCase() + corpo.slice(1);
 }
 
 const PROMESSA_PRESSAO = /garant|100\s*%|certeza|assegur|ganh(ar|amos) a causa|sem risco|gr[aá]tis|de gra[cç]a|[uú]ltim[oa]\s+(aviso|chance|oportunidade|tentativa)|voc[eê]\s+(pode|vai|corre o risco de)\s+perder|urgente|prazo\s+(vence|acaba|termina)|n[aã]o\s+perca/i;
@@ -113,6 +132,7 @@ const SYSTEM = [
   'Seja direta e honesta: não diga que estava pensando, refletindo ou lembrando do lead, nem finja ações humanas; não use exclamações exageradas nem mais de uma saudação.',
   'Não use links, não prometa resultado, não dê opinião jurídica, não peça documentos, não pressione.',
   'Se houver "angulo", escreva a mensagem seguindo exatamente esse ângulo: ele é o foco desta etapa, e cada etapa deve soar diferente das anteriores. Use "assunto" para falar da dívida.',
+  'Se "sequencia" for conversa, o lead já conversou com a Mayara: aproveite o que ele disse e a pergunta pendente, sem repetir a mesma pergunta com as mesmas palavras.',
   'Se "sequencia" for nunca_respondeu, o lead nunca respondeu: não diga que ele disse algo, não cobre por não ter respondido e use apenas os fatos do cadastro.',
   'Devolva somente o texto da mensagem.',
 ].join('\n');
@@ -128,7 +148,8 @@ export function montarPedido({ sequencia, etapa, tentativa, nome, agora, mensage
       sequencia: sequencia === 'nunca_respondeu' ? 'nunca_respondeu' : 'conversa',
       etapa: Number(etapa) || 1,
       tentativa: Number(tentativa) || 1,
-      ...(sequencia === 'nunca_respondeu' ? { angulo: anguloDaEtapa(sequencia, etapa), assunto: assuntoDoLead(fatos) } : {}),
+      angulo: anguloDaEtapa(sequencia, etapa),
+      assunto: assuntoDoLead(fatos),
       mensagens: msgs,
       fatos: fatos && typeof fatos === 'object' ? fatos : {},
       followups_anteriores: (Array.isArray(anteriores) ? anteriores : []).slice(-5).map((a) => String(a).slice(0, 400)),
