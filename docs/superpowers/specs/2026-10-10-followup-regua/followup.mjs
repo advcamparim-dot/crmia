@@ -96,7 +96,7 @@ export function textoFixo({ sequencia, etapa, nome, agora, fatos }) {
 
 const PROMESSA_PRESSAO = /garant|100\s*%|certeza|assegur|ganh(ar|amos) a causa|sem risco|gr[aá]tis|de gra[cç]a|[uú]ltim[oa]\s+(aviso|chance|oportunidade|tentativa)|voc[eê]\s+(pode|vai|corre o risco de)\s+perder|urgente|prazo\s+(vence|acaba|termina)|n[aã]o\s+perca/i;
 const OPINIAO_JURIDICA = /voc[eê]\s+(tem|ter[aá])\s+direito|cl[aá]usulas?\s+abusivas?|juros\s+abusivos|revis[aã]o\s+de\s+juros\s+garantida/i;
-const FINGE_ACAO_HUMANA = /(estava|estive)\s+(aqui\s+)?(pensando|refletindo|lembrando|me\s+lembrando)|fiquei\s+pensando|lembrei\s+(de\s+)?voc[eê]|passei\s+aqui\s+para\s+ver/i;
+const FINGE_ACAO_HUMANA = /(estava|estive)\s+(aqui\s+)?(pensando|refletindo|lembrando|me\s+lembrando)|fiquei\s+pensando|lembrei\s+(de\s+)?voc[eê]|passei\s+aqui\s+para\s+ver|pensando\s+(aqui|no\s+seu\s+caso|em\s+voc[eê])/i;
 const PEDE_DOCUMENTO = /(envie|mande|me\s+envie|me\s+mande|anexe|encaminhe)\b.{0,40}\b(contrato|extrato|documento|cnpj|cpf|comprovante)/i;
 
 function normalizar(t) {

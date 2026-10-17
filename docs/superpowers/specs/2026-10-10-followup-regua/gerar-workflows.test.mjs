@@ -19,7 +19,8 @@ test('Worker: estrutura valida e caminho seguro (reserva, contexto, revalida ant
   verificar(wf);
   const por = (n) => wf.nodes.find((x) => x.name === n);
   assert.deepEqual(por('A Cada 5 Minutos').parameters.rule.interval[0], { field: 'minutes', minutesInterval: 5 });
-  assert.match(por('Reservar').parameters.query, /reservar_followups\(now\(\), 5\)/);
+  // o envio (Canal: Enviar) processa um item por vez: reservar mais de um deixa os demais presos como 'reservado'
+  assert.match(por('Reservar').parameters.query, /reservar_followups\(now\(\), 1\)/);
   assert.match(por('Reservar').parameters.query, /contexto_followup\(r\.log_id\)/);
   assert.match(por('Revalidar').parameters.query, /followup_ainda_valido/);
   // o envio so e alcancavel depois de Valido? (true) e Simulacao? (false)

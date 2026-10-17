@@ -52,6 +52,9 @@ test('validarFollowup recusa cada problema com o motivo certo', () => {
   assert.equal(m('Me envie o contrato e o extrato por aqui.'), 'pede_documento');
   assert.equal(m('Estava aqui pensando na sua situação. Ainda precisa de ajuda?'), 'finge_acao_humana');
   assert.equal(m('Fiquei pensando no seu caso, ainda faz sentido conversar?'), 'finge_acao_humana');
+  assert.equal(m('Pensando aqui no seu caso: hoje a maior dificuldade é pagar as parcelas?'), 'finge_acao_humana');
+  assert.equal(m('Estou pensando em você e no seu caso. Ainda precisa de ajuda?'), 'finge_acao_humana');
+  assert.equal(m('Boa tarde, Ana. Ainda faz sentido conversarmos sobre o seu caso?'), undefined);
   assert.equal(m('Qual o banco? E qual o valor?'), 'perguntas');
   assert.equal(m('Oi, Ana. Tudo bem? Ainda precisa de ajuda com a dívida?'), undefined);
 });

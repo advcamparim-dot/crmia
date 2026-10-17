@@ -29,7 +29,7 @@ export function montarWorker() {
     pg(id('f1', 2), 'Fechar Ciclos', [220, 80], 'select * from mayara.followups_fechar_ciclos()', null, { onError: 'continueRegularOutput' }),
     codigo(id('f1', 3), 'Montar Aviso', [440, 80], "return $input.all().map((it) => { const r = it.json; const nome = r.lead_nome || 'Um lead'; return { json: { texto: 'Atenção: ' + nome + ' ' + (r.motivo === 'teto' ? 'recebeu ' + r.enviados + ' follow-ups sem responder e atingiu o limite' : 'esgotou a sequência de follow-ups') + '. A régua parou e o lead ficou em revisão humana. Decida se vale um novo contato.' } }; });"),
     sub(id('f1', 4), 'Alertar Escritório', [660, 80], ALERTAR, { texto: '={{ $json.texto }}' }, false, { onError: 'continueRegularOutput' }),
-    pg(id('f1', 5), 'Reservar', [220, 300], 'select r.*, mayara.contexto_followup(r.log_id) as ctx from mayara.reservar_followups(now(), 5) r'),
+    pg(id('f1', 5), 'Reservar', [220, 300], 'select r.*, mayara.contexto_followup(r.log_id) as ctx from mayara.reservar_followups(now(), 1) r'),
     codigo(id('f1', 6), 'Montar Pedido', [440, 300], corpoPedido),
     { id: id('f1', 7), name: 'Gerar Texto', type: '@n8n/n8n-nodes-langchain.chainLlm', typeVersion: 1.9, position: [660, 300], onError: 'continueRegularOutput',
       parameters: { promptType: 'define', text: '={{ $json.prompt }}' } },
