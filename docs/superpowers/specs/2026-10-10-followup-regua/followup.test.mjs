@@ -56,6 +56,13 @@ test('validarFollowup recusa cada problema com o motivo certo', () => {
   assert.equal(m('Estou pensando em você e no seu caso. Ainda precisa de ajuda?'), 'finge_acao_humana');
   assert.equal(m('Boa tarde, Ana. Ainda faz sentido conversarmos sobre o seu caso?'), undefined);
   assert.equal(m('Qual o banco? E qual o valor?'), 'perguntas');
+  // pergunta feita na pessoa errada: "Recebi alguma ...?" pergunta ao lead como se fosse a Mayara
+  assert.equal(m('Boa tarde, Saad\n\nRecebi alguma notificação nova do banco ou cobrança nesse período?'), 'pergunta_pessoa_errada');
+  assert.equal(m('Boa tarde, Ana. Tudo bem? Recebi alguma cobrança nova?'), 'pergunta_pessoa_errada');
+  assert.equal(m('Ana, recebi alguma coisa sua por e-mail?'), 'pergunta_pessoa_errada');
+  assert.equal(validarFollowup('Boa tarde, Ana. Recebi seu contato sobre dívidas bancárias, mas ficamos sem retorno. Posso te ajudar?', { anteriores: [] }).valido, true, 'afirmacao da Mayara continua valida');
+  assert.equal(validarFollowup('Boa tarde, Ana. Você recebeu alguma notificação nova do banco?', { anteriores: [] }).valido, true, 'pergunta ao lead continua valida');
+  assert.equal(validarFollowup('Boa tarde, Ana. Recebi sua mensagem. Houve alguma novidade desde então?', { anteriores: [] }).valido, true, 'recebi em frase sem pergunta continua valido');
   assert.equal(m('Oi, Ana. Tudo bem? Ainda precisa de ajuda com a dívida?'), undefined);
 });
 

@@ -97,6 +97,8 @@ export function textoFixo({ sequencia, etapa, nome, agora, fatos }) {
 const PROMESSA_PRESSAO = /garant|100\s*%|certeza|assegur|ganh(ar|amos) a causa|sem risco|gr[aá]tis|de gra[cç]a|[uú]ltim[oa]\s+(aviso|chance|oportunidade|tentativa)|voc[eê]\s+(pode|vai|corre o risco de)\s+perder|urgente|prazo\s+(vence|acaba|termina)|n[aã]o\s+perca/i;
 const OPINIAO_JURIDICA = /voc[eê]\s+(tem|ter[aá])\s+direito|cl[aá]usulas?\s+abusivas?|juros\s+abusivos|revis[aã]o\s+de\s+juros\s+garantida/i;
 const FINGE_ACAO_HUMANA = /(estava|estive)\s+(aqui\s+)?(pensando|refletindo|lembrando|me\s+lembrando)|fiquei\s+pensando|lembrei\s+(de\s+)?voc[eê]|passei\s+aqui\s+para\s+ver|pensando\s+(aqui|no\s+seu\s+caso|em\s+voc[eê])/i;
+// "Recebi alguma ...?": pergunta feita ao lead com o verbo na primeira pessoa (quem recebeu seria a Mayara, nao o lead).
+const PERGUNTA_PESSOA_ERRADA = /(^|[.!?:]\s+|\n\s*|,\s+)recebi\b[^.!?\n]*\?/i;
 const PEDE_DOCUMENTO = /(envie|mande|me\s+envie|me\s+mande|anexe|encaminhe)\b.{0,40}\b(contrato|extrato|documento|cnpj|cpf|comprovante)/i;
 
 function normalizar(t) {
@@ -123,6 +125,7 @@ export function validarFollowup(texto, { anteriores = [] } = {}) {
   if (OPINIAO_JURIDICA.test(t)) return { valido: false, motivo: 'opiniao_juridica' };
   if (PEDE_DOCUMENTO.test(t)) return { valido: false, motivo: 'pede_documento' };
   if (FINGE_ACAO_HUMANA.test(t)) return { valido: false, motivo: 'finge_acao_humana' };
+  if (PERGUNTA_PESSOA_ERRADA.test(t)) return { valido: false, motivo: 'pergunta_pessoa_errada' };
   if ((t.replace(/tudo bem\?/gi, '').match(/\?/g) || []).length > 1) return { valido: false, motivo: 'perguntas' };
   for (const a of Array.isArray(anteriores) ? anteriores : []) {
     if (parecidos(t, a)) return { valido: false, motivo: 'repetido' };
@@ -141,6 +144,7 @@ const SYSTEM = [
   'Se houver "angulo", escreva a mensagem seguindo exatamente esse ângulo: ele é o foco desta etapa, e cada etapa deve soar diferente das anteriores. Use "assunto" para falar da dívida.',
   'Se "sequencia" for conversa, o lead já conversou com a Mayara: aproveite o que ele disse e a pergunta pendente, sem repetir a mesma pergunta com as mesmas palavras.',
   'Se "sequencia" for nunca_respondeu, o lead nunca respondeu: não diga que ele disse algo, não cobre por não ter respondido e use apenas os fatos do cadastro.',
+  'Quando perguntar se o lead recebeu algo (cobrança, notificação), use a segunda pessoa: "Você recebeu...?". Nunca escreva "Recebi...?", porque quem recebe a pergunta é o lead.',
   'Evite repetir "sua" e "suas" (ou "seu" e "suas") na mesma frase; prefira "as dívidas bancárias" quando a frase já tiver um possessivo.',
   'Devolva somente o texto da mensagem.',
 ].join('\n');
