@@ -124,7 +124,7 @@ test('nunca_respondeu: 14 textos de reserva, um por etapa, todos validos e difer
 test('nunca_respondeu: assunto muda para empresa ou pessoa e o texto tem o conteudo da etapa', () => {
   const t = (etapa, fatos) => textoFixo({ sequencia: 'nunca_respondeu', etapa, nome: 'Ana', agora: MANHA, fatos });
   assert.match(t(4, { documento: 'CNPJ' }), /^Bom dia, Ana\. Retomando o seu pedido sobre as dívidas bancárias da empresa/);
-  assert.match(t(4, { documento: 'CPF' }), /sobre as suas dívidas bancárias/);
+  assert.match(t(4, { documento: 'CPF' }), /Retomando o seu pedido sobre as dívidas bancárias: você já recebeu/);
   assert.match(t(1, {}), /Só confirmando que você recebeu minha mensagem/);
   assert.match(t(5, {}), /online e gratuita/);
   assert.match(t(13, {}), /não receber mais mensagens/);
@@ -189,4 +189,25 @@ test('pedido: conversa leva angulo proprio por etapa (14 diferentes) e nao cobra
   const d = JSON.parse(montarPedido({ ...base, sequencia: 'conversa', etapa: 7, fatos: { documento: 'CNPJ' } }).user);
   assert.equal(d.assunto, 'as dívidas bancárias da empresa');
   assert.match(montarPedido({ ...base, sequencia: 'conversa', etapa: 7, fatos: {} }).system, /sequencia. for conversa/);
+});
+
+test('pessoa fisica: nenhum texto de reserva repete "sua" e "suas" na mesma frase', () => {
+  for (const sequencia of ['nunca_respondeu', 'conversa']) {
+    for (let e = 1; e <= 14; e++) {
+      for (const fatos of [{}, { documento: 'CPF' }, { documento: 'CNPJ' }]) {
+        const t = textoFixo({ sequencia, etapa: e, nome: 'Ana', agora: MANHA, fatos });
+        for (const frase of t.split(/(?<=[.?!])\s+/)) {
+          assert.ok(!(/\bseu\b|\bsua\b/i.test(frase) && /\bsuas\b/i.test(frase)), `${sequencia} e${e}: ${frase}`);
+        }
+      }
+    }
+  }
+  const t9 = textoFixo({ sequencia: 'nunca_respondeu', etapa: 9, nome: 'Cristina', agora: MANHA, fatos: {} });
+  assert.match(t9, /Sua solicitação sobre as dívidas bancárias continua registrada aqui/);
+  const c9 = textoFixo({ sequencia: 'conversa', etapa: 9, nome: 'Ana', agora: MANHA, fatos: {} });
+  assert.match(c9, /Sua solicitação sobre as dívidas bancárias continua em aberto/);
+});
+
+test('prompt pede para nao repetir "sua" e "suas" na mesma frase', () => {
+  assert.match(montarPedido({ sequencia: 'conversa', etapa: 1, tentativa: 1, nome: 'Ana', agora: MANHA, mensagens: [], fatos: {}, anteriores: [] }).system, /sua.*suas/);
 });
