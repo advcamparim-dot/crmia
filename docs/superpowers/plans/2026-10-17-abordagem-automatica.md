@@ -739,3 +739,11 @@ git commit -m "docs(handoff): liberacao automatica de atendimento para leads nov
 - **Cobertura:** seleção e aprovação automática (Task 2), notificação sem ruído (Task 3), envio e registro (Task 4), operação pelo administrador (Task 5), agenda e piloto (Tasks 1 e 6). A falha de 16/10 (Google Calendar) está na Task 1 como pré-condição de ligar.
 - **Pendência declarada:** a Task 5 tem o detalhe de código para escrever no início dela, porque depende de ler o `executar_central` vivo; isso está dito na própria tarefa e não é um espaço em branco escondido.
 - **Consistência de nomes:** `abordagem_auto_proximo`, `abordagem_auto_registrar`, `abordagem_auto_resumo`, `abordagem_automatica`, `abordagem_auto_teto_hora` e `origem = 'abordagem_automatica'` aparecem iguais nas Tasks 2 a 6.
+
+## Registro de execução
+
+- **Task 2 concluída em 17/10** (`OK 0059`, migration aplicada; chave `abordagem_automatica = false`).
+  - Ruling: a tabela `propostas_abordagem` ainda não tem a coluna `tipo` (a reativação em massa não foi implantada); o filtro `tipo = 'abordagem'` foi removido da migration. Quando a reativação criar a coluna, acrescentar o filtro em `abordagem_auto_proximo` antes de ligar a reativação. Custo se esquecido: propostas de reativação seriam enviadas sem aprovação individual.
+  - Ruling: `administradores.telefone_chave` é coluna gerada; o teste insere só `telefone` e `nome`.
+  - Ruling: o teste usa horários simulados (`segunda`) também nas janelas de 48 h e de 1 hora; o desempate `id desc` foi acrescentado à contagem das três últimas falhas (em produção os horários diferem, no teste são idênticos). Aplicado como `apply_migration` adicional (`..._desempate_falhas`) e incorporado ao arquivo da 0059.
+  - Regressão dos testes antigos (0033 a 0036, 0050) dispensada: nenhuma função existente foi alterada, só funções novas e duas chaves de configuração.
