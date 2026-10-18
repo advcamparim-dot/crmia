@@ -3,7 +3,7 @@
 import { createHmac, timingSafeEqual } from 'crypto';
 import { headers } from 'next/headers';
 import { redirect } from 'next/navigation';
-import { createSessionCookie, clearSessionCookie } from '@/lib/session';
+import { createSessionCookie, revokeSessionCookie } from '@/lib/session';
 import { createLimiter, clientKeyFromHeaders, type Limiter } from '@/lib/rate-limit';
 
 // Limite de tentativas de login por IP. O estado fica na memoria do processo: vale para uma
@@ -39,6 +39,6 @@ export async function login(formData: FormData): Promise<void> {
 }
 
 export async function logout(): Promise<void> {
-  await clearSessionCookie();
+  await revokeSessionCookie();
   redirect('/login');
 }

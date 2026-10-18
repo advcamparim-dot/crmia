@@ -63,12 +63,12 @@ export async function getComercial(period: Period): Promise<Comercial> {
   };
 }
 
-export interface FunilEstagio {
+export interface ProducaoEstagio {
   estagio: string;
   quantidade: number;
 }
 
-export async function getFunil(period: Period): Promise<FunilEstagio[]> {
+export async function getProducaoNoPeriodo(period: Period): Promise<ProducaoEstagio[]> {
   const pool = getPool();
   const { rows } = await pool.query(
     `select
@@ -81,11 +81,11 @@ export async function getFunil(period: Period): Promise<FunilEstagio[]> {
   );
   const row = rows[0];
   return [
-    { estagio: 'Leads', quantidade: Number(row.leads) },
-    { estagio: 'Qualificados', quantidade: Number(row.qualificados) },
-    { estagio: 'Consultas', quantidade: Number(row.consultas) },
-    { estagio: 'Propostas', quantidade: Number(row.propostas) },
-    { estagio: 'Contratos', quantidade: Number(row.contratos) }
+    { estagio: 'Leads novos', quantidade: Number(row.leads) },
+    { estagio: 'Leads qualificados', quantidade: Number(row.qualificados) },
+    { estagio: 'Consultas realizadas', quantidade: Number(row.consultas) },
+    { estagio: 'Propostas enviadas', quantidade: Number(row.propostas) },
+    { estagio: 'Contratos assinados', quantidade: Number(row.contratos) }
   ];
 }
 

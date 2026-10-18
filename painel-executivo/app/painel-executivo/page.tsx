@@ -4,14 +4,14 @@ import { resolvePeriod, type PeriodPreset } from '@/lib/period';
 import {
   getResumo,
   getComercial,
-  getFunil,
+  getProducaoNoPeriodo,
   getFinanceiro,
   getJuridico,
   getAlertas,
   getLastSyncedAt,
   type Resumo,
   type Comercial,
-  type FunilEstagio,
+  type ProducaoEstagio,
   type Financeiro,
   type Juridico,
   type Alerta
@@ -34,7 +34,7 @@ const COMERCIAL_FALLBACK: Comercial = {
   ticketMedio: 0
 };
 
-const FUNIL_FALLBACK: FunilEstagio[] = [];
+const PRODUCAO_FALLBACK: ProducaoEstagio[] = [];
 
 const FINANCEIRO_FALLBACK: Financeiro = {
   valorAReceber: 0,
@@ -83,11 +83,11 @@ export default async function PainelExecutivoPage({
   const presetKey = (PRESETS.find((p) => p.key === searchParams.periodo)?.key ?? '30d') as PeriodPreset;
   const period = resolvePeriod(presetKey);
 
-  const [resumoResult, comercialResult, funilResult, financeiroResult, juridicoResult, alertasResult, lastSyncedAtResult] =
+  const [resumoResult, comercialResult, producaoResult, financeiroResult, juridicoResult, alertasResult, lastSyncedAtResult] =
     await Promise.allSettled([
       getResumo(period),
       getComercial(period),
-      getFunil(period),
+      getProducaoNoPeriodo(period),
       getFinanceiro(),
       getJuridico(),
       getAlertas(),
@@ -96,7 +96,7 @@ export default async function PainelExecutivoPage({
 
   const resumo = unwrap(resumoResult, 'resumo', RESUMO_FALLBACK);
   const comercial = unwrap(comercialResult, 'comercial', COMERCIAL_FALLBACK);
-  const funil = unwrap(funilResult, 'funil', FUNIL_FALLBACK);
+  const producao = unwrap(producaoResult, 'produção no período', PRODUCAO_FALLBACK);
   const financeiro = unwrap(financeiroResult, 'financeiro', FINANCEIRO_FALLBACK);
   const juridico = unwrap(juridicoResult, 'jurídico', JURIDICO_FALLBACK);
   const alertas = unwrap(alertasResult, 'alertas', ALERTAS_FALLBACK);
@@ -105,7 +105,7 @@ export default async function PainelExecutivoPage({
   const dadosDesatualizados =
     lastSyncedAt !== null && Date.now() - lastSyncedAt.getTime() > 15 * 60 * 1000;
 
-  const maiorFunil = Math.max(...funil.map((f) => f.quantidade), 1);
+  const maiorProducao = Math.max(...producao.map((f) => f.quantidade), 1);
 
   return (
     <div className="wrap">
@@ -203,16 +203,16 @@ export default async function PainelExecutivoPage({
       </section>
 
       <div className="cols">
-        <section aria-labelledby="funil">
-          <h2 id="funil">Funil comercial</h2>
-          {funil.map((estagio, i) => (
-            <div className={`funnel-row${i === funil.length - 1 ? ' final' : ''}`} key={estagio.estagio}>
+        <section aria-labelledby="producao">
+          <h2 id="producao">Produção no período</h2>
+          {producao.map((estagio, i) => (
+            <div className={`funnel-row${i === producao.length - 1 ? ' final' : ''}`} key={estagio.estagio}>
               <span className="stage">{estagio.estagio}</span>
               <div className="funnel-track">
                 <div
                   className="funnel-fill"
                   style={{
-                    width: `${(estagio.quantidade / maiorFunil) * 100}%`,
+                    width: `${(estagio.quantidade / maiorProducao) * 100}%`,
                     background: `var(--g${Math.min(i + 1, 4)})`
                   }}
                 />
@@ -220,7 +220,7 @@ export default async function PainelExecutivoPage({
               <span className="n tabular">{estagio.quantidade}</span>
             </div>
           ))}
-          <p className="funnel-caption">Largura proporcional ao maior estágio do período.</p>
+          <p className="funnel-caption">Itens realizados no período; não representa coorte nem taxa de conversão.</p>
         </section>
 
         <section aria-labelledby="financeiro">
