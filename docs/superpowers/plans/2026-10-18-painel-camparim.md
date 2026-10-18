@@ -123,3 +123,13 @@
 - **Tamanho:** o plano é curto de propósito. Código só aparece como assinaturas, nomes de teste e asserções; as etapas 2 a 4 ganham planos próprios, como o design determina.
 - **Consistência de nomes:** `Carregado`, `carregar`, `texto`, `construirSsl`, `criarSessao`, `validarSessao`, `revogarSessao` e `painel.sessao_*` aparecem iguais nas tasks que os usam.
 - **Risco declarado:** a Task 1 depende de obter a CA do Supabase (passo 1) e a Task 4 depende de o Dr. Santo fazer o deploy no Coolify.
+
+## Registro de execução
+
+- **Task 1 concluída em 18/10** (32/32 testes do painel, `tsc` limpo, `next build` ok).
+  - Reprodução do defeito: com `ssl: true`, a conexão ao pooler do Supabase falha com `SELF_SIGNED_CERT_IN_CHAIN`; com a CA do Supabase e `rejectUnauthorized: true`, o handshake passa (o erro restante é só de usuário/senha, como esperado sem credenciais).
+  - CA: "Supabase Root 2021 CA" (autoassinada, válida até 26/04/2031), SHA-256 `80:70:25:AD:50:D4:ED:21:9D:2C:9C:7D:29:9C:00:4F:82:4E:B0:0C:F7:F6:5A:FE:F6:07:D0:7B:72:E6:CA:FA`, idêntica ao certificado oficial publicado pelo Supabase (conferido). Guardada como constante em `lib/supabase-ca.ts` (vai dentro do `.next`; confirmado no bundle do servidor).
+  - Ruling: obtive a CA pelo pooler público (sem credenciais) e a confirmei contra o arquivo oficial, em vez de pedir host e porta ao Dr. Santo.
+  - Ruling: acrescentei `limparConexao`, não previsto no plano: o `pg` deixa a URL sobrescrever o objeto `ssl`, então um `?sslmode=require` na `SUPABASE_DB_URL` de produção anularia a CA. A função remove só os parâmetros de ssl.
+  - Ruling: a rota `/api/saude` usa importação relativa (o Vitest não tem o alias `@`).
+  - Healthcheck do `Dockerfile` agora é `/api/saude`.
