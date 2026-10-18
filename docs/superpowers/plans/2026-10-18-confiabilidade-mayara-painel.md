@@ -22,10 +22,9 @@
 ## Foco de revisão
 
 1. Uma resposta humana após saída automática deve impedir follow-up, mesmo quando a origem é `abordagem_automatica`.
-2. Uma proposta manual aberta não pode aparecer no worker automático; uma explicitamente liberada pode.
-3. Um número com e sem nono dígito deve ter uma única mensagem de proposta na sessão canônica.
-4. Token válido, adulterado, expirado e revogado precisam ter resultados distintos e testados.
-5. Nenhuma alteração desta entrega pode mudar configuração ou teto da abordagem automática.
+2. Um número com e sem nono dígito deve ter uma única mensagem de proposta na sessão canônica.
+3. Token válido, adulterado, expirado e revogado precisam ter resultados distintos e testados.
+4. Nenhuma alteração desta entrega pode mudar a seleção, configuração, teto ou cadência da abordagem automática.
 
 ## Estrutura de arquivos
 
@@ -48,14 +47,13 @@
 
 **Interfaces:**
 - Consome: `mayara._ultima_saida(text)`, `mayara.followups_elegiveis(timestamptz)`, `mayara.sessao_do_lead(text,text)`, `mayara.confirmar_envio_proposta(bigint,boolean,text)`, `mayara.abordagem_auto_proximo(timestamptz)`.
-- Produz: coluna `mayara.propostas_abordagem.liberacao_automatica boolean not null default false`; as mesmas assinaturas públicas de função.
+- Produz: as mesmas assinaturas públicas de função; a seleção da abordagem automática é preservada.
 
 - [ ] Escrever teste SQL que insira envio `ok` de origem `abordagem_automatica`, sem entrada posterior, e confirme elegibilidade na primeira etapa devida; inserir entrada posterior e confirmar exclusão.
 - [ ] Executar o teste contra a base com migrations atuais; esperar falha porque `_ultima_saida` não reconhece a origem automática.
-- [ ] Escrever teste SQL que crie duas propostas abertas, uma manual e outra com `liberacao_automatica = true`, e confirme que `abordagem_auto_proximo` só reserva a liberada; confirmar também que a migration não altera `abordagem_automatica`, teto ou janela.
 - [ ] Escrever teste em `0035_propostas_acoes.test.sql` com variantes de telefone 8/9 dígitos e confirmar que `confirmar_envio_proposta(..., true, ...)` grava uma única mensagem AI na chave de `sessao_do_lead`.
 - [ ] Executar os testes novos; esperar falhas pelos comportamentos ausentes.
-- [ ] Implementar a migration `0065`: adicionar a coluna com `default false`; incluir `abordagem_automatica` na lista de origens de `_ultima_saida`; limitar `abordagem_auto_proximo` a propostas abertas com `liberacao_automatica`; usar `mayara.sessao_do_lead(p.telefone, 'whatsapp:escritorio:' || p.telefone)` antes da inserção no histórico.
+- [ ] Implementar a migration `0065`: incluir `abordagem_automatica` na lista de origens de `_ultima_saida`; usar `mayara.sessao_do_lead(p.telefone, 'whatsapp:escritorio:' || p.telefone)` antes da inserção no histórico; não substituir nem reconfigurar `abordagem_auto_proximo`.
 - [ ] Executar os testes SQL específicos e a suite SQL relevante; esperar aprovação sem alteração de configuração automática.
 - [ ] Commit: `fix(mayara): preserve followup and canonical proposal history`.
 

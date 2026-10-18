@@ -7,12 +7,11 @@ Corrigir os fluxos de continuidade e rastreabilidade da Mayara, melhorar a leitu
 ## Escopo aprovado
 
 1. Uma saída registrada como `abordagem_automatica` deve iniciar normalmente a régua de follow-up, sujeita às mesmas pausas, limites e respostas humanas das demais origens.
-2. Uma proposta aberta só poderá ser coletada por automações se tiver liberação explícita para aquele fluxo. Propostas manuais existentes permanecem manuais por padrão.
-3. Todo envio de proposta deve registrar o histórico na sessão canônica retornada por `mayara.sessao_do_lead`, inclusive números com e sem nono dígito.
-4. O painel deve deixar de apresentar contagens independentes como funil. Nesta entrega, a área passa a representar produção por período; funil por coorte é evolução posterior, pois exige vínculos históricos entre todas as etapas.
-5. Login do painel deve usar sessão revogável no servidor: logout invalida o token, mesmo se ele tiver sido copiado.
-6. A operação deve ter timeout explícito e saída segura para chamadas de modelo de linguagem, além de checklist verificável de migrations e workflows.
-7. A atualização de dependências vulneráveis do painel será feita como tarefa isolada e controlada: atualizar para a versão segura compatível, executar testes, build e teste manual de login. Não usar atualização forçada.
+2. Todo envio de proposta deve registrar o histórico na sessão canônica retornada por `mayara.sessao_do_lead`, inclusive números com e sem nono dígito.
+3. O painel deve deixar de apresentar contagens independentes como funil. Nesta entrega, a área passa a representar produção por período; funil por coorte é evolução posterior, pois exige vínculos históricos entre todas as etapas.
+4. Login do painel deve usar sessão revogável no servidor: logout invalida o token, mesmo se ele tiver sido copiado.
+5. A operação deve ter timeout explícito e saída segura para chamadas de modelo de linguagem, além de checklist verificável de migrations e workflows.
+6. A atualização de dependências vulneráveis do painel será feita como tarefa isolada e controlada: atualizar para a versão segura compatível, executar testes, build e teste manual de login. Não usar atualização forçada.
 
 ## Fora de escopo
 
@@ -24,7 +23,7 @@ Corrigir os fluxos de continuidade e rastreabilidade da Mayara, melhorar a leitu
 
 ### Mayara: origem, propostas e sessão
 
-A migration de correção ampliará a lista de origens aceitas por `mayara._ultima_saida` para incluir `abordagem_automatica`; assim, `followups_elegiveis` continua sendo a única fonte de decisão para a régua. Um campo booleano de liberação automática, com padrão `false`, será armazenado em `mayara.propostas_abordagem`. O seletor automático deverá consultar somente registros abertos e liberados, sem reinterpretar propostas anteriores.
+A migration de correção ampliará a lista de origens aceitas por `mayara._ultima_saida` para incluir `abordagem_automatica`; assim, `followups_elegiveis` continua sendo a única fonte de decisão para a régua. A seleção, cadência e configuração da abordagem automática permanecem intocadas.
 
 `mayara.confirmar_envio_proposta` deve resolver a chave de sessão por `mayara.sessao_do_lead(p.telefone, chave_sugerida)` antes de inserir no histórico. A proposta e a confirmação permanecem idempotentes.
 
@@ -40,9 +39,8 @@ O módulo que chama modelo livre receberá timeout configurável e retorno segur
 
 ## Dados e compatibilidade
 
-- Propostas existentes recebem `liberacao_automatica = false` implicitamente pelo `DEFAULT false`.
 - Sessões emitidas antes da migration não serão revogáveis; a implantação invalida-as uma vez, exigindo novo login no painel.
-- Os comandos existentes de proposta não mudam de assinatura. A liberação automática será uma ação explícita do fluxo que a utiliza.
+- Os comandos existentes de proposta e a abordagem automática não mudam de assinatura nem de comportamento.
 - Nenhum dado de lead, conversa ou proposta é removido.
 
 ## Tratamento de falhas
@@ -55,12 +53,11 @@ O módulo que chama modelo livre receberá timeout configurável e retorno segur
 ## Testes e aceitação
 
 1. Uma saída `abordagem_automatica` sem resposta torna-se elegível no horário correto; uma resposta humana bloqueia a régua.
-2. Proposta manual aberta não é selecionada; proposta explicitamente liberada é selecionada.
-3. Envio de proposta para variante de telefone grava apenas na sessão canônica.
-4. Token válido passa; token adulterado, expirado ou revogado falha; logout invalida seu token.
-5. Painel rotula as quantidades como Produção no período, sem promessa de conversão.
-6. Timeout de modelo retorna contingência previsível.
-7. Suite de testes, testes do painel e build passam após cada conjunto de mudanças.
+2. Envio de proposta para variante de telefone grava apenas na sessão canônica.
+3. Token válido passa; token adulterado, expirado ou revogado falha; logout invalida seu token.
+4. Painel rotula as quantidades como Produção no período, sem promessa de conversão.
+5. Timeout de modelo retorna contingência previsível.
+6. Suite de testes, testes do painel e build passam após cada conjunto de mudanças.
 
 ## Decisões
 

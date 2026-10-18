@@ -1,7 +1,7 @@
 -- supabase/tests/0035_propostas_acoes.test.sql
 begin;
 do $t$
-declare r jsonb; v_id bigint; v_id2 bigint; t text; n int;
+declare r jsonb; v_id bigint; v_id2 bigint; v_canonica text; t text; n int;
 begin
   -- aprovar: fluxo feliz
   v_id := (mayara.criar_proposta('+5511999990901', 'Bia Teste', 'crm-b1', 'Boa tarde, Bia. Qual banco?', '{"valorAproximado":"50 mil","origemLead":"grupo_agencia"}'::jsonb, 'banco(s) envolvido(s) na dívida') ->> 'id')::bigint;
@@ -33,6 +33,16 @@ begin
   assert (select estado from mayara.propostas_abordagem where id = v_id2) = 'falhou', 'estado falhou';
   assert (select erro from mayara.propostas_abordagem where id = v_id2) = 'connection closed', 'erro guardado';
   assert (select count(*) from public.n8n_chat_histories where session_id = 'whatsapp:escritorio:+5511999990902') = 0, 'memoria intocada na falha';
+
+  -- O envio confirmado usa a sessao canonica quando ha variantes com e sem nono digito.
+  v_canonica := 'whatsapp:escritorio:+5511999990907';
+  insert into public.n8n_chat_histories (session_id, message, created_at)
+    values (v_canonica, jsonb_build_object('type', 'human', 'content', 'historico canonico'), now());
+  v_id2 := (mayara.criar_proposta('+551199990907', 'Sessao Canonica Teste', null, 'Oi Sessao', '{}'::jsonb, null) ->> 'id')::bigint;
+  perform mayara.aprovar_proposta(v_id2, 'x');
+  perform mayara.confirmar_envio_proposta(v_id2, true, null);
+  assert (select count(*) from public.n8n_chat_histories where session_id = v_canonica and message ->> 'type' = 'ai' and message ->> 'content' = 'Oi Sessao') = 1, 'envio vai para a sessao canonica';
+  assert (select count(*) from public.n8n_chat_histories where session_id = 'whatsapp:escritorio:+551199990907' and message ->> 'type' = 'ai') = 0, 'nao duplica na variante sem nono digito';
 
   -- aprovar proposta inexistente, descartada, expirada
   r := mayara.aprovar_proposta(999999999, 'x');
