@@ -133,3 +133,6 @@
   - Ruling: acrescentei `limparConexao`, não previsto no plano: o `pg` deixa a URL sobrescrever o objeto `ssl`, então um `?sslmode=require` na `SUPABASE_DB_URL` de produção anularia a CA. A função remove só os parâmetros de ssl.
   - Ruling: a rota `/api/saude` usa importação relativa (o Vitest não tem o alias `@`).
   - Healthcheck do `Dockerfile` agora é `/api/saude`.
+- **Task 2 concluída em 18/10** (37/37 testes do painel, `tsc` limpo, `next build` ok). `lib/carregado.ts` (`Carregado`, `carregar`, `texto`, `INDISPONIVEL`) e `page.tsx` refatorada: cada seção carrega separado; falha vira "indisponível" (inclusive "Última sincronização" e a tabela de alertas), nunca zero. Os fallbacks zerados foram removidos.
+  - Teste de página (`app/painel-executivo/page.test.ts`): resumo falhando mostra 5 "indisponível" e mantém o funil real; tudo falhando não mostra `R$ 0,00`, `0%` nem "nenhum alerta"; zero legítimo continua aparecendo. Conferido que os dois testes de falha reprovam contra a página antiga.
+  - Ruling: o Vitest ganhou o alias `@` e `oxc.jsx.runtime = automatic` (o Vite 8 usa oxc no lugar do esbuild) para testar a página sem tocar no `tsconfig` do Next.
