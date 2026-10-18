@@ -1,51 +1,33 @@
-import { createHmac, timingSafeEqual } from 'crypto';
 import { cookies } from 'next/headers';
 import { redirect } from 'next/navigation';
+import { criarSessao, revogarSessao, validarSessao, DURACAO_SESSAO_MS } from './sessao';
 
 const COOKIE_NAME = 'painel_sessao';
-const MAX_AGE_SECONDS = 60 * 60 * 12; // 12 horas
-
-function getSecret(): string {
-  const secret = process.env.SESSION_SECRET;
-  if (!secret) throw new Error('SESSION_SECRET não configurada');
-  return secret;
-}
-
-export function signSession(): string {
-  const issuedAt = Date.now().toString();
-  const mac = createHmac('sha256', getSecret()).update(issuedAt).digest('hex');
-  return `${issuedAt}.${mac}`;
-}
-
-export function verifySession(token: string): boolean {
-  if (!token || !token.includes('.')) return false;
-  const [issuedAt, mac] = token.split('.');
-  const expectedMac = createHmac('sha256', getSecret()).update(issuedAt).digest('hex');
-  const macBuf = Buffer.from(mac, 'hex');
-  const expectedBuf = Buffer.from(expectedMac, 'hex');
-  if (macBuf.length !== expectedBuf.length) return false;
-  if (!timingSafeEqual(macBuf, expectedBuf)) return false;
-  const ageSeconds = (Date.now() - Number(issuedAt)) / 1000;
-  return ageSeconds >= 0 && ageSeconds <= MAX_AGE_SECONDS;
-}
 
 export async function requireSession(): Promise<void> {
   const token = cookies().get(COOKIE_NAME)?.value ?? '';
-  if (!verifySession(token)) {
+  if (!(await validarSessao(token))) {
     redirect('/login');
   }
 }
 
 export async function createSessionCookie(): Promise<void> {
-  cookies().set(COOKIE_NAME, signSession(), {
+  const token = await criarSessao();
+  cookies().set(COOKIE_NAME, token, {
     httpOnly: true,
     secure: process.env.NODE_ENV === 'production',
     sameSite: 'lax',
-    maxAge: MAX_AGE_SECONDS,
+    maxAge: DURACAO_SESSAO_MS / 1000,
     path: '/'
   });
 }
 
 export async function clearSessionCookie(): Promise<void> {
+  const token = cookies().get(COOKIE_NAME)?.value ?? '';
+  try {
+    await revogarSessao(token);
+  } catch (erro) {
+    console.error('Falha ao revogar a sessão no logout', erro);
+  }
   cookies().delete(COOKIE_NAME);
 }
