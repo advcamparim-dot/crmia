@@ -3,10 +3,13 @@ begin;
 do $t$
 declare
   h text := repeat('a', 64);
+  h_expirada text := repeat('b', 64);
   agora timestamptz := timestamptz '2026-10-18 12:00:00+00';
 begin
   perform painel.criar_sessao(h, agora + interval '12 hours');
   assert painel.sessao_valida(h, agora), 'sessao nova valida';
+  perform painel.criar_sessao(h_expirada, agora + interval '1 hour');
+  assert not painel.sessao_valida(h_expirada, agora + interval '1 hour'), 'sessao expirada invalida';
   perform painel.revogar_sessao(h, agora + interval '1 hour');
   assert not painel.sessao_valida(h, agora + interval '1 hour'), 'sessao revogada invalida';
   assert not has_table_privilege('painel_leitura', 'painel.sessoes_painel', 'select'), 'papel nao le tabela de sessoes';

@@ -22,8 +22,7 @@ const RESUMO_FALLBACK: Resumo = {
   receitaContratada: 0,
   receitaRecebida: 0,
   leadsNovos: 0,
-  contratosAssinados: 0,
-  taxaConversao: 0
+  contratosAssinados: 0
 };
 
 const COMERCIAL_FALLBACK: Comercial = {
@@ -168,10 +167,6 @@ export default async function PainelExecutivoPage({
           <div className="tile">
             <span className="label">Contratos assinados</span>
             <span className="value tabular">{resumo.contratosAssinados}</span>
-          </div>
-          <div className="tile">
-            <span className="label">Taxa de conversão</span>
-            <span className="value tabular">{formatPercent(resumo.taxaConversao)}</span>
           </div>
         </div>
       </section>

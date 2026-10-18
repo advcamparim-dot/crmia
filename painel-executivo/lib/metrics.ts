@@ -6,7 +6,6 @@ export interface Resumo {
   receitaRecebida: number;
   leadsNovos: number;
   contratosAssinados: number;
-  taxaConversao: number;
 }
 
 export async function getResumo(period: Period): Promise<Resumo> {
@@ -20,14 +19,11 @@ export async function getResumo(period: Period): Promise<Resumo> {
     [period.from, period.to]
   );
   const row = rows[0];
-  const leadsNovos = Number(row.leads_novos);
-  const contratosAssinados = Number(row.contratos_assinados);
   return {
     receitaContratada: Number(row.receita_contratada),
     receitaRecebida: Number(row.receita_recebida),
-    leadsNovos,
-    contratosAssinados,
-    taxaConversao: leadsNovos > 0 ? contratosAssinados / leadsNovos : 0
+    leadsNovos: Number(row.leads_novos),
+    contratosAssinados: Number(row.contratos_assinados)
   };
 }
 

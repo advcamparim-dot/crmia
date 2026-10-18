@@ -50,6 +50,15 @@ export const createSession = () => sessions.create();
 export const verifySession = (token: string) => sessions.verify(token);
 export const revokeSession = (token: string) => sessions.revoke(token);
 
+export async function revokeThenClear(
+  token: string,
+  revoke: (sessionToken: string) => Promise<void>,
+  clear: () => void
+): Promise<void> {
+  await revoke(token);
+  clear();
+}
+
 export async function requireSession(): Promise<void> {
   const token = cookies().get(COOKIE_NAME)?.value ?? '';
   if (!(await verifySession(token))) {
@@ -69,6 +78,6 @@ export async function createSessionCookie(): Promise<void> {
 }
 
 export async function revokeSessionCookie(): Promise<void> {
-  await revokeSession(cookies().get(COOKIE_NAME)?.value ?? '');
-  cookies().delete(COOKIE_NAME);
+  const token = cookies().get(COOKIE_NAME)?.value ?? '';
+  await revokeThenClear(token, revokeSession, () => cookies().delete(COOKIE_NAME));
 }
