@@ -16,3 +16,6 @@ IA ATENDIMENTO/
 # dados pessoais de leads reais (nao versionar)
 leads-reais/*
 !leads-reais/modelo-leads.csv
+
+# copias limpas para publicar em outros repositorios
+publicar/
