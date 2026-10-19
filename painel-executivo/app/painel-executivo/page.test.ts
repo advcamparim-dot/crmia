@@ -6,7 +6,7 @@ vi.mock('@/app/login/actions', () => ({ logout: async () => {} }));
 vi.mock('@/lib/metrics', () => ({
   getResumo: vi.fn(),
   getComercial: vi.fn(),
-  getFunil: vi.fn(),
+  getProducaoNoPeriodo: vi.fn(),
   getFinanceiro: vi.fn(),
   getJuridico: vi.fn(),
   getAlertas: vi.fn(),
@@ -19,9 +19,9 @@ import Pagina from './page';
 const m = vi.mocked(metrics);
 
 function dadosOk() {
-  m.getResumo.mockResolvedValue({ receitaContratada: 0, receitaRecebida: 0, leadsNovos: 73, contratosAssinados: 0, taxaConversao: 0 });
+  m.getResumo.mockResolvedValue({ receitaContratada: 0, receitaRecebida: 0, leadsNovos: 73, contratosAssinados: 0 });
   m.getComercial.mockResolvedValue({ leadsQualificados: 0, consultasMarcadas: 0, consultasRealizadas: 0, propostasEnviadas: 0, ticketMedio: 0 });
-  m.getFunil.mockResolvedValue([{ estagio: 'Leads', quantidade: 73 }]);
+  m.getProducaoNoPeriodo.mockResolvedValue([{ estagio: 'Leads novos', quantidade: 73 }]);
   m.getFinanceiro.mockResolvedValue({ valorAReceber: 0, pagamentosAtrasados: 0, taxaInadimplencia: 0, totalVencido: 0 });
   m.getJuridico.mockResolvedValue({ clientesAtivos: 0, casosAtivos: 0, prazosCriticos: 0, casosAltoRisco: 0 });
   m.getAlertas.mockResolvedValue([]);
@@ -41,9 +41,9 @@ describe('Painel Executivo: falha por quadro', () => {
     m.getResumo.mockRejectedValue(new Error('SELF_SIGNED_CERT_IN_CHAIN'));
     const saida = await html();
     const resumo = saida.slice(saida.indexOf('id="resumo"'), saida.indexOf('id="comercial"'));
-    expect(resumo.match(/indisponível/g)?.length).toBe(5);
+    expect(resumo.match(/indisponível/g)?.length).toBe(4);
     expect(resumo).not.toContain('R$');
-    expect(saida).toContain('73'); // o funil segue mostrando o dado real
+    expect(saida).toContain('73'); // a produção segue mostrando o dado real
     expect(saida).not.toContain('nunca');
   });
 

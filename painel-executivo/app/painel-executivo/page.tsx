@@ -5,7 +5,7 @@ import { carregar, texto, INDISPONIVEL } from '@/lib/carregado';
 import {
   getResumo,
   getComercial,
-  getFunil,
+  getProducaoNoPeriodo,
   getFinanceiro,
   getJuridico,
   getAlertas,
@@ -38,10 +38,10 @@ export default async function PainelExecutivoPage({
   const presetKey = (PRESETS.find((p) => p.key === searchParams.periodo)?.key ?? '30d') as PeriodPreset;
   const period = resolvePeriod(presetKey);
 
-  const [resumo, comercial, funil, financeiro, juridico, alertas, lastSyncedAt] = await Promise.all([
+  const [resumo, comercial, producao, financeiro, juridico, alertas, lastSyncedAt] = await Promise.all([
     carregar('resumo', () => getResumo(period)),
     carregar('comercial', () => getComercial(period)),
-    carregar('funil', () => getFunil(period)),
+    carregar('produção no período', () => getProducaoNoPeriodo(period)),
     carregar('financeiro', () => getFinanceiro()),
     carregar('jurídico', () => getJuridico()),
     carregar('alertas', () => getAlertas()),
@@ -53,8 +53,8 @@ export default async function PainelExecutivoPage({
     lastSyncedAt.dados !== null &&
     Date.now() - lastSyncedAt.dados.getTime() > 15 * 60 * 1000;
 
-  const maiorFunil =
-    funil.estado === 'ok' ? Math.max(...funil.dados.map((f) => f.quantidade), 1) : 1;
+  const maiorProducao =
+    producao.estado === 'ok' ? Math.max(...producao.dados.map((f) => f.quantidade), 1) : 1;
 
   return (
     <div className="wrap">
@@ -118,10 +118,6 @@ export default async function PainelExecutivoPage({
             <span className="label">Contratos assinados</span>
             <span className="value tabular">{texto(resumo, (r) => String(r.contratosAssinados))}</span>
           </div>
-          <div className="tile">
-            <span className="label">Taxa de conversão</span>
-            <span className="value tabular">{texto(resumo, (r) => formatPercent(r.taxaConversao))}</span>
-          </div>
         </div>
       </section>
 
@@ -152,17 +148,17 @@ export default async function PainelExecutivoPage({
       </section>
 
       <div className="cols">
-        <section aria-labelledby="funil">
-          <h2 id="funil">Funil comercial</h2>
-          {funil.estado === 'ok' ? (
-            funil.dados.map((estagio, i) => (
-              <div className={`funnel-row${i === funil.dados.length - 1 ? ' final' : ''}`} key={estagio.estagio}>
+        <section aria-labelledby="producao">
+          <h2 id="producao">Produção no período</h2>
+          {producao.estado === 'ok' ? (
+            producao.dados.map((estagio, i) => (
+              <div className={`funnel-row${i === producao.dados.length - 1 ? ' final' : ''}`} key={estagio.estagio}>
                 <span className="stage">{estagio.estagio}</span>
                 <div className="funnel-track">
                   <div
                     className="funnel-fill"
                     style={{
-                      width: `${(estagio.quantidade / maiorFunil) * 100}%`,
+                      width: `${(estagio.quantidade / maiorProducao) * 100}%`,
                       background: `var(--g${Math.min(i + 1, 4)})`
                     }}
                   />
@@ -173,7 +169,7 @@ export default async function PainelExecutivoPage({
           ) : (
             <p className="funnel-caption">{INDISPONIVEL}</p>
           )}
-          <p className="funnel-caption">Largura proporcional ao maior estágio do período.</p>
+          <p className="funnel-caption">Itens realizados no período; não representa coorte nem taxa de conversão.</p>
         </section>
 
         <section aria-labelledby="financeiro">

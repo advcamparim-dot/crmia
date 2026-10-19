@@ -6,7 +6,6 @@ export interface Resumo {
   receitaRecebida: number;
   leadsNovos: number;
   contratosAssinados: number;
-  taxaConversao: number;
 }
 
 export async function getResumo(period: Period): Promise<Resumo> {
@@ -20,14 +19,11 @@ export async function getResumo(period: Period): Promise<Resumo> {
     [period.from, period.to]
   );
   const row = rows[0];
-  const leadsNovos = Number(row.leads_novos);
-  const contratosAssinados = Number(row.contratos_assinados);
   return {
     receitaContratada: Number(row.receita_contratada),
     receitaRecebida: Number(row.receita_recebida),
-    leadsNovos,
-    contratosAssinados,
-    taxaConversao: leadsNovos > 0 ? contratosAssinados / leadsNovos : 0
+    leadsNovos: Number(row.leads_novos),
+    contratosAssinados: Number(row.contratos_assinados)
   };
 }
 
@@ -63,12 +59,12 @@ export async function getComercial(period: Period): Promise<Comercial> {
   };
 }
 
-export interface FunilEstagio {
+export interface ProducaoEstagio {
   estagio: string;
   quantidade: number;
 }
 
-export async function getFunil(period: Period): Promise<FunilEstagio[]> {
+export async function getProducaoNoPeriodo(period: Period): Promise<ProducaoEstagio[]> {
   const pool = getPool();
   const { rows } = await pool.query(
     `select
@@ -81,11 +77,11 @@ export async function getFunil(period: Period): Promise<FunilEstagio[]> {
   );
   const row = rows[0];
   return [
-    { estagio: 'Leads', quantidade: Number(row.leads) },
-    { estagio: 'Qualificados', quantidade: Number(row.qualificados) },
-    { estagio: 'Consultas', quantidade: Number(row.consultas) },
-    { estagio: 'Propostas', quantidade: Number(row.propostas) },
-    { estagio: 'Contratos', quantidade: Number(row.contratos) }
+    { estagio: 'Leads novos', quantidade: Number(row.leads) },
+    { estagio: 'Leads qualificados', quantidade: Number(row.qualificados) },
+    { estagio: 'Consultas realizadas', quantidade: Number(row.consultas) },
+    { estagio: 'Propostas enviadas', quantidade: Number(row.propostas) },
+    { estagio: 'Contratos assinados', quantidade: Number(row.contratos) }
   ];
 }
 
