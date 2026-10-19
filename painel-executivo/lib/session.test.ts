@@ -1,5 +1,19 @@
-import { describe, it, expect } from 'vitest';
+import { afterEach, beforeEach, describe, it, expect } from 'vitest';
 import { createSessionService, revokeThenClear, type SessionStore } from './session';
+
+const sessionSecretOriginal = process.env.SESSION_SECRET;
+
+beforeEach(() => {
+  process.env.SESSION_SECRET = 'segredo-exclusivo-de-teste';
+});
+
+afterEach(() => {
+  if (sessionSecretOriginal === undefined) {
+    delete process.env.SESSION_SECRET;
+  } else {
+    process.env.SESSION_SECRET = sessionSecretOriginal;
+  }
+});
 
 function memoryStore(): SessionStore & { revoked: string[] } {
   const active = new Map<string, Date>();
