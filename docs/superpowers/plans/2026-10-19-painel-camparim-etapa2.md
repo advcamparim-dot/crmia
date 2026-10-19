@@ -143,3 +143,9 @@
 - **Consistência de nomes:** `Carregado`/`carregar`/`texto` (Etapa 1), `Preset`, `resolverPeriodo`, `painel.faixa_numeros`, `painel.fila_atencao`, `painel.layout_ler`/`layout_salvar`, `normalizarArranjo`, `arranjoParaCelular`, `carregarPainel`, `lerArranjo` e `salvarArranjo` aparecem iguais em todas as tasks que os usam.
 - **Risco declarado:** a Task 3 altera um workflow vivo (padrão do projeto: patch testado, PUT, GET, exportar); a Task 8 depende da publicação feita pelo Dr. Santo; as funções novas só têm `execute` para o dono e `painel_leitura` (o mesmo cuidado com o usuário do `SUPABASE_DB_URL` da Etapa 1).
 - **Decisões minhas a conferir:** a ordem de precedência dos estágios; "Sem resposta" medido pelo primeiro contato no período; o canal como último item da fila (a ordem do design), mesmo sendo urgente (ele também aparece em vermelho na faixa); o arrastar desligado no celular.
+
+## Registro de execução
+
+- **Task 1 concluída em 19/10** (56/56 testes do painel, `tsc` limpo). `lib/periodos.ts` com `resolverPeriodo` e `lerPeriodoDaUrl`, só com `Intl` (sem dependência nova), relógio por parâmetro. 12 testes cobrem a meia-noite de São Paulo (23:59 ainda é "hoje" e 01 min depois já é o dia seguinte, mesmo com UTC já no dia seguinte), virada de mês e de ano, semana começando na segunda inclusive aos domingos, período livre com "ate" inclusivo, datas invertidas e inválidas (inclusive `2026-02-30`).
+  - Ruling: "Semana" e "Mês" vão de `de` até o fim de hoje (não até o fim da semana ou do mês), como o Kommo mostra "esta semana".
+  - Ruling: período livre sem datas válidas cai em `semana`, e o `preset` devolvido diz `semana` (não `livre`), para a barra não marcar o botão errado.
