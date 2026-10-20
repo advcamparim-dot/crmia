@@ -1,6 +1,7 @@
 {
   "id": "2Z3f0Ka1aOsuRwr8",
   "name": "Mayara — Avisar Falha de Agendamento [Sub-workflow]",
+  "active": true,
   "nodes": [
     {
       "id": "b7000000-0000-4000-8000-000000000001",
@@ -82,11 +83,11 @@
       "name": "Avisar Administrador",
       "type": "n8n-nodes-base.executeWorkflow",
       "typeVersion": 1.3,
+      "onError": "continueRegularOutput",
       "position": [
         480,
         -100
       ],
-      "onError": "continueRegularOutput",
       "parameters": {
         "workflowId": {
           "__rl": true,
@@ -124,17 +125,11 @@
       "name": "Criar Task de Reserva",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.4,
+      "onError": "continueRegularOutput",
       "position": [
         480,
         100
       ],
-      "onError": "continueRegularOutput",
-      "credentials": {
-        "httpHeaderAuth": {
-          "id": "myYur8JVp4IuNL3w",
-          "name": "EspoCRM Alertas API"
-        }
-      },
       "parameters": {
         "method": "POST",
         "url": "https://crm.camparimadvogados.com.br/api/v1/Task",
@@ -145,6 +140,36 @@
         "jsonBody": "={{ ({ name: 'Agendamento falhou - confirmar consulta com o lead', status: 'Not Started', priority: 'High', dateStart: $now.toUTC().toFormat('yyyy-MM-dd HH:mm:ss'), assignedUserId: '6a899b5713e9849fa', description: 'Falha tecnica ao agendar a consulta pela Mayara (agenda indisponivel). Consultar a sessao terminada em ' + (($json.sessionId || '').slice(-4)) + ' em mayara.session_state e contatar o lead para confirmar o horario.', cAlertOrigin: 'WhatsApp', cAlertSeverity: 'Alta', cAlertKey: 'AGENDAMENTO_FALHOU_V1:' + (($json.sessionId || '').slice(-4)) + ':' + $now.toUTC().toFormat('yyyyMMddHH'), cSourceEntityType: 'WhatsAppMessage', cSourceRecordId: (($json.sessionId || '').slice(-4)) + ':' + $now.toUTC().toFormat('yyyyMMddHHmm'), cDetectedAt: $now.toUTC().toFormat('yyyy-MM-dd HH:mm:ss'), cAlertRule: 'WHATSAPP_HUMAN_HANDOFF_V1' }) }}",
         "options": {
           "timeout": 20000
+        }
+      },
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "myYur8JVp4IuNL3w",
+          "name": "EspoCRM Alertas API"
+        }
+      }
+    },
+    {
+      "id": "e7000000-0000-4000-8000-000000000001",
+      "name": "Registrar Falha no Painel",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "onError": "continueRegularOutput",
+      "position": [
+        480,
+        300
+      ],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "select painel.registrar_falha_agendamento($1, $2) as id",
+        "options": {
+          "queryReplacement": "={{ [ ($json.sessionId || '').split(':')[2] || '', $json.motivoFalha || '' ] }}"
+        }
+      },
+      "credentials": {
+        "postgres": {
+          "id": "nNpCUIhnDuVvTApU",
+          "name": "Postgres account"
         }
       }
     }
@@ -173,6 +198,11 @@
             "node": "Criar Task de Reserva",
             "type": "main",
             "index": 0
+          },
+          {
+            "node": "Registrar Falha no Painel",
+            "type": "main",
+            "index": 0
           }
         ],
         []
@@ -182,6 +212,7 @@
   "settings": {
     "executionOrder": "v1",
     "errorWorkflow": "CQyjBKLX0UheNh1q",
-    "callerPolicy": "workflowsFromSameOwner"
+    "callerPolicy": "workflowsFromSameOwner",
+    "availableInMCP": false
   }
 }
