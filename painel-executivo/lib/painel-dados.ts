@@ -83,3 +83,9 @@ export async function lerArranjo(consulta: Consulta = consultaPadrao): Promise<A
     return ARRANJO_PADRAO;
   }
 }
+
+// Unica escrita do painel nesta etapa. O banco ainda valida a forma; aqui so se descarta o que nao e do catalogo.
+export async function gravarArranjo(arranjo: unknown, consulta: Consulta = consultaPadrao): Promise<void> {
+  const limpo = normalizarArranjo(arranjo);
+  await consulta('select painel.layout_salvar($1::jsonb)', [JSON.stringify(limpo)]);
+}

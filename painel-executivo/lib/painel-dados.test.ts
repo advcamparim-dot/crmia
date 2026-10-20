@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import type { Consulta } from './sessao';
 import { ARRANJO_PADRAO } from './layout';
-import { carregarPainel, lerArranjo } from './painel-dados';
+import { carregarPainel, gravarArranjo, lerArranjo } from './painel-dados';
 
 const periodo = { de: new Date('2026-10-19T03:00:00Z'), ate: new Date('2026-10-20T03:00:00Z') };
 
@@ -80,5 +80,22 @@ describe('lerArranjo', () => {
   it('nunca salvo (nulo) devolve o padrão', async () => {
     const a = await lerArranjo(async () => ({ rows: [{ layout: null }] }));
     expect(a).toEqual(ARRANJO_PADRAO);
+  });
+});
+
+describe('gravarArranjo', () => {
+  it('normaliza antes de gravar e chama layout_salvar com o JSON', async () => {
+    const { consulta, chamadas } = consultaFalsa();
+    await gravarArranjo({ versao: 1, itens: [{ id: 'fila', x: 0, y: 0, w: 12, h: 9 }, { id: 'quadro-que-sumiu', x: 0, y: 9, w: 2, h: 2 }] }, consulta);
+    const c = chamadas.find((x) => x.sql.includes('layout_salvar'))!;
+    const salvo = JSON.parse(c.params[0] as string);
+    expect(salvo.versao).toBe(1);
+    expect(salvo.itens.map((i: { id: string }) => i.id)).not.toContain('quadro-que-sumiu');
+    expect(salvo.itens.length).toBe(11);
+  });
+
+  it('erro do banco sobe para quem chamou (a ação trata)', async () => {
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+    await expect(gravarArranjo(ARRANJO_PADRAO, async () => { throw new Error('recusado'); })).rejects.toThrow('recusado');
   });
 });
