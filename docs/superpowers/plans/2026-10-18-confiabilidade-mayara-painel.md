@@ -4,7 +4,7 @@
 
 **Objetivo:** corrigir continuidade de follow-up, sessão canônica, sessão revogável e semântica comercial do painel, preservando a abordagem automática ativa.
 
-**Arquitetura:** a camada Mayara recebe uma migration incremental (`0067`) que corrige apenas dados e funções de decisão já existentes. A sessão revogável já é fornecida pela migration `0065_painel_sessoes.sql` do `main`; não há uma segunda tabela ou RPC de sessão. A interface deixa clara a diferença entre produção por período e funil de coorte.
+**Arquitetura:** a camada Mayara recebe uma migration incremental (`0071`) que corrige apenas dados e funções de decisão já existentes. A sessão revogável já é fornecida pela migration `0065_painel_sessoes.sql` do `main`; não há uma segunda tabela ou RPC de sessão. A interface deixa clara a diferença entre produção por período e funil de coorte.
 
 **Stack:** PostgreSQL/Supabase, Node.js, n8n exportado em JSON, Next.js 14, TypeScript, Vitest, `node:test`.
 
@@ -28,8 +28,8 @@
 
 ## Estrutura de arquivos
 
-- `supabase/migrations/0067_mayara_confiabilidade.sql`: compatibilidade de follow-up e sessão canônica de proposta.
-- `supabase/tests/0067_mayara_confiabilidade.test.sql`: regressões SQL para a migration 0067.
+- `supabase/migrations/0071_mayara_confiabilidade.sql`: compatibilidade de follow-up e sessão canônica de proposta.
+- `supabase/tests/0071_mayara_confiabilidade.test.sql`: regressões SQL para a migration 0071.
 - `painel-executivo/lib/sessao.ts` e `supabase/migrations/0065_painel_sessoes.sql`: sessão revogável consolidada.
 - `painel-executivo/lib/metrics.ts`, `painel-executivo/app/painel-executivo/page.tsx`, respectivos testes: semântica “Produção no período”.
 - `docs/operacao/release-mayara.md`: fonte canônica de workflows e checklist de release/manual de contingência.
@@ -37,8 +37,8 @@
 ### Tarefa 1: Corrigir decisões persistentes da Mayara
 
 **Arquivos:**
-- Criar: `supabase/migrations/0067_mayara_confiabilidade.sql`
-- Criar: `supabase/tests/0067_mayara_confiabilidade.test.sql`
+- Criar: `supabase/migrations/0071_mayara_confiabilidade.sql`
+- Criar: `supabase/tests/0071_mayara_confiabilidade.test.sql`
 - Modificar: `supabase/tests/0035_propostas_acoes.test.sql`
 
 **Interfaces:**

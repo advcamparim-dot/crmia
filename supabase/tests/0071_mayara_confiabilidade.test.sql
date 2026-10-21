@@ -24,4 +24,4 @@ begin
 
 end $t$;
 rollback;
-select 'OK 0067' as resultado;
+select 'OK 0071' as resultado;
