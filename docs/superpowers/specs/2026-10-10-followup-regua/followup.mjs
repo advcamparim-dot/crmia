@@ -72,8 +72,13 @@ const CONVERSA = [
 
 const REGUA_TEXTOS = { nunca_respondeu: NUNCA_RESPONDEU, conversa: CONVERSA };
 
+// 'frio' (lead da reativacao em massa que nunca respondeu) usa os mesmos 14 textos de 'nunca_respondeu'.
+function base(sequencia) {
+  return sequencia === 'nunca_respondeu' || sequencia === 'frio' ? 'nunca_respondeu' : 'conversa';
+}
+
 function listaDaSequencia(sequencia) {
-  return REGUA_TEXTOS[sequencia === 'nunca_respondeu' ? 'nunca_respondeu' : 'conversa'];
+  return REGUA_TEXTOS[base(sequencia)];
 }
 
 export function anguloDaEtapa(sequencia, etapa) {
@@ -157,7 +162,7 @@ export function montarPedido({ sequencia, etapa, tentativa, nome, agora, mensage
     user: JSON.stringify({
       saudacao: saudacaoPorHora(agora),
       nome: primeiroNome(nome),
-      sequencia: sequencia === 'nunca_respondeu' ? 'nunca_respondeu' : 'conversa',
+      sequencia: base(sequencia),
       etapa: Number(etapa) || 1,
       tentativa: Number(tentativa) || 1,
       angulo: anguloDaEtapa(sequencia, etapa),

@@ -221,3 +221,16 @@ test('pessoa fisica: nenhum texto de reserva repete "sua" e "suas" na mesma fras
 test('prompt pede para nao repetir "sua" e "suas" na mesma frase', () => {
   assert.match(montarPedido({ sequencia: 'conversa', etapa: 1, tentativa: 1, nome: 'Ana', agora: MANHA, mensagens: [], fatos: {}, anteriores: [] }).system, /sua.*suas/);
 });
+
+test('sequencia frio (lead da reativacao) usa os 14 textos de quem nunca respondeu', () => {
+  for (let e = 1; e <= 14; e++) {
+    assert.equal(textoFixo({ sequencia: 'frio', etapa: e, nome: 'Ana', agora: MANHA, fatos: {} }), textoFixo({ sequencia: 'nunca_respondeu', etapa: e, nome: 'Ana', agora: MANHA, fatos: {} }), `etapa ${e}`);
+  }
+  const base = { tentativa: 1, nome: 'Ana', agora: MANHA, mensagens: [], anteriores: [], fatos: {} };
+  const p = JSON.parse(montarPedido({ ...base, sequencia: 'frio', etapa: 3 }).user);
+  assert.equal(p.sequencia, 'nunca_respondeu');
+  assert.equal(p.angulo, JSON.parse(montarPedido({ ...base, sequencia: 'nunca_respondeu', etapa: 3 }).user).angulo);
+  const f = escolherTexto({ sequencia: 'frio', etapa: 1, nome: 'Ana', agora: MANHA, anteriores: [], textoIA: '', fatos: {} });
+  assert.equal(f.fonte, 'fixo');
+  assert.match(f.texto, /Só confirmando que você recebeu minha mensagem/);
+});
