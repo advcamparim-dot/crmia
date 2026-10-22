@@ -70,3 +70,9 @@
 
 ## Registro de execução
 
+- **Task 1 concluída em 22/10** (`OK 0074`): `painel.eventos` (única `(lead_chave, tipo, ref)`) e `painel.eventos_atualizar()`; follow-up conta um por envio (`ref = 'f' || id`), a variante do telefone conta uma vez, envio de alerta e follow-up não contam como "primeira mensagem". Carga real: 83 `lead_criado` (= leads do CRM), 51 `followup_enviado` (= `followups_log` enviados), 39 `primeira_mensagem`, 23 `lead_respondeu`, 4 `transferido_equipe`, 3 `perdido`.
+  - Ruling: não houve execução RED separada do teste (a tabela e a função não existiam, falha trivial); o teste foi aplicado só depois da migration.
+- **Task 2 concluída em 22/10** (`OK 0075`): `painel.funil_periodo`. Conferência real desde 01/10: Novo 83 entraram, 23 avançaram, 60 agora; Em conversa 23 entraram, 4 avançaram, 3 perderam, 16 agora (a soma fecha em cada etapa).
+  - Ruling: "perderam" não exige que a perda seja posterior à entrada (as datas de perda são aproximadas); basta ter `perdido` e nenhum evento de posto maior.
+- **Task 3 concluída em 22/10** (97/97 testes, `tsc` limpo, `next build` ok): quadro `analise-funil` (catálogo 12×6, no fim do arranjo padrão; arranjos salvos recebem o quadro no fim), seção `funil` em `carregarPainel`, `AnaliseFunil.tsx` com o aviso "Histórico disponível desde 06/10/2026".
+- **Task 4:** worker `Painel — Atualizar Eventos [Worker]` (`IQgkk6SHyAOdUVhq`, a cada 10 min) criado e ativo; código publicado no GitHub (`46d976b`).
