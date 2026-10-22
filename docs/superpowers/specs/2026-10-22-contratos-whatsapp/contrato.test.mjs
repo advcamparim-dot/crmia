@@ -154,3 +154,11 @@ test('resolverData entende data por extenso em portugues', () => {
   assert.equal(resolverData('31 de fevereiro', HOJE, 'futura'), null);
   assert.equal(resolverData('20 de bananas', HOJE, 'futura'), null);
 });
+
+test('resolverData entende hoje, ontem e amanha', () => {
+  assert.equal(resolverData('hoje', HOJE, 'passada'), '2026-10-22');
+  assert.equal(resolverData('Ontem', HOJE, 'passada'), '2026-10-21');
+  assert.equal(resolverData('amanhã', HOJE, 'futura'), '2026-10-23');
+  assert.equal(resolverData('amanha', '2026-12-31', 'futura'), '2027-01-01');
+  assert.equal(resolverData('ontem', '2026-03-01', 'passada'), '2026-02-28');
+});

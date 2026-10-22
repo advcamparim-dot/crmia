@@ -43,6 +43,12 @@ const MESES = ['jan', 'fev', 'mar', 'abr', 'mai', 'jun', 'jul', 'ago', 'set', 'o
 
 export function resolverData(texto, hoje, modo) {
   let t = String(texto ?? '').trim();
+  const rel = t.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+  if (rel === 'hoje' || rel === 'ontem' || rel === 'amanha') {
+    const d = new Date(hoje + 'T00:00:00Z');
+    d.setUTCDate(d.getUTCDate() + (rel === 'ontem' ? -1 : rel === 'amanha' ? 1 : 0));
+    return iso(d.getUTCFullYear(), d.getUTCMonth() + 1, d.getUTCDate());
+  }
   // "20 de novembro" / "1º de dezembro" / "5 de março de 2027" -> dd/mm[/aaaa]
   const ext = t.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().match(/^(\d{1,2})\s*(?:o|º|°)?\s+de\s+([a-z]+)(?:\s+de\s+(\d{4}))?$/);
   if (ext) {
