@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { createLimiter, clientKeyFromHeaders } from './rate-limit';
+import { createLoginGuard, createLimiter, clientKeyFromHeaders } from './rate-limit';
 
 const MINUTE = 60_000;
 
@@ -149,8 +149,15 @@ describe('createLimiter', () => {
 describe('clientKeyFromHeaders', () => {
   const de = (h: Record<string, string>) => (name: string) => h[name] ?? null;
 
-  it('usa a primeira entrada de x-forwarded-for', () => {
-    expect(clientKeyFromHeaders(de({ 'x-forwarded-for': '203.0.113.7, 10.0.0.1, 10.0.0.2' }))).toBe('203.0.113.7');
+  it('usa a ULTIMA entrada de x-forwarded-for, a que o proxy confiavel acrescentou (a primeira o cliente forja)', () => {
+    expect(clientKeyFromHeaders(de({ 'x-forwarded-for': '1.2.3.4, 203.0.113.7' }))).toBe('203.0.113.7');
+  });
+
+  it('girar o valor forjado no inicio do cabecalho nao muda a chave', () => {
+    const real = '203.0.113.7';
+    const chaves = new Set(['1.1.1.1', '2.2.2.2', '3.3.3.3', 'qualquer coisa'].map((f) => clientKeyFromHeaders(de({ 'x-forwarded-for': `${f}, ${real}` }))));
+    expect(chaves.size).toBe(1);
+    expect(chaves.has(real)).toBe(true);
   });
 
   it('aceita uma unica entrada e aparas espacos', () => {
@@ -172,5 +179,40 @@ describe('clientKeyFromHeaders', () => {
   it('corta valores enormes para nao inflar a memoria', () => {
     const key = clientKeyFromHeaders(de({ 'x-forwarded-for': 'a'.repeat(5000) }));
     expect(key.length).toBeLessThanOrEqual(64);
+  });
+});
+
+describe('createLoginGuard (por cliente + teto global)', () => {
+  it('bloqueia o cliente na 5a falha, sem afetar outro cliente', () => {
+    const clock = fakeClock();
+    const guard = createLoginGuard({ now: clock.now });
+    for (let i = 0; i < 5; i++) guard.fail('a');
+    expect(guard.check('a').allowed).toBe(false);
+    expect(guard.check('b').allowed).toBe(true);
+  });
+
+  it('girar a chave do cliente nao escapa do teto global de falhas', () => {
+    const clock = fakeClock();
+    const guard = createLoginGuard({ now: clock.now, globalMax: 30 });
+    for (let i = 0; i < 30; i++) guard.fail(`ip-${i}`); // 1 falha por chave: nenhuma chave individual bloqueia
+    expect(guard.check('ip-novo').allowed).toBe(false);
+  });
+
+  it('o bloqueio global termina depois de 15 minutos', () => {
+    const clock = fakeClock();
+    const guard = createLoginGuard({ now: clock.now, globalMax: 30 });
+    for (let i = 0; i < 30; i++) guard.fail(`ip-${i}`);
+    clock.advance(15 * MINUTE + 1);
+    expect(guard.check('ip-novo').allowed).toBe(true);
+  });
+
+  it('login com sucesso zera a chave do cliente, mas nao o contador global', () => {
+    const clock = fakeClock();
+    const guard = createLoginGuard({ now: clock.now, globalMax: 30 });
+    for (let i = 0; i < 4; i++) guard.fail('a');
+    guard.reset('a');
+    expect(guard.check('a').allowed).toBe(true);
+    for (let i = 0; i < 26; i++) guard.fail(`x-${i}`);
+    expect(guard.check('qualquer').allowed).toBe(false); // 4 + 26 = 30 falhas globais
   });
 });

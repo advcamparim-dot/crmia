@@ -129,12 +129,47 @@ export function createLimiter(options: LimiterOptions = {}): Limiter {
 
 const MAX_KEY_LENGTH = 64;
 
-// Chave do cliente atras do proxy: primeira entrada de x-forwarded-for, depois x-real-ip,
-// depois uma constante. O corte em 64 caracteres impede que um cabecalho gigante infle a memoria.
+// Chave do cliente atras do proxy. O cliente controla o INICIO de x-forwarded-for (basta enviar o cabecalho);
+// o proxy confiavel (Traefik/Coolify) ACRESCENTA o IP que ele viu no FIM. Por isso vale a ultima entrada.
+// Depois x-real-ip e uma constante. O corte em 64 caracteres impede que um cabecalho gigante infle a memoria.
 export function clientKeyFromHeaders(get: (name: string) => string | null | undefined): string {
-  const forwarded = get('x-forwarded-for')?.split(',')[0]?.trim();
+  const entradas = (get('x-forwarded-for') ?? '').split(',').map((e) => e.trim()).filter(Boolean);
+  const forwarded = entradas[entradas.length - 1];
   if (forwarded) return forwarded.slice(0, MAX_KEY_LENGTH);
   const real = get('x-real-ip')?.trim();
   if (real) return real.slice(0, MAX_KEY_LENGTH);
   return 'desconhecido';
+}
+
+export interface LoginGuardOptions {
+  now?: () => number;
+  /** Falhas de QUALQUER cliente em 15 minutos que bloqueiam o login para todos. Padrao: 30. */
+  globalMax?: number;
+}
+
+const GLOBAL_KEY = '__global__';
+
+// Limite por cliente (5 falhas) somado a um teto global: com uma senha unica compartilhada, quem gira o
+// cabecalho para trocar de "cliente" ainda esbarra no teto global. Custo: um atacante persistente pode
+// bloquear o login por 15 minutos de cada vez (o login so pode ser tentado de novo depois).
+export function createLoginGuard(options: LoginGuardOptions = {}): Limiter {
+  const porCliente = createLimiter({ now: options.now });
+  const global = createLimiter({ now: options.now, max: options.globalMax ?? 30 });
+  return {
+    check(key) {
+      const g = global.check(GLOBAL_KEY);
+      if (!g.allowed) return g;
+      return porCliente.check(key);
+    },
+    fail(key) {
+      global.fail(GLOBAL_KEY);
+      return porCliente.fail(key);
+    },
+    reset(key) {
+      porCliente.reset(key);
+    },
+    size() {
+      return porCliente.size();
+    },
+  };
 }
