@@ -194,3 +194,10 @@ Vigiar a Evolution, curar quedas, avisar fora do WhatsApp e recuperar mensagens 
 - **Primeira rodada (22/10 08:40):** 14 atualizações, todas HTTP 200: 12 leads New → In Process e 2 New → Dead (Carla e um número de empresa marcados sem_interesse pela Mayara).
 - **Pendências:** "Consulta Realizada" e "Converted" seguem manuais no CRM (a automação respeita); comando de contrato pelo WhatsApp (Etapa 3) vai marcar Converted; decidir os dois números errados da reativação (5049 ativo); publicação do painel.
 - **Riscos:** `Dead` tira o lead da lista de ativos do EspoCRM; se a equipe reverter, a automação não reaplica.
+
+### Atualização 22/10: painel publicado e etapa 3A (histórico e funil)
+- **Publicação:** etapas 1 e 2 do painel enviadas ao GitHub (`painel-executivo-camparim`) e implantadas pelo Coolify (`/api/saude` 200 com banco "ok"). Correção de segurança do limitador de login (usa a última entrada de `x-forwarded-for` e há teto global de 30 falhas em 15 min). Falta o usuário conferir a tela logado.
+- **Etapa 3A (plano `docs/superpowers/plans/2026-10-22-painel-camparim-etapa3a.md`):** migrations `0074` (`painel.eventos`, `eventos_atualizar()`) e `0075` (`funil_periodo`), ambas com teste SQL verde; quadro "Análise do funil" no painel (97 testes, `tsc`, build); worker `Painel — Atualizar Eventos [Worker]` (`IQgkk6SHyAOdUVhq`, a cada 10 min; primeira execução ok, 1 evento novo) exportado em `docs/superpowers/specs/workflows/painel-atualizar-eventos.json`. Código publicado (`46d976b`).
+- **Funil real desde 01/10:** Novo 83 entraram, 23 avançaram, 60 agora; Em conversa 23 entraram, 4 avançaram, 3 perderam, 16 agora.
+- **Pendências:** etapas 3B (contratos e parcelas por WhatsApp, quadros de receita, parcela atrasada na fila, Converted no CRM) e 3C (metas), ainda sem plano; previsão de vendas só a partir de novembro (30 dias de histórico).
+- **Riscos:** datas de consulta, equipe e perda são aproximadas; histórico só desde 06/10.
