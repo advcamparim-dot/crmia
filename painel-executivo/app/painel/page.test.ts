@@ -220,4 +220,11 @@ describe('Painel inicial /painel', () => {
     expect(q).toContain('indisponível');
     expect(q).not.toContain('%');
   });
+
+  it('as etapas levam à lista dos leads da etapa', async () => {
+    painelOk();
+    const h = await html();
+    expect(h).toContain('href="/painel/etapa/Novo"');
+    expect(h).toContain('href="/painel/etapa/Em%20conversa"');
+  });
 });

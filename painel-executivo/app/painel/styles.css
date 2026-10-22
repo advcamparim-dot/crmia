@@ -110,3 +110,7 @@ a:focus-visible,button:focus-visible,select:focus-visible,input:focus-visible{ou
 .p-etiquetas{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px}
 .p-metas{grid-template-columns:minmax(0,420px);justify-content:center}
 .p-meta-form input[type=text]{min-width:240px}
+.p-titulo-pagina{margin:0;font:600 20px Lora,Georgia,serif}
+.p-barras a,.p-etapa-card a{color:inherit;text-decoration:none}
+.p-barras li:has(a):hover .p-barra-nome{color:var(--brass-bright)}
+.p-etapa-card:hover{background:var(--surface)}

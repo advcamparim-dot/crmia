@@ -232,3 +232,9 @@ Vigiar a Evolution, curar quedas, avisar fora do WhatsApp e recuperar mensagens 
 
 ## Painel: seletor de metas por etiqueta (22/10)
 - Quadro Metas agora tem etiquetas Consultas/Contratos/Receita; mostra um velocímetro por vez ("X de Y · % da meta · faltam N dias") e o formulário já vem na etiqueta ativa. Arquivos: painel-executivo/app/painel/widgets/Metas.tsx (client), styles.css, page.test.ts. Testes 118/118, tsc e build ok. Só interface; sem mudança de dados.
+
+## Painel: etapas do funil clicáveis (22/10)
+- Objetivo: clicar numa etapa (Leads por etapa ou Análise do funil) abre a lista dos leads dela, com WhatsApp e CRM.
+- Arquivos: supabase/migrations/0084_painel_leads_da_etapa.sql (+ teste; aplicada) com painel._classe_leads() compartilhada por leads_por_etapa e leads_da_etapa (somente leitura, grant só para painel_leitura); painel-executivo/lib/painel-dados.ts (lerLeadsDaEtapa, só etapas conhecidas), app/painel/etapa/[etapa]/page.tsx, widgets Etapas/AnaliseFunil, styles.css, testes.
+- Testes: vitest 123/123, tsc, build ok; SQL do 0084 conferido no banco (contagens iguais às de antes). Publicado no GitHub; falta redeploy no Coolify.
+- Pendência: conferir a página logado após o deploy. Riscos: lista limitada a 200 leads; telefone completo só aparece para quem tem login.

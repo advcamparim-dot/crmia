@@ -8,7 +8,7 @@ export function AnaliseFunil({ funil }: { funil: Carregado<FunilEtapa[]> }) {
       <ul className="p-etapas-cards">
         {funil.dados.map((e) => (
           <li key={e.etapa} className="p-etapa-card">
-            <span className="p-etapa-nome">{e.etapa}</span>
+            <a className="p-etapa-nome" href={`/painel/etapa/${encodeURIComponent(e.etapa)}`}>{e.etapa} ›</a>
             <span className="p-etapa-entraram">{e.entraram}</span>
             <span className="p-etapa-linha"><b>{e.avancaram}</b> avançaram</span>
             <span className={`p-etapa-linha${e.perderam > 0 ? ' p-alerta' : ''}`}><b>{e.perderam}</b> perdidos</span>

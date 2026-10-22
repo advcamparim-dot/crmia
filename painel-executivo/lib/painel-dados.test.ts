@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 import type { Consulta } from './sessao';
 import { ARRANJO_PADRAO } from './layout';
 import { IDS_DO_CATALOGO } from './widgets';
-import { carregarPainel, desfazerPagamento, gravarArranjo, gravarMeta, gravarPagamento, lerArranjo } from './painel-dados';
+import { carregarPainel, desfazerPagamento, gravarArranjo, gravarMeta, gravarPagamento, lerArranjo, lerLeadsDaEtapa, ETAPAS } from './painel-dados';
 
 const periodo = { de: new Date('2026-10-19T03:00:00Z'), ate: new Date('2026-10-20T03:00:00Z') };
 
@@ -164,4 +164,23 @@ describe('definir meta do mês (escrita do painel)', () => {
     }
     expect(chamadas.length).toBe(1);
   });
+});
+
+describe('lerLeadsDaEtapa', () => {
+  it('etapa fora da lista nem chega ao banco', async () => {
+    const consulta = vi.fn();
+    expect(await lerLeadsDaEtapa('Qualquer coisa', consulta)).toEqual({ estado: 'indisponivel' });
+    expect(consulta).not.toHaveBeenCalled();
+  });
+  it('consulta a funcao do banco com a etapa como parametro', async () => {
+    const consulta = vi.fn().mockResolvedValue({ rows: [{ lead_nome: 'Ana', telefone_fim: '1234', telefone: '5516999991234', crm_lead_id: 'x1' }] });
+    const r = await lerLeadsDaEtapa('Proposta enviada', consulta);
+    expect(consulta).toHaveBeenCalledWith('select * from painel.leads_da_etapa($1)', ['Proposta enviada']);
+    expect(r).toEqual({ estado: 'ok', dados: [{ lead_nome: 'Ana', telefone_fim: '1234', telefone: '5516999991234', crm_lead_id: 'x1' }] });
+  });
+  it('falha do banco vira indisponivel, nao lista vazia', async () => {
+    const consulta = vi.fn().mockRejectedValue(new Error('x'));
+    expect(await lerLeadsDaEtapa('Novo', consulta)).toEqual({ estado: 'indisponivel' });
+  });
+  it('as sete etapas do funil', () => { expect(ETAPAS).toHaveLength(7); });
 });

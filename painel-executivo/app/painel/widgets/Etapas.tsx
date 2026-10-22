@@ -8,7 +8,7 @@ export function Etapas({ etapas }: { etapas: Carregado<EtapaLead[]> }) {
     <ul className="p-barras">
       {etapas.dados.map((e) => (
         <li key={e.etapa}>
-          <span className="p-barra-nome">{e.etapa}</span>
+          <a className="p-barra-nome" href={`/painel/etapa/${encodeURIComponent(e.etapa)}`}>{e.etapa}</a>
           <span className="p-barra"><i style={{ width: `${(e.quantidade / maior) * 100}%` }} /></span>
           <span className="p-barra-valor">{e.quantidade}</span>
         </li>

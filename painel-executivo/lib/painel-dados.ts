@@ -162,3 +162,24 @@ export async function gravarMeta(tipo: string, valor: number, consulta: Consulta
   if (t !== 'receita' && !Number.isInteger(valor)) throw new Error('meta precisa ser inteira');
   await consulta('select painel.meta_definir($1, $2::numeric, $3)', [t, valor, 'painel']);
 }
+
+export const ETAPAS = ['Novo', 'Em conversa', 'Consulta', 'Com a equipe', 'Proposta enviada', 'Contrato', 'Perdidos'] as const;
+export type LeadDaEtapa = { lead_nome: string | null; telefone_fim: string | null; telefone: string | null; crm_lead_id: string | null };
+
+// So etapas conhecidas chegam ao banco; falha vira "indisponivel", nunca lista vazia.
+export async function lerLeadsDaEtapa(etapa: string, consulta: Consulta = consultaPadrao): Promise<Carregado<LeadDaEtapa[]>> {
+  if (!(ETAPAS as readonly string[]).includes(etapa)) return { estado: 'indisponivel' };
+  try {
+    const { rows } = await consulta('select * from painel.leads_da_etapa($1)', [etapa]);
+    return {
+      estado: 'ok',
+      dados: rows.map((r) => ({
+        lead_nome: (r.lead_nome as string | null) ?? null, telefone_fim: (r.telefone_fim as string | null) ?? null,
+        telefone: (r.telefone as string | null) ?? null, crm_lead_id: (r.crm_lead_id as string | null) ?? null,
+      })),
+    };
+  } catch (erro) {
+    console.error('Falha ao ler os leads da etapa', erro);
+    return { estado: 'indisponivel' };
+  }
+}
