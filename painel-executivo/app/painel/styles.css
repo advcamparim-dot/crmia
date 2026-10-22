@@ -84,3 +84,12 @@ a:focus-visible,button:focus-visible,select:focus-visible,input:focus-visible{ou
 .p-parcela.s-a_receber{border-left-color:var(--brass)}
 .p-parcela-acao{display:flex;gap:6px;align-items:center}
 .p-parcela-acao input[type=date]{background:var(--surface);color:var(--ink);border:1px solid var(--border);border-radius:3px;padding:3px 6px;font:500 12px Karla,sans-serif}
+
+.p-metas{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:14px;margin-bottom:10px}
+.p-meta{background:var(--surface-2);border-radius:3px;padding:8px 10px;text-align:center}
+.p-meta-titulo{font:600 11px Karla,sans-serif;text-transform:uppercase;letter-spacing:.1em;color:var(--muted)}
+.p-gauge{width:100%;max-width:170px;display:block;margin:2px auto 0}
+.p-gauge-pct{fill:var(--ink);font:600 15px Lora,Georgia,serif}
+.p-meta-valores{font-weight:600;font-variant-numeric:tabular-nums}
+.p-meta-form{display:flex;gap:6px;flex-wrap:wrap;align-items:center}
+.p-meta-form select,.p-meta-form input{background:var(--surface-2);color:var(--ink);border:1px solid var(--border);border-radius:3px;padding:6px 8px;font:500 12px Karla,sans-serif}

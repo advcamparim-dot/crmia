@@ -2,7 +2,8 @@
 
 import { requireSession } from '@/lib/session';
 import { revalidatePath } from 'next/cache';
-import { desfazerPagamento, gravarArranjo, gravarPagamento } from '@/lib/painel-dados';
+import { desfazerPagamento, gravarArranjo, gravarMeta, gravarPagamento } from '@/lib/painel-dados';
+import { lerValorBR } from '@/lib/valor';
 
 export async function salvarArranjo(arranjo: unknown): Promise<{ ok: boolean }> {
   await requireSession();
@@ -32,6 +33,18 @@ export async function desfazerPagaAction(formData: FormData): Promise<void> {
     await desfazerPagamento(Number(formData.get('id')));
   } catch (erro) {
     console.error('Falha ao desfazer o pagamento da parcela', erro);
+  }
+  revalidatePath('/painel');
+}
+
+export async function definirMetaAction(formData: FormData): Promise<void> {
+  await requireSession();
+  try {
+    const valor = lerValorBR(String(formData.get('valor') ?? ''));
+    if (valor === null) throw new Error('valor ilegivel');
+    await gravarMeta(String(formData.get('tipo') ?? ''), valor);
+  } catch (erro) {
+    console.error('Falha ao definir a meta do mes', erro);
   }
   revalidatePath('/painel');
 }

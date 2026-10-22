@@ -2,13 +2,14 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 
 const requireSession = vi.fn();
 vi.mock('@/lib/session', () => ({ requireSession: () => requireSession() }));
+const gravarMeta = vi.fn();
 const gravarPagamento = vi.fn();
 const desfazerPagamento = vi.fn();
-vi.mock('@/lib/painel-dados', () => ({ gravarArranjo: vi.fn(), gravarPagamento: (...a: unknown[]) => gravarPagamento(...a), desfazerPagamento: (...a: unknown[]) => desfazerPagamento(...a) }));
+vi.mock('@/lib/painel-dados', () => ({ gravarArranjo: vi.fn(), gravarMeta: (...a: unknown[]) => gravarMeta(...a), gravarPagamento: (...a: unknown[]) => gravarPagamento(...a), desfazerPagamento: (...a: unknown[]) => desfazerPagamento(...a) }));
 const revalidatePath = vi.fn();
 vi.mock('next/cache', () => ({ revalidatePath: (p: string) => revalidatePath(p) }));
 
-import { desfazerPagaAction, marcarPagaAction } from './actions';
+import { definirMetaAction, desfazerPagaAction, marcarPagaAction } from './actions';
 
 const form = (campos: Record<string, string>) => { const f = new FormData(); for (const [k, v] of Object.entries(campos)) f.set(k, v); return f; };
 
@@ -43,6 +44,28 @@ describe('ações de pagamento de parcela', () => {
     gravarPagamento.mockRejectedValue(new Error('data invalida'));
     await expect(marcarPagaAction(form({ id: '7', data: '2099-01-01' }))).resolves.toBeUndefined();
     await expect(marcarPagaAction(form({ id: 'abc', data: '2026-10-20' }))).resolves.toBeUndefined();
+    expect(revalidatePath).toHaveBeenCalled();
+  });
+});
+
+describe('ação de definir meta', () => {
+  it('exige sessão', async () => {
+    requireSession.mockRejectedValue(new Error('sem sessao'));
+    await expect(definirMetaAction(form({ tipo: 'consultas', valor: '10' }))).rejects.toThrow('sem sessao');
+    expect(gravarMeta).not.toHaveBeenCalled();
+  });
+
+  it('com sessão, lê o valor em reais, grava e atualiza a tela', async () => {
+    requireSession.mockResolvedValue(undefined);
+    await definirMetaAction(form({ tipo: 'receita', valor: 'R$ 50.000,50' }));
+    expect(gravarMeta).toHaveBeenCalledWith('receita', 50000.5);
+    expect(revalidatePath).toHaveBeenCalledWith('/painel');
+  });
+
+  it('valor ilegível não chega ao banco e não derruba a página', async () => {
+    requireSession.mockResolvedValue(undefined);
+    await expect(definirMetaAction(form({ tipo: 'consultas', valor: 'dez' }))).resolves.toBeUndefined();
+    expect(gravarMeta).not.toHaveBeenCalled();
     expect(revalidatePath).toHaveBeenCalled();
   });
 });

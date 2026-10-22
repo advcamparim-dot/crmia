@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 import type { Consulta } from './sessao';
 import { ARRANJO_PADRAO } from './layout';
 import { IDS_DO_CATALOGO } from './widgets';
-import { carregarPainel, desfazerPagamento, gravarArranjo, gravarPagamento, lerArranjo } from './painel-dados';
+import { carregarPainel, desfazerPagamento, gravarArranjo, gravarMeta, gravarPagamento, lerArranjo } from './painel-dados';
 
 const periodo = { de: new Date('2026-10-19T03:00:00Z'), ate: new Date('2026-10-20T03:00:00Z') };
 
@@ -18,6 +18,7 @@ function consultaFalsa(falhar: string[] = []): { consulta: Consulta; chamadas: {
     if (sql.includes('fontes_de_lead')) return { rows: [{ fonte: 'sem origem', quantidade: '3' }] };
     if (sql.includes('contratos_numeros')) return { rows: [{ fechados: '2', receita_contratada: '48400.00', receita_recebida: '6600.00', a_receber: '30000.5', atrasado: '1600' }] };
     if (sql.includes('parcelas_abertas')) return { rows: [{ id: '7', contrato_id: '3', lead_nome: 'Fulano', telefone_fim: '6001', numero: 1, valor: '1600.00', vencimento: '2026-11-20', pago_em: null, status: 'a_receber', dias_atraso: 0 }] };
+    if (sql.includes('metas_mes')) return { rows: [{ tipo: 'consultas', meta: '10', atual: '2', percentual: '20.0', projecao: '6.20', dias_restantes: 9, dias_no_mes: 31 }, { tipo: 'receita', meta: '50000.00', atual: '10000.00', percentual: '20.0', projecao: '31000', dias_restantes: 9, dias_no_mes: 31 }] };
     if (sql.includes('funil_periodo')) return { rows: [{ etapa: 'Novo', ordem: 1, entraram: '83', avancaram: 23, perderam: 0, agora: 60 }, { etapa: 'Em conversa', ordem: 2, entraram: 23, avancaram: 4, perderam: 3, agora: 16 }] };
     if (sql.includes('tempo_resposta')) return { rows: [{ media_segundos: 70, maior_espera_segundos: null }] };
     if (sql.includes('layout_ler')) return { rows: [{ layout: { versao: 1, itens: [{ id: 'fila', x: 0, y: 0, w: 12, h: 9 }] } }] };
@@ -43,6 +44,10 @@ describe('carregarPainel', () => {
     expect(r.tempo).toEqual({ estado: 'ok', dados: { media_segundos: 70, maior_espera_segundos: null } });
     expect(r.contratos).toEqual({ estado: 'ok', dados: { fechados: 2, receita_contratada: 48400, receita_recebida: 6600, a_receber: 30000.5, atrasado: 1600 } });
     expect(r.parcelas).toEqual({ estado: 'ok', dados: [{ id: 7, contrato_id: 3, lead_nome: 'Fulano', telefone_fim: '6001', numero: 1, valor: 1600, vencimento: '2026-11-20', pago_em: null, status: 'a_receber', dias_atraso: 0 }] });
+    expect(r.metas).toEqual({ estado: 'ok', dados: [
+      { tipo: 'consultas', meta: 10, atual: 2, percentual: 20, projecao: 6.2, dias_restantes: 9, dias_no_mes: 31 },
+      { tipo: 'receita', meta: 50000, atual: 10000, percentual: 20, projecao: 31000, dias_restantes: 9, dias_no_mes: 31 },
+    ] });
     expect(r.funil).toEqual({ estado: 'ok', dados: [{ etapa: 'Novo', entraram: 83, avancaram: 23, perderam: 0, agora: 60 }, { etapa: 'Em conversa', entraram: 23, avancaram: 4, perderam: 3, agora: 16 }] });
     expect(r.fila.estado === 'ok' && r.fila.dados[0]).toMatchObject({ tipo: 'lead_esperando', telefone_fim: '1234', crm_lead_id: 'abc' });
   });
@@ -52,7 +57,7 @@ describe('carregarPainel', () => {
     vi.spyOn(console, 'error').mockImplementation(() => {});
     const r = await carregarPainel(periodo, consulta);
     expect(r.fila).toEqual({ estado: 'indisponivel' });
-    for (const k of ['numeros', 'etapas', 'followups', 'fontes', 'tempo', 'funil', 'contratos', 'parcelas'] as const) expect(r[k].estado).toBe('ok');
+    for (const k of ['numeros', 'etapas', 'followups', 'fontes', 'tempo', 'funil', 'contratos', 'parcelas', 'metas'] as const) expect(r[k].estado).toBe('ok');
   });
 
   it('todas as seções falhando nunca viram zero', async () => {
@@ -136,6 +141,27 @@ describe('pagamento de parcela (única escrita de dinheiro do painel)', () => {
     expect(chamadas[0].sql).toContain('parcela_desfazer');
     expect(chamadas[0].params).toEqual([7, 'painel']);
     await expect(desfazerPagamento(0, consulta)).rejects.toThrow();
+    expect(chamadas.length).toBe(1);
+  });
+});
+
+describe('definir meta do mês (escrita do painel)', () => {
+  it('chama painel.meta_definir com tipo, valor e quem', async () => {
+    const { consulta, chamadas } = consultaFalsa();
+    await gravarMeta('consultas', 12, consulta);
+    const c = chamadas.find((x) => x.sql.includes('meta_definir'))!;
+    expect(c.params).toEqual(['consultas', 12, 'painel']);
+    await gravarMeta('receita', 50000.5, consulta);
+    expect(chamadas[1].params).toEqual(['receita', 50000.5, 'painel']);
+  });
+
+  it('aceita 0 (remove a meta) e recusa tipo, valor e limites inválidos sem tocar no banco', async () => {
+    const { consulta, chamadas } = consultaFalsa();
+    await gravarMeta('contratos', 0, consulta);
+    expect(chamadas.length).toBe(1);
+    for (const [tipo, valor] of [['abobrinha', 5], ['consultas', -1], ['consultas', 2.5], ['consultas', 10001], ['receita', 100000001], ['consultas', NaN], ['consultas', Infinity]] as [string, number][]) {
+      await expect(gravarMeta(tipo, valor, consulta)).rejects.toThrow();
+    }
     expect(chamadas.length).toBe(1);
   });
 });

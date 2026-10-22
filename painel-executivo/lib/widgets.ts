@@ -15,7 +15,8 @@ export type WidgetId =
   | 'kpi-contratos'
   | 'kpi-receita-contratada'
   | 'kpi-receita-recebida'
-  | 'parcelas';
+  | 'parcelas'
+  | 'metas';
 
 export const CATALOGO: Record<WidgetId, { titulo: string; w: number; h: number }> = {
   'kpi-leads-novos': { titulo: 'Leads novos', w: 2, h: 2 },
@@ -34,6 +35,7 @@ export const CATALOGO: Record<WidgetId, { titulo: string; w: number; h: number }
   'kpi-receita-contratada': { titulo: 'Receita contratada', w: 4, h: 2 },
   'kpi-receita-recebida': { titulo: 'Receita recebida', w: 5, h: 2 },
   parcelas: { titulo: 'Parcelas', w: 12, h: 8 },
+  metas: { titulo: 'Metas do mês', w: 12, h: 7 },
 };
 
 export const IDS_DO_CATALOGO = Object.keys(CATALOGO) as WidgetId[];

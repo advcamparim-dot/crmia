@@ -21,6 +21,9 @@ export type ParcelaAberta = {
   vencimento: string; pago_em: string | null; status: string; dias_atraso: number;
 };
 
+export type TipoMeta = 'consultas' | 'contratos' | 'receita';
+export type MetaMes = { tipo: TipoMeta; meta: number; atual: number; percentual: number; projecao: number; dias_restantes: number; dias_no_mes: number };
+
 export type Periodo = { de: Date; ate: Date };
 export type DadosDoPainel = {
   numeros: Carregado<FaixaNumeros>;
@@ -32,6 +35,7 @@ export type DadosDoPainel = {
   funil: Carregado<FunilEtapa[]>;
   contratos: Carregado<ContratosNumeros>;
   parcelas: Carregado<ParcelaAberta[]>;
+  metas: Carregado<MetaMes[]>;
 };
 
 const consultaPadrao: Consulta = (sql, params) => getPool().query(sql, params as unknown[]);
@@ -42,7 +46,7 @@ const nOuNulo = (v: unknown): number | null => (v === null || v === undefined ? 
 
 export async function carregarPainel(periodo: Periodo, consulta: Consulta = consultaPadrao): Promise<DadosDoPainel> {
   const janela = [periodo.de, periodo.ate];
-  const [numeros, fila, etapas, followups, fontes, tempo, funil, contratos, parcelas] = await Promise.all([
+  const [numeros, fila, etapas, followups, fontes, tempo, funil, contratos, parcelas, metas] = await Promise.all([
     carregar('faixa de numeros', async () => {
       const { rows } = await consulta('select painel.faixa_numeros($1, $2) as f', janela);
       const f = rows[0]?.f as Record<string, unknown> | undefined;
@@ -98,8 +102,15 @@ export async function carregarPainel(periodo: Periodo, consulta: Consulta = cons
         numero: n(r.numero), valor: n(r.valor), vencimento: String(r.vencimento), pago_em: (r.pago_em as string | null) ?? null, status: String(r.status), dias_atraso: n(r.dias_atraso),
       }));
     }),
+    carregar('metas do mes', async () => {
+      const { rows } = await consulta('select * from painel.metas_mes()', []);
+      return rows.map((r) => ({
+        tipo: String(r.tipo) as TipoMeta, meta: n(r.meta), atual: n(r.atual), percentual: n(r.percentual), projecao: n(r.projecao),
+        dias_restantes: n(r.dias_restantes), dias_no_mes: n(r.dias_no_mes),
+      }));
+    }),
   ]);
-  return { numeros, fila, etapas, followups, fontes, tempo, funil, contratos, parcelas };
+  return { numeros, fila, etapas, followups, fontes, tempo, funil, contratos, parcelas, metas };
 }
 
 // Falha de banco nao pode tirar a tela do ar: sem arranjo salvo ou sem banco, vale o padrao.
@@ -139,4 +150,15 @@ export async function gravarPagamento(id: number, data: string, consulta: Consul
 export async function desfazerPagamento(id: number, consulta: Consulta = consultaPadrao): Promise<void> {
   idValido(id);
   await consulta('select painel.parcela_desfazer($1::bigint, $2)', [id, 'painel']);
+}
+
+const LIMITE_META: Record<TipoMeta, number> = { consultas: 10000, contratos: 10000, receita: 100000000 };
+
+// Definir meta do mes (0 remove). O banco valida de novo e grava a auditoria.
+export async function gravarMeta(tipo: string, valor: number, consulta: Consulta = consultaPadrao): Promise<void> {
+  if (!(tipo in LIMITE_META)) throw new Error('tipo de meta invalido');
+  const t = tipo as TipoMeta;
+  if (!Number.isFinite(valor) || valor < 0 || valor > LIMITE_META[t]) throw new Error('valor de meta invalido');
+  if (t !== 'receita' && !Number.isInteger(valor)) throw new Error('meta precisa ser inteira');
+  await consulta('select painel.meta_definir($1, $2::numeric, $3)', [t, valor, 'painel']);
 }

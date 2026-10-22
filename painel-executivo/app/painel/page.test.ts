@@ -5,7 +5,7 @@ import { ARRANJO_PADRAO } from '@/lib/layout';
 
 vi.mock('@/lib/session', () => ({ requireSession: async () => {} }));
 vi.mock('@/app/login/actions', () => ({ logout: async () => {} }));
-vi.mock('./actions', () => ({ salvarArranjo: async () => ({ ok: true }), marcarPagaAction: async () => {}, desfazerPagaAction: async () => {} }));
+vi.mock('./actions', () => ({ salvarArranjo: async () => ({ ok: true }), marcarPagaAction: async () => {}, desfazerPagaAction: async () => {}, definirMetaAction: async () => {} }));
 // A grade de verdade e do navegador; aqui so interessa o conteudo de cada quadro, na ordem do arranjo.
 vi.mock('./Grade', () => ({
   default: ({ arranjo, quadros }: { arranjo: { itens: { id: string }[] }; quadros: Record<string, ReactNode> }) =>
@@ -38,6 +38,10 @@ function painelOk() {
       { id: 8, contrato_id: 3, lead_nome: 'Cliente Atrasado', telefone_fim: '6001', numero: 2, valor: 1600, vencimento: '2026-11-20', pago_em: null, status: 'a_receber', dias_atraso: 0 },
       { id: 9, contrato_id: 4, lead_nome: 'Cliente Pago', telefone_fim: '6002', numero: 0, valor: 5000, vencimento: '2026-10-20', pago_em: '2026-10-20', status: 'paga', dias_atraso: 0 },
     ]),
+    metas: ok([
+      { tipo: 'consultas', meta: 10, atual: 2, percentual: 20, projecao: 6.2, dias_restantes: 9, dias_no_mes: 31 },
+      { tipo: 'receita', meta: 50000, atual: 10000, percentual: 20, projecao: 31000, dias_restantes: 9, dias_no_mes: 31 },
+    ]),
     funil: ok([
       { etapa: 'Novo', entraram: 83, avancaram: 23, perderam: 0, agora: 60 },
       { etapa: 'Em conversa', entraram: 23, avancaram: 4, perderam: 3, agora: 16 },
@@ -67,7 +71,7 @@ describe('Painel inicial /painel', () => {
 
   it('nenhum zero aparece quando todas as consultas falham', async () => {
     d.lerArranjo.mockResolvedValue(ARRANJO_PADRAO);
-    d.carregarPainel.mockResolvedValue({ numeros: fora, fila: fora, etapas: fora, followups: fora, fontes: fora, tempo: fora, funil: fora, contratos: fora, parcelas: fora });
+    d.carregarPainel.mockResolvedValue({ numeros: fora, fila: fora, etapas: fora, followups: fora, fontes: fora, tempo: fora, funil: fora, contratos: fora, parcelas: fora, metas: fora });
     const h = await html();
     expect(h).toContain('indisponível');
     const soTexto = h.replace(/<[^>]*>/g, ' ');
@@ -181,5 +185,38 @@ describe('Painel inicial /painel', () => {
       expect(h.match(new RegExp('data-quadro="' + id + '"[^>]*>([\\s\\S]*?)</section>'))![1]).toContain('indisponível');
     }
     expect(h).not.toContain('R$ 0,00');
+  });
+
+  it('o quadro de metas mostra o avanço, os dias restantes e o formulário para definir', async () => {
+    painelOk();
+    const h = await html();
+    const q = h.match(/data-quadro="metas"[^>]*>([\s\S]*?)<\/section>/)![1];
+    expect(q).toContain('Consultas marcadas');
+    expect(q).toContain('2 de 10');
+    expect(q).toContain('20%');
+    expect(q).toContain('Receita contratada');
+    expect(q).toContain('R$ 10.000,00 de R$ 50.000,00');
+    expect(q).toContain('Faltam 9 dias');
+    expect(q).toContain('Salvar meta');
+    expect(q).toContain('name="valor"');
+  });
+
+  it('sem metas definidas o quadro convida a definir (e não mostra 0%)', async () => {
+    painelOk();
+    const base = await d.carregarPainel({ de: new Date(), ate: new Date() });
+    d.carregarPainel.mockResolvedValue({ ...base, metas: ok([]) });
+    const q = (await html()).match(/data-quadro="metas"[^>]*>([\s\S]*?)<\/section>/)![1];
+    expect(q).toContain('Defina uma meta');
+    expect(q).toContain('Salvar meta');
+    expect(q).not.toContain('0%');
+  });
+
+  it('meta indisponível mostra "indisponível" e não um velocímetro zerado', async () => {
+    painelOk();
+    const base = await d.carregarPainel({ de: new Date(), ate: new Date() });
+    d.carregarPainel.mockResolvedValue({ ...base, metas: fora });
+    const q = (await html()).match(/data-quadro="metas"[^>]*>([\s\S]*?)<\/section>/)![1];
+    expect(q).toContain('indisponível');
+    expect(q).not.toContain('%');
   });
 });
