@@ -107,3 +107,6 @@ a:focus-visible,button:focus-visible,select:focus-visible,input:focus-visible{ou
 .p-etapa-linha b{color:var(--ink)}
 .p-etapa-linha.p-alerta,.p-etapa-linha.p-alerta b{color:#e07b7b}
 .p-etapa-agora{margin-top:4px;font-size:11.5px;color:var(--muted);border-top:1px solid var(--border-soft);padding-top:4px}
+.p-etiquetas{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px}
+.p-metas{grid-template-columns:minmax(0,420px);justify-content:center}
+.p-meta-form input[type=text]{min-width:240px}

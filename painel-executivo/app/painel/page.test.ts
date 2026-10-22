@@ -194,8 +194,9 @@ describe('Painel inicial /painel', () => {
     expect(q).toContain('Consultas marcadas');
     expect(q).toContain('2 de 10');
     expect(q).toContain('20%');
-    expect(q).toContain('Receita contratada');
-    expect(q).toContain('R$ 10.000,00 de R$ 50.000,00');
+    expect(q).toContain('Contratos');
+    expect(q).toContain('Receita');
+    expect(q).toContain('2 de 10 · 20% da meta');
     expect(q).toContain('Faltam 9 dias');
     expect(q).toContain('Salvar meta');
     expect(q).toContain('name="valor"');
@@ -206,7 +207,7 @@ describe('Painel inicial /painel', () => {
     const base = await d.carregarPainel({ de: new Date(), ate: new Date() });
     d.carregarPainel.mockResolvedValue({ ...base, metas: ok([]) });
     const q = (await html()).match(/data-quadro="metas"[^>]*>([\s\S]*?)<\/section>/)![1];
-    expect(q).toContain('Defina uma meta');
+    expect(q).toContain('Sem meta de consultas');
     expect(q).toContain('Salvar meta');
     expect(q).not.toContain('0%');
   });

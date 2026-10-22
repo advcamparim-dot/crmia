@@ -229,3 +229,6 @@ Vigiar a Evolution, curar quedas, avisar fora do WhatsApp e recuperar mensagens 
 - Testes: vitest 118/118, tsc, next build ok; conferido visualmente com dados fictícios. Publicado no GitHub (5b00e17); falta o redeploy no Coolify.
 - Pendências: etapas clicáveis abrindo a lista no CRM (falta definir o filtro do EspoCRM); seletor por etiqueta nas Metas; previsão de vendas (Etapa 4, a partir de novembro).
 - Riscos: nenhum dado alterado; só interface.
+
+## Painel: seletor de metas por etiqueta (22/10)
+- Quadro Metas agora tem etiquetas Consultas/Contratos/Receita; mostra um velocímetro por vez ("X de Y · % da meta · faltam N dias") e o formulário já vem na etiqueta ativa. Arquivos: painel-executivo/app/painel/widgets/Metas.tsx (client), styles.css, page.test.ts. Testes 118/118, tsc e build ok. Só interface; sem mudança de dados.
