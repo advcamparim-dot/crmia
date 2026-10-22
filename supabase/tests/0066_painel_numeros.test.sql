@@ -87,7 +87,7 @@ begin
   assert (depois ->> 'Perdidos')::int - coalesce((antes ->> 'Perdidos')::int, 0) = 1, 'Perdidos +1 (F)';
   select count(*) into n_depois from mayara.leads_autorizados;
   assert (select sum(quantidade) from painel.leads_por_etapa()) = n_depois, 'a soma das etapas e o total de leads da lista';
-  assert (select count(*) from painel.leads_por_etapa()) = 6, 'seis linhas, sempre';
+  assert (select count(*) from painel.leads_por_etapa()) = 7, 'sete linhas, sempre';
 
   assert not has_function_privilege('anon', 'painel.faixa_numeros(timestamptz, timestamptz)', 'execute'), 'anon sem execute faixa_numeros';
   assert not has_function_privilege('authenticated', 'painel.leads_por_etapa()', 'execute'), 'authenticated sem execute leads_por_etapa';

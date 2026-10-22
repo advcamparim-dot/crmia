@@ -27,9 +27,9 @@ begin
   assert r.entraram = 1 and r.avancaram = 0, 'Com a equipe: so E';
   select * into r from painel.funil_periodo(d0, d1) where etapa = 'Contrato';
   assert r.entraram = 0, 'sem contratos ainda';
-  assert (select count(*) from painel.funil_periodo(d0, d1)) = 5, 'sempre cinco etapas';
-  assert (select array_agg(etapa order by ordem) from painel.funil_periodo(d0, d1)) = array['Novo', 'Em conversa', 'Consulta', 'Com a equipe', 'Contrato'], 'ordem das etapas';
-  assert (select count(*) from painel.funil_periodo(d0 + interval '100 years', d1 + interval '100 years') where entraram = 0) = 5, 'periodo vazio: tudo zero (dado real vazio, nao falha)';
+  assert (select count(*) from painel.funil_periodo(d0, d1)) = 6, 'sempre seis etapas';
+  assert (select array_agg(etapa order by ordem) from painel.funil_periodo(d0, d1)) = array['Novo', 'Em conversa', 'Consulta', 'Com a equipe', 'Proposta enviada', 'Contrato'], 'ordem das etapas';
+  assert (select count(*) from painel.funil_periodo(d0 + interval '100 years', d1 + interval '100 years') where entraram = 0) = 6, 'periodo vazio: tudo zero (dado real vazio, nao falha)';
 
   insert into painel.eventos (lead_chave, tipo, ocorrido_em) values ('1199985001', 'contrato_fechado', d0 + interval '6 days');
   select * into r from painel.funil_periodo(d0, d1) where etapa = 'Consulta';
