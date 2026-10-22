@@ -39,8 +39,17 @@ function iso(a, m, d) {
 
 // hoje = 'aaaa-mm-dd'. modo decide o ano quando o texto nao traz ano: 'passada' (o dia mais recente que nao passa de hoje)
 // ou 'futura' (o primeiro dia que nao e anterior a hoje).
+const MESES = ['jan', 'fev', 'mar', 'abr', 'mai', 'jun', 'jul', 'ago', 'set', 'out', 'nov', 'dez'];
+
 export function resolverData(texto, hoje, modo) {
-  const t = String(texto ?? '').trim();
+  let t = String(texto ?? '').trim();
+  // "20 de novembro" / "1º de dezembro" / "5 de março de 2027" -> dd/mm[/aaaa]
+  const ext = t.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().match(/^(\d{1,2})\s*(?:o|º|°)?\s+de\s+([a-z]+)(?:\s+de\s+(\d{4}))?$/);
+  if (ext) {
+    const i = MESES.findIndex((m) => ext[2].startsWith(m));
+    if (i < 0) return null;
+    t = ext[1] + '/' + (i + 1) + (ext[3] ? '/' + ext[3] : '');
+  }
   let m = t.match(/^(\d{4})-(\d{2})-(\d{2})$/);
   if (m) return dataValida(+m[1], +m[2], +m[3]) ? t : null;
   m = t.match(/^(\d{1,2})\/(\d{1,2})\/(\d{2}|\d{4})$/);

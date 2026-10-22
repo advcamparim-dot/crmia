@@ -5,12 +5,16 @@ import { fileURLToPath } from 'node:url';
 
 const dir = dirname(fileURLToPath(import.meta.url));
 const lib = readFileSync(join(dir, 'interpretar.mjs'), 'utf8').replace(/^export\s+/gm, '');
+// Biblioteca de contrato (dinheiro, datas, vencimentos): inlined no mesmo Code node.
+const contrato = readFileSync(join(dir, '..', '2026-10-22-contratos-whatsapp', 'contrato.mjs'), 'utf8').replace(/^export\s+/gm, '');
 export const corpo = [
-  '// Gerado por gerar-interpretar-node.mjs a partir de interpretar.mjs (testado em interpretar.test.mjs). Colar como esta.',
+  '// Gerado por gerar-interpretar-node.mjs a partir de interpretar.mjs e contrato.mjs (testados). Colar como esta.',
+  contrato,
   lib,
   'const bruto = $input.first().json || {};',
   "const texto = typeof bruto.text === 'string' ? bruto.text : (typeof bruto.output === 'string' ? bruto.output : '');",
-  'return [{ json: interpretarResposta(texto) }];',
+  "const hoje = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Sao_Paulo' }).format(new Date());",
+  'return [{ json: interpretarResposta(texto, { montarContrato, corpoResumo, hoje }) }];',
   '',
 ].join('\n');
 

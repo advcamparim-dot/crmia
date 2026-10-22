@@ -144,3 +144,13 @@ test('corpoResumo nao traz o cabecalho do lead; resumoContrato junta os dois', (
   assert.doesNotMatch(corpo, /Registrar contrato/);
   assert.equal(resumoContrato(r.contrato, 'X'), 'Registrar contrato de X:\n' + corpo);
 });
+
+test('resolverData entende data por extenso em portugues', () => {
+  assert.equal(resolverData('20 de novembro', HOJE, 'futura'), '2026-11-20');
+  assert.equal(resolverData('20 de outubro', HOJE, 'passada'), '2026-10-20');
+  assert.equal(resolverData('1º de dezembro', HOJE, 'futura'), '2026-12-01');
+  assert.equal(resolverData('5 de Março de 2027', HOJE, 'futura'), '2027-03-05');
+  assert.equal(resolverData('20 de nov', HOJE, 'futura'), '2026-11-20');
+  assert.equal(resolverData('31 de fevereiro', HOJE, 'futura'), null);
+  assert.equal(resolverData('20 de bananas', HOJE, 'futura'), null);
+});
