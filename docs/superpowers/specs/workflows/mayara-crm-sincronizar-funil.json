@@ -1,0 +1,146 @@
+{
+  "id": "80Z630kqKfYO3wKj",
+  "name": "Mayara — CRM: Sincronizar Funil [Worker]",
+  "active": true,
+  "nodes": [
+    {
+      "id": "fc000000-0000-4000-8000-000000000001",
+      "name": "Agendar",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        0,
+        0
+      ],
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "minutes",
+              "minutesInterval": 10
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "fc000000-0000-4000-8000-000000000002",
+      "name": "Pendentes",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "executeOnce": true,
+      "position": [
+        220,
+        0
+      ],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "select * from mayara.crm_status_pendentes(25)",
+        "options": {}
+      },
+      "credentials": {
+        "postgres": {
+          "id": "nNpCUIhnDuVvTApU",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "id": "fc000000-0000-4000-8000-000000000003",
+      "name": "Atualizar CRM",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "onError": "continueRegularOutput",
+      "position": [
+        440,
+        0
+      ],
+      "parameters": {
+        "method": "PUT",
+        "url": "=https://crm.camparimadvogados.com.br/api/v1/Lead/{{ $json.crm_lead_id }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json.status_novo === 'Dead' ? { status: 'Dead', cLostReason: $json.motivo_perda } : { status: $json.status_novo }) }}",
+        "options": {
+          "timeout": 30000,
+          "response": {
+            "response": {
+              "fullResponse": true,
+              "neverError": true
+            }
+          }
+        }
+      },
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "3CNvCGWMMDOyGD2n",
+          "name": "EspoCRM Integração n8n — Mayara"
+        }
+      }
+    },
+    {
+      "id": "fc000000-0000-4000-8000-000000000004",
+      "name": "Registrar",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        660,
+        0
+      ],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "select mayara.crm_status_registrar($1, $2, $3::boolean, $4)",
+        "options": {
+          "queryReplacement": "={{ [ $('Pendentes').item.json.crm_lead_id, $('Pendentes').item.json.status_novo, $json.statusCode === 200, $json.statusCode === 200 ? '' : ('http ' + $json.statusCode + ' ' + JSON.stringify($json.body || $json.error || '').slice(0, 150)) ] }}"
+        }
+      },
+      "credentials": {
+        "postgres": {
+          "id": "nNpCUIhnDuVvTApU",
+          "name": "Postgres account"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Agendar": {
+      "main": [
+        [
+          {
+            "node": "Pendentes",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Pendentes": {
+      "main": [
+        [
+          {
+            "node": "Atualizar CRM",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Atualizar CRM": {
+      "main": [
+        [
+          {
+            "node": "Registrar",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "errorWorkflow": "CQyjBKLX0UheNh1q",
+    "executionOrder": "v1"
+  }
+}
