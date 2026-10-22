@@ -36,3 +36,7 @@
 
 ## Registro de execução
 
+- **Task 1 concluída em 22/10** (`OK 0080`): `painel.metas`, `painel.metas_log`, `meta_definir` (valida tipo e limites, consultas e contratos inteiros, valor 0 remove, log só quando muda) e `metas_mes()` (realizado do mês corrente de consultas, contratos e receita contratada, percentual, projeção linear, dias restantes). Meta sem definição neste mês herda a mais recente de um mês anterior.
+  - Ruling: o teste SQL usa `update` (e não `delete`) para simular a herança, porque a ferramenta SQL recusa `delete`.
+- **Task 2 concluída** (118/118 testes, `tsc`, build): `lib/valor.ts` (`lerValorBR`, formatos "50.000,50" e "R$ 1.234,56"), seção `metas` em `carregarPainel`, `gravarMeta`, `definirMetaAction` (sessão, valor ilegível não chega ao banco), widget `Metas` com um velocímetro em SVG por meta e o formulário "Salvar meta"; quadro `metas` no catálogo (12×7, no fim do arranjo padrão).
+- **Task 3:** publicado no GitHub (`b8502ea`). Etapa 3 do painel (3A, 3B e 3C) concluída; falta a previsão de vendas (etapa 4), que só faz sentido a partir de 30 dias de histórico.
