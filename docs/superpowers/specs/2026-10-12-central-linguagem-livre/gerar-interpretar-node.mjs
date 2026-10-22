@@ -14,7 +14,7 @@ export const corpo = [
   'const bruto = $input.first().json || {};',
   "const texto = typeof bruto.text === 'string' ? bruto.text : (typeof bruto.output === 'string' ? bruto.output : '');",
   "const hoje = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Sao_Paulo' }).format(new Date());",
-  'return [{ json: interpretarResposta(texto, { montarContrato, corpoResumo, hoje }) }];',
+  'return [{ json: interpretarResposta(texto, { montarContrato, corpoResumo, resolverData, hoje }) }];',
   '',
 ].join('\n');
 
