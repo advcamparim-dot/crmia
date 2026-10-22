@@ -30,6 +30,7 @@ export default async function PainelPage({ searchParams }: { searchParams: { per
   const periodo = lerPeriodoDaUrl(searchParams, new Date());
   const [dados, arranjo] = await Promise.all([carregarPainel({ de: periodo.de, ate: periodo.ate }), lerArranjo()]);
   const n = dados.numeros;
+  const tituloFila = dados.fila.estado === 'indisponivel' ? undefined : `Precisa de você agora · ${dados.fila.dados.length}`;
 
   const quadros: Record<WidgetId, ReactNode> = {
     'kpi-leads-novos': <Kpi dados={n} valor={(x) => String(x.leads_novos)} />,
@@ -53,28 +54,38 @@ export default async function PainelPage({ searchParams }: { searchParams: { per
 
   return (
     <div className="p-wrap">
-      <div className="p-topo">
-        <div className="p-marca">
-          <img src="/logo-camparim.png" alt="Camparim Advogados" />
-          <span>Camparim Advogados<small>Painel</small></span>
-        </div>
-        <nav className="p-periodos" aria-label="Período">
-          {PRESETS.map((p) => (
-            <a key={p.chave} href={`?periodo=${p.chave}`} className={`p-chip${periodo.preset === p.chave ? ' active' : ''}`}>{p.rotulo}</a>
-          ))}
-          <form method="get" className="p-livre">
-            <input type="hidden" name="periodo" value="livre" />
-            <input type="date" name="de" aria-label="De" required />
-            <input type="date" name="ate" aria-label="Até" required />
-            <button type="submit" className={`p-chip${periodo.preset === 'livre' ? ' active' : ''}`}>Período livre</button>
+      <Grade
+        arranjo={arranjo}
+        quadros={quadros}
+        titulos={{ fila: tituloFila }}
+        marca={(
+          <div className="p-marca">
+            <img src="/logo-camparim.png" alt="Camparim Advogados" />
+            <span>Camparim Advogados<small>Painel</small></span>
+          </div>
+        )}
+        periodos={(
+          <nav className="p-periodos" aria-label="Período">
+            {PRESETS.map((p) => (
+              <a key={p.chave} href={`?periodo=${p.chave}`} className={`p-chip${periodo.preset === p.chave ? ' active' : ''}`}>{p.rotulo}</a>
+            ))}
+            <details className="p-livre" open={periodo.preset === 'livre'}>
+              <summary className={`p-chip${periodo.preset === 'livre' ? ' active' : ''}`}>{periodo.preset === 'livre' ? periodo.rotulo : 'Período livre'}</summary>
+              <form method="get" className="p-livre-form">
+                <input type="hidden" name="periodo" value="livre" />
+                <input type="date" name="de" aria-label="De" required />
+                <input type="date" name="ate" aria-label="Até" required />
+                <button type="submit" className="p-chip active">Aplicar</button>
+              </form>
+            </details>
+          </nav>
+        )}
+        sair={(
+          <form action={logout}>
+            <button type="submit" className="p-sair" title="Sair">Sair</button>
           </form>
-        </nav>
-        <form action={logout}>
-          <button type="submit" className="p-sair" title="Sair">Sair</button>
-        </form>
-      </div>
-      <p className="p-rotulo">{periodo.rotulo}</p>
-      <Grade arranjo={arranjo} quadros={quadros} />
+        )}
+      />
     </div>
   );
 }

@@ -5,19 +5,17 @@ export function AnaliseFunil({ funil }: { funil: Carregado<FunilEtapa[]> }) {
   if (funil.estado === 'indisponivel') return <p className="p-fora">{texto(funil, () => '')}</p>;
   return (
     <div>
-      <table className="p-tabela">
-        <thead>
-          <tr><th>Etapa</th><th>Entraram</th><th>Avançaram</th><th>Perderam</th><th>Agora</th></tr>
-        </thead>
-        <tbody>
-          {funil.dados.map((e) => (
-            <tr key={e.etapa}>
-              <td>{e.etapa}</td><td>{e.entraram}</td><td>{e.avancaram}</td>
-              <td className={e.perderam > 0 ? 'p-alerta' : ''}>{e.perderam}</td><td>{e.agora}</td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
+      <ul className="p-etapas-cards">
+        {funil.dados.map((e) => (
+          <li key={e.etapa} className="p-etapa-card">
+            <span className="p-etapa-nome">{e.etapa}</span>
+            <span className="p-etapa-entraram">{e.entraram}</span>
+            <span className="p-etapa-linha"><b>{e.avancaram}</b> avançaram</span>
+            <span className={`p-etapa-linha${e.perderam > 0 ? ' p-alerta' : ''}`}><b>{e.perderam}</b> perdidos</span>
+            <span className="p-etapa-agora">{e.agora} agora</span>
+          </li>
+        ))}
+      </ul>
       <p className="p-nota">Histórico disponível desde 06/10/2026. Datas de consulta, equipe e perda são aproximadas.</p>
     </div>
   );

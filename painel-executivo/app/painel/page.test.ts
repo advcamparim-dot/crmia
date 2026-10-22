@@ -8,8 +8,8 @@ vi.mock('@/app/login/actions', () => ({ logout: async () => {} }));
 vi.mock('./actions', () => ({ salvarArranjo: async () => ({ ok: true }), marcarPagaAction: async () => {}, desfazerPagaAction: async () => {}, definirMetaAction: async () => {} }));
 // A grade de verdade e do navegador; aqui so interessa o conteudo de cada quadro, na ordem do arranjo.
 vi.mock('./Grade', () => ({
-  default: ({ arranjo, quadros }: { arranjo: { itens: { id: string }[] }; quadros: Record<string, ReactNode> }) =>
-    createElement('div', null, arranjo.itens.map((i) => createElement('section', { key: i.id, 'data-quadro': i.id }, quadros[i.id])))
+  default: ({ arranjo, quadros, marca, periodos, sair }: { arranjo: { itens: { id: string }[] }; quadros: Record<string, ReactNode>; marca?: ReactNode; periodos?: ReactNode; sair?: ReactNode }) =>
+    createElement('div', null, marca, periodos, sair, arranjo.itens.map((i) => createElement('section', { key: i.id, 'data-quadro': i.id }, quadros[i.id])))
 }));
 vi.mock('@/lib/painel-dados', () => ({ carregarPainel: vi.fn(), lerArranjo: vi.fn() }));
 

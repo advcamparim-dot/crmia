@@ -11,9 +11,16 @@ import { salvarArranjo } from './actions';
 const LARGURA_CELULAR = 700;
 const ALTURA_LINHA = 44;
 
-type Props = { arranjo: Arranjo; quadros: Record<WidgetId, ReactNode> };
+type Props = {
+  arranjo: Arranjo;
+  quadros: Record<WidgetId, ReactNode>;
+  titulos?: Partial<Record<WidgetId, string>>;
+  marca?: ReactNode;
+  periodos?: ReactNode;
+  sair?: ReactNode;
+};
 
-export default function Grade({ arranjo, quadros }: Props) {
+export default function Grade({ arranjo, quadros, titulos = {}, marca, periodos, sair }: Props) {
   const [salvo, setSalvo] = useState<Arranjo>(arranjo);
   const [rascunho, setRascunho] = useState<Item[] | null>(null); // null = modo Ver
   const [largura, setLargura] = useState<number | null>(null); // null = ainda nao montou: empilha, igual ao servidor
@@ -40,7 +47,7 @@ export default function Grade({ arranjo, quadros }: Props) {
   function cabecalho(id: WidgetId) {
     return (
       <header className="p-quadro-topo">
-        <h2>{CATALOGO[id].titulo}</h2>
+        <h2>{titulos[id] ?? CATALOGO[id].titulo}</h2>
         {configurando && (
           <button type="button" className="p-mini" onClick={() => setRascunho(rascunho!.map((i) => (i.id === id ? { ...i, oculto: true } : i)))}>
             Esconder
@@ -79,9 +86,11 @@ export default function Grade({ arranjo, quadros }: Props) {
 
   return (
     <div ref={caixa} className="p-grade">
-      {!celular && (
-        <div className="p-barra-config">
-          {configurando ? (
+      <div className="p-topo">
+        {marca}
+        {periodos}
+        <div className="p-acoes-topo">
+          {!celular && (configurando ? (
             <>
               {escondidos.length > 0 && (
                 <select aria-label="Adicionar quadro" value="" onChange={(e) => e.target.value && adicionar(e.target.value as WidgetId)}>
@@ -93,11 +102,12 @@ export default function Grade({ arranjo, quadros }: Props) {
               <button type="button" className="p-chip" disabled={gravando} onClick={() => { setRascunho(null); setErro(null); }}>Cancelar</button>
             </>
           ) : (
-            <button type="button" className="p-chip" onClick={() => setRascunho(salvo.itens)}>Configurar</button>
-          )}
-          {erro && <span role="alert" className="p-erro">{erro}</span>}
+            <button type="button" className="p-chip" onClick={() => setRascunho(salvo.itens)}>⚙ Configurar</button>
+          ))}
+          {sair}
         </div>
-      )}
+      </div>
+      {erro && <span role="alert" className="p-erro">{erro}</span>}
 
       {celular ? (
         <div className="p-pilha">
@@ -112,6 +122,7 @@ export default function Grade({ arranjo, quadros }: Props) {
           cols={12}
           rowHeight={ALTURA_LINHA}
           margin={[14, 14]}
+          containerPadding={[0, 0]}
           layout={visiveis.map((i) => ({ i: i.id, x: i.x, y: i.y, w: i.w, h: i.h, minW: 2, minH: 2 }))}
           isDraggable={configurando}
           isResizable={configurando}

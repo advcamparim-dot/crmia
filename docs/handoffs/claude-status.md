@@ -221,3 +221,11 @@ Vigiar a Evolution, curar quedas, avisar fora do WhatsApp e recuperar mensagens 
 - **Migrations aplicadas com teste:** `0081` (tabela, textos, cadência, funções), `0082` (ação na Central), `0083` (funil do painel); fluxo vivo `Central: Interpretar Livre` atualizado; robô `PGsKDBIbdJCVRrNI` ativo (exportado em `docs/superpowers/specs/workflows/mayara-proposta-lembretes.json`).
 - **Os 7 leads registrados hoje** (finais 1049, 1357, 3760, 5007, 5020, 6022 e 9052; o 4845 da foto não está na lista nem no CRM): primeiro lembrete em 26/10 às 10h.
 - **Pendências:** o usuário está atendendo o final 6022 à mão (um lembrete só sai se ele não responder até 26/10); religar a reativação em massa (pausada; ela já ignora bloqueados); estágio "Proposta enviada" no CRM só se o usuário criar a opção no EspoCRM; teste real pelo WhatsApp (lead sintético final 6999 para contratos); limpeza dos dados sintéticos.
+
+## Painel: aparência alinhada ao desenho aprovado (22/10)
+- Objetivo: aplicar os pontos visuais aprovados (layout A + fila da B) que faltavam.
+- Arquivos: painel-executivo/app/painel/{Grade.tsx,page.tsx,formatar.ts,styles.css,page.test.ts}, widgets/{Fila,AnaliseFunil}.tsx, lib/{layout,widgets}.ts.
+- Feito: barra única (marca, períodos, ⚙ Configurar, Sair) alinhada à grade; período livre em popover; fila com contagem no título e etiqueta de origem (Mayara/WhatsApp/Agenda/Contratos/Follow-up); Análise do funil em cartões (avançaram/perdidos/agora).
+- Testes: vitest 118/118, tsc, next build ok; conferido visualmente com dados fictícios. Publicado no GitHub (5b00e17); falta o redeploy no Coolify.
+- Pendências: etapas clicáveis abrindo a lista no CRM (falta definir o filtro do EspoCRM); seletor por etiqueta nas Metas; previsão de vendas (Etapa 4, a partir de novembro).
+- Riscos: nenhum dado alterado; só interface.

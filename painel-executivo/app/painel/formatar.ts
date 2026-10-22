@@ -30,6 +30,16 @@ export const ROTULO_TIPO: Record<string, string> = {
   canal: 'WhatsApp',
 };
 
+export const ORIGEM_TIPO: Record<string, string> = {
+  lead_esperando: 'Mayara',
+  transferencia: 'WhatsApp',
+  agendamento_falhou: 'Agenda',
+  consulta_24h: 'Agenda',
+  parcela_atrasada: 'Contratos',
+  fim_sequencia: 'Follow-up',
+  canal: 'WhatsApp',
+};
+
 export function formatarReais(valor: number): string {
   return 'R$ ' + valor.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }

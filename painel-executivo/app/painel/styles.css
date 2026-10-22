@@ -11,13 +11,17 @@ body{margin:0;background:radial-gradient(circle at 85% -10%, #1c2a1f 0%, transpa
 a:focus-visible,button:focus-visible,select:focus-visible,input:focus-visible{outline:2px solid var(--brass);outline-offset:2px}
 
 .p-wrap{width:min(1280px,100%);margin:0 auto;display:flex;flex-direction:column;gap:12px}
-.p-topo{display:flex;justify-content:space-between;align-items:center;gap:16px;flex-wrap:wrap}
+.p-topo{display:flex;justify-content:space-between;align-items:center;gap:16px;flex-wrap:wrap;margin-bottom:14px}
+.p-acoes-topo{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
 .p-marca{display:flex;align-items:center;gap:10px;font:600 15px Lora,Georgia,serif}
 .p-marca img{width:34px;height:auto}
 .p-marca small{display:block;font:600 9.5px Karla,sans-serif;color:var(--muted);text-transform:uppercase;letter-spacing:.14em}
 .p-periodos{display:flex;gap:6px;flex-wrap:wrap;align-items:center}
-.p-livre{display:flex;gap:6px;align-items:center;flex-wrap:wrap}
-.p-livre input{background:var(--surface-2);color:var(--ink);border:1px solid var(--border);border-radius:3px;padding:6px 8px;font:500 12px Karla,sans-serif}
+.p-livre{position:relative}
+.p-livre summary{list-style:none}
+.p-livre summary::-webkit-details-marker{display:none}
+.p-livre-form{position:absolute;top:calc(100% + 6px);left:0;z-index:20;display:flex;gap:6px;align-items:center;background:var(--surface);border:1px solid var(--border);border-radius:4px;padding:10px;box-shadow:0 8px 24px #0008}
+.p-livre-form input{background:var(--surface-2);color:var(--ink);border:1px solid var(--border);border-radius:3px;padding:6px 8px;font:500 12px Karla,sans-serif}
 .p-chip{font:600 12px Karla,sans-serif;background:var(--surface-2);color:var(--muted);border:1px solid var(--border);padding:8px 13px;border-radius:3px;cursor:pointer;text-decoration:none;display:inline-block}
 .p-chip.active{background:var(--brass);color:#151009;border-color:var(--brass)}
 .p-chip:disabled{opacity:.6;cursor:default}
@@ -30,7 +34,7 @@ a:focus-visible,button:focus-visible,select:focus-visible,input:focus-visible{ou
 
 .p-quadro{background:var(--surface);border:1px solid var(--border-soft);border-radius:4px;display:flex;flex-direction:column;overflow:hidden;min-width:0}
 .p-editando{border-color:var(--brass);cursor:grab}
-.p-quadro-topo{display:flex;justify-content:space-between;align-items:center;gap:8px;padding:10px 14px 0}
+.p-quadro-topo{flex-shrink:0;padding-bottom:6px;display:flex;justify-content:space-between;align-items:center;gap:8px;padding:10px 14px 0}
 .p-quadro-topo h2{margin:0;font:600 11px Karla,sans-serif;text-transform:uppercase;letter-spacing:.12em;color:var(--muted)}
 .p-mini{font:600 11px Karla,sans-serif;background:none;color:var(--brass-bright);border:1px solid var(--border);border-radius:3px;padding:3px 8px;cursor:pointer}
 .p-quadro-corpo{padding:8px 14px 12px;flex:1;overflow:auto;min-height:0}
@@ -93,3 +97,13 @@ a:focus-visible,button:focus-visible,select:focus-visible,input:focus-visible{ou
 .p-meta-valores{font-weight:600;font-variant-numeric:tabular-nums}
 .p-meta-form{display:flex;gap:6px;flex-wrap:wrap;align-items:center}
 .p-meta-form select,.p-meta-form input{background:var(--surface-2);color:var(--ink);border:1px solid var(--border);border-radius:3px;padding:6px 8px;font:500 12px Karla,sans-serif}
+
+.p-origem{font-style:normal;margin-right:8px;padding:1px 6px;border:1px solid var(--border);border-radius:2px;color:var(--brass-bright);letter-spacing:.08em}
+.p-etapas-cards{list-style:none;margin:0;padding:0;display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:10px}
+.p-etapa-card{background:var(--surface-2);border-top:2px solid var(--brass);border-radius:3px;padding:10px 12px;display:flex;flex-direction:column;gap:3px}
+.p-etapa-nome{font:600 10.5px Karla,sans-serif;text-transform:uppercase;letter-spacing:.1em;color:var(--muted)}
+.p-etapa-entraram{font:600 28px Lora,Georgia,serif;color:var(--brass-bright);font-variant-numeric:tabular-nums}
+.p-etapa-linha{font-size:12.5px;color:var(--muted)}
+.p-etapa-linha b{color:var(--ink)}
+.p-etapa-linha.p-alerta,.p-etapa-linha.p-alerta b{color:#e07b7b}
+.p-etapa-agora{margin-top:4px;font-size:11.5px;color:var(--muted);border-top:1px solid var(--border-soft);padding-top:4px}

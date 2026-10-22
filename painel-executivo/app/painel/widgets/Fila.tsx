@@ -1,6 +1,6 @@
 import { texto, type Carregado } from '@/lib/carregado';
 import type { ItemFila } from '@/lib/painel-dados';
-import { ROTULO_TIPO, haQuanto } from '../formatar';
+import { ORIGEM_TIPO, ROTULO_TIPO, haQuanto } from '../formatar';
 
 const CRM = (process.env.CRM_URL || 'https://crm.camparimadvogados.com.br').replace(/\/+$/, '');
 
@@ -15,7 +15,7 @@ export function Fila({ fila }: { fila: Carregado<ItemFila[]> }) {
           <li key={`${i.tipo}-${i.telefone ?? k}`} className={`p-item u${i.urgencia}`}>
             <div className="p-item-topo">
               <span className="p-tipo">{ROTULO_TIPO[i.tipo] ?? i.tipo}</span>
-              <span className="p-espera">{haQuanto(i.desde)}</span>
+              <span className="p-espera">{ORIGEM_TIPO[i.tipo] && <em className="p-origem">{ORIGEM_TIPO[i.tipo]}</em>}{haQuanto(i.desde)}</span>
             </div>
             <div className="p-item-nome">
               {i.lead_nome ?? i.detalhe}
