@@ -32,6 +32,13 @@ function painelOk() {
     followups: ok({ enviados: 34, respostas: 3, falhas: 0 }),
     fontes: ok([{ fonte: 'sem origem', quantidade: 61 }]),
     tempo: ok({ media_segundos: 70, maior_espera_segundos: 7200 }),
+    funil: ok([
+      { etapa: 'Novo', entraram: 83, avancaram: 23, perderam: 0, agora: 60 },
+      { etapa: 'Em conversa', entraram: 23, avancaram: 4, perderam: 3, agora: 16 },
+      { etapa: 'Consulta', entraram: 0, avancaram: 0, perderam: 0, agora: 0 },
+      { etapa: 'Com a equipe', entraram: 4, avancaram: 0, perderam: 0, agora: 4 },
+      { etapa: 'Contrato', entraram: 0, avancaram: 0, perderam: 0, agora: 0 },
+    ]),
   });
 }
 
@@ -54,7 +61,7 @@ describe('Painel inicial /painel', () => {
 
   it('nenhum zero aparece quando todas as consultas falham', async () => {
     d.lerArranjo.mockResolvedValue(ARRANJO_PADRAO);
-    d.carregarPainel.mockResolvedValue({ numeros: fora, fila: fora, etapas: fora, followups: fora, fontes: fora, tempo: fora });
+    d.carregarPainel.mockResolvedValue({ numeros: fora, fila: fora, etapas: fora, followups: fora, fontes: fora, tempo: fora, funil: fora });
     const h = await html();
     expect(h).toContain('indisponível');
     const soTexto = h.replace(/<[^>]*>/g, ' ');
@@ -119,5 +126,18 @@ describe('Painel inicial /painel', () => {
     painelOk();
     const h = await html();
     expect(h).toMatch(/data-quadro="kpi-canal"[^>]*>(?:(?!<\/section>)[\s\S])*Conectado/);
+  });
+
+  it('o quadro Análise do funil mostra as cinco etapas, o aviso do histórico e vira indisponível se falhar', async () => {
+    painelOk();
+    const h = await html();
+    const quadro = h.match(/data-quadro="analise-funil"[^>]*>([\s\S]*?)<\/section>/)![1];
+    for (const e of ['Novo', 'Em conversa', 'Consulta', 'Com a equipe', 'Contrato']) expect(quadro).toContain(e);
+    expect(quadro).toContain('83');
+    expect(quadro).toContain('desde 06/10/2026');
+    const base = await d.carregarPainel({ de: new Date(), ate: new Date() });
+    d.carregarPainel.mockResolvedValue({ ...base, funil: fora });
+    const h2 = await html();
+    expect(h2.match(/data-quadro="analise-funil"[^>]*>([\s\S]*?)<\/section>/)![1]).toContain('indisponível');
   });
 });

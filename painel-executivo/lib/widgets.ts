@@ -10,7 +10,8 @@ export type WidgetId =
   | 'leads-por-etapa'
   | 'followups-dia'
   | 'fontes'
-  | 'tempo-resposta';
+  | 'tempo-resposta'
+  | 'analise-funil';
 
 export const CATALOGO: Record<WidgetId, { titulo: string; w: number; h: number }> = {
   'kpi-leads-novos': { titulo: 'Leads novos', w: 2, h: 2 },
@@ -24,6 +25,7 @@ export const CATALOGO: Record<WidgetId, { titulo: string; w: number; h: number }
   'followups-dia': { titulo: 'Follow-ups do período', w: 5, h: 4 },
   fontes: { titulo: 'Fontes de lead', w: 6, h: 5 },
   'tempo-resposta': { titulo: 'Tempo de resposta', w: 6, h: 5 },
+  'analise-funil': { titulo: 'Análise do funil', w: 12, h: 6 },
 };
 
 export const IDS_DO_CATALOGO = Object.keys(CATALOGO) as WidgetId[];

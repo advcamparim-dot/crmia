@@ -13,6 +13,8 @@ export type FollowupsPeriodo = { enviados: number; respostas: number; falhas: nu
 export type FonteLead = { fonte: string; quantidade: number };
 export type TempoResposta = { media_segundos: number | null; maior_espera_segundos: number | null };
 
+export type FunilEtapa = { etapa: string; entraram: number; avancaram: number; perderam: number; agora: number };
+
 export type Periodo = { de: Date; ate: Date };
 export type DadosDoPainel = {
   numeros: Carregado<FaixaNumeros>;
@@ -21,6 +23,7 @@ export type DadosDoPainel = {
   followups: Carregado<FollowupsPeriodo>;
   fontes: Carregado<FonteLead[]>;
   tempo: Carregado<TempoResposta>;
+  funil: Carregado<FunilEtapa[]>;
 };
 
 const consultaPadrao: Consulta = (sql, params) => getPool().query(sql, params as unknown[]);
@@ -31,7 +34,7 @@ const nOuNulo = (v: unknown): number | null => (v === null || v === undefined ? 
 
 export async function carregarPainel(periodo: Periodo, consulta: Consulta = consultaPadrao): Promise<DadosDoPainel> {
   const janela = [periodo.de, periodo.ate];
-  const [numeros, fila, etapas, followups, fontes, tempo] = await Promise.all([
+  const [numeros, fila, etapas, followups, fontes, tempo, funil] = await Promise.all([
     carregar('faixa de numeros', async () => {
       const { rows } = await consulta('select painel.faixa_numeros($1, $2) as f', janela);
       const f = rows[0]?.f as Record<string, unknown> | undefined;
@@ -69,8 +72,12 @@ export async function carregarPainel(periodo: Periodo, consulta: Consulta = cons
       if (!r) throw new Error('tempo_resposta sem resposta');
       return { media_segundos: nOuNulo(r.media_segundos), maior_espera_segundos: nOuNulo(r.maior_espera_segundos) };
     }),
+    carregar('funil por etapa', async () => {
+      const { rows } = await consulta('select * from painel.funil_periodo($1, $2)', janela);
+      return rows.map((r) => ({ etapa: String(r.etapa), entraram: n(r.entraram), avancaram: n(r.avancaram), perderam: n(r.perderam), agora: n(r.agora) }));
+    }),
   ]);
-  return { numeros, fila, etapas, followups, fontes, tempo };
+  return { numeros, fila, etapas, followups, fontes, tempo, funil };
 }
 
 // Falha de banco nao pode tirar a tela do ar: sem arranjo salvo ou sem banco, vale o padrao.

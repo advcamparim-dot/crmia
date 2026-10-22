@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import type { Consulta } from './sessao';
 import { ARRANJO_PADRAO } from './layout';
+import { IDS_DO_CATALOGO } from './widgets';
 import { carregarPainel, gravarArranjo, lerArranjo } from './painel-dados';
 
 const periodo = { de: new Date('2026-10-19T03:00:00Z'), ate: new Date('2026-10-20T03:00:00Z') };
@@ -15,6 +16,7 @@ function consultaFalsa(falhar: string[] = []): { consulta: Consulta; chamadas: {
     if (sql.includes('leads_por_etapa')) return { rows: [{ etapa: 'Novo', quantidade: '4' }, { etapa: 'Em conversa', quantidade: 2 }] };
     if (sql.includes('followups_periodo')) return { rows: [{ enviados: '7', respostas: 2, falhas: 0 }] };
     if (sql.includes('fontes_de_lead')) return { rows: [{ fonte: 'sem origem', quantidade: '3' }] };
+    if (sql.includes('funil_periodo')) return { rows: [{ etapa: 'Novo', ordem: 1, entraram: '83', avancaram: 23, perderam: 0, agora: 60 }, { etapa: 'Em conversa', ordem: 2, entraram: 23, avancaram: 4, perderam: 3, agora: 16 }] };
     if (sql.includes('tempo_resposta')) return { rows: [{ media_segundos: 70, maior_espera_segundos: null }] };
     if (sql.includes('layout_ler')) return { rows: [{ layout: { versao: 1, itens: [{ id: 'fila', x: 0, y: 0, w: 12, h: 9 }] } }] };
     return { rows: [] };
@@ -26,7 +28,7 @@ describe('carregarPainel', () => {
   it('cada seção chama a função SQL certa com de e ate', async () => {
     const { consulta, chamadas } = consultaFalsa();
     const r = await carregarPainel(periodo, consulta);
-    for (const nome of ['faixa_numeros', 'followups_periodo', 'fontes_de_lead', 'tempo_resposta']) {
+    for (const nome of ['faixa_numeros', 'followups_periodo', 'fontes_de_lead', 'tempo_resposta', 'funil_periodo']) {
       const c = chamadas.find((x) => x.sql.includes(nome))!;
       expect(c.params).toEqual([periodo.de, periodo.ate]);
     }
@@ -37,6 +39,7 @@ describe('carregarPainel', () => {
     expect(r.followups).toEqual({ estado: 'ok', dados: { enviados: 7, respostas: 2, falhas: 0 } });
     expect(r.fontes).toEqual({ estado: 'ok', dados: [{ fonte: 'sem origem', quantidade: 3 }] });
     expect(r.tempo).toEqual({ estado: 'ok', dados: { media_segundos: 70, maior_espera_segundos: null } });
+    expect(r.funil).toEqual({ estado: 'ok', dados: [{ etapa: 'Novo', entraram: 83, avancaram: 23, perderam: 0, agora: 60 }, { etapa: 'Em conversa', entraram: 23, avancaram: 4, perderam: 3, agora: 16 }] });
     expect(r.fila.estado === 'ok' && r.fila.dados[0]).toMatchObject({ tipo: 'lead_esperando', telefone_fim: '1234', crm_lead_id: 'abc' });
   });
 
@@ -45,7 +48,7 @@ describe('carregarPainel', () => {
     vi.spyOn(console, 'error').mockImplementation(() => {});
     const r = await carregarPainel(periodo, consulta);
     expect(r.fila).toEqual({ estado: 'indisponivel' });
-    for (const k of ['numeros', 'etapas', 'followups', 'fontes', 'tempo'] as const) expect(r[k].estado).toBe('ok');
+    for (const k of ['numeros', 'etapas', 'followups', 'fontes', 'tempo', 'funil'] as const) expect(r[k].estado).toBe('ok');
   });
 
   it('todas as seções falhando nunca viram zero', async () => {
@@ -91,7 +94,7 @@ describe('gravarArranjo', () => {
     const salvo = JSON.parse(c.params[0] as string);
     expect(salvo.versao).toBe(1);
     expect(salvo.itens.map((i: { id: string }) => i.id)).not.toContain('quadro-que-sumiu');
-    expect(salvo.itens.length).toBe(11);
+    expect(salvo.itens.length).toBe(IDS_DO_CATALOGO.length);
   });
 
   it('erro do banco sobe para quem chamou (a ação trata)', async () => {

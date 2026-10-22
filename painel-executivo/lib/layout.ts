@@ -21,6 +21,7 @@ export const ARRANJO_PADRAO: Arranjo = {
     { id: 'followups-dia', x: 7, y: 7, w: 5, h: 4 },
     { id: 'fontes', x: 0, y: 11, w: 6, h: 5 },
     { id: 'tempo-resposta', x: 6, y: 11, w: 6, h: 5 },
+    { id: 'analise-funil', x: 0, y: 16, w: 12, h: 6 },
   ],
 };
 

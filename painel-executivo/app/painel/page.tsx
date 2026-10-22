@@ -11,6 +11,7 @@ import { Etapas } from './widgets/Etapas';
 import { Fontes } from './widgets/Fontes';
 import { FollowupsDia } from './widgets/FollowupsDia';
 import { TempoResposta } from './widgets/TempoResposta';
+import { AnaliseFunil } from './widgets/AnaliseFunil';
 import './styles.css';
 
 const PRESETS: { chave: Exclude<Preset, 'livre'>; rotulo: string }[] = [
@@ -39,6 +40,7 @@ export default async function PainelPage({ searchParams }: { searchParams: { per
     'followups-dia': <FollowupsDia followups={dados.followups} />,
     fontes: <Fontes fontes={dados.fontes} />,
     'tempo-resposta': <TempoResposta tempo={dados.tempo} />,
+    'analise-funil': <AnaliseFunil funil={dados.funil} />,
   };
 
   return (
