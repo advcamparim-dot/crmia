@@ -14,6 +14,7 @@ import { TempoResposta } from './widgets/TempoResposta';
 import { AnaliseFunil } from './widgets/AnaliseFunil';
 import { ParcelasLista } from './widgets/ParcelasLista';
 import { Metas } from './widgets/Metas';
+import { Previsao } from './widgets/Previsao';
 import { formatarReais } from './formatar';
 import './styles.css';
 
@@ -50,6 +51,7 @@ export default async function PainelPage({ searchParams }: { searchParams: { per
     'kpi-receita-recebida': <Kpi dados={dados.contratos} valor={(x) => formatarReais(x.receita_recebida)} pequeno />,
     parcelas: <ParcelasLista parcelas={dados.parcelas} resumo={dados.contratos} />,
     metas: <Metas metas={dados.metas} />,
+    previsao: <Previsao previsao={dados.previsao} />,
   };
 
   return (

@@ -5,7 +5,7 @@ import { ARRANJO_PADRAO } from '@/lib/layout';
 
 vi.mock('@/lib/session', () => ({ requireSession: async () => {} }));
 vi.mock('@/app/login/actions', () => ({ logout: async () => {} }));
-vi.mock('./actions', () => ({ salvarArranjo: async () => ({ ok: true }), marcarPagaAction: async () => {}, desfazerPagaAction: async () => {}, definirMetaAction: async () => {} }));
+vi.mock('./actions', () => ({ salvarArranjo: async () => ({ ok: true }), marcarPagaAction: async () => {}, desfazerPagaAction: async () => {}, definirMetaAction: async () => {}, definirPrevisaoAction: async () => {}, definirTicketAction: async () => {} }));
 // A grade de verdade e do navegador; aqui so interessa o conteudo de cada quadro, na ordem do arranjo.
 vi.mock('./Grade', () => ({
   default: ({ arranjo, quadros, marca, periodos, sair }: { arranjo: { itens: { id: string }[] }; quadros: Record<string, ReactNode>; marca?: ReactNode; periodos?: ReactNode; sair?: ReactNode }) =>
@@ -42,6 +42,10 @@ function painelOk() {
       { tipo: 'consultas', meta: 10, atual: 2, percentual: 20, projecao: 6.2, dias_restantes: 9, dias_no_mes: 31 },
       { tipo: 'receita', meta: 50000, atual: 10000, percentual: 20, projecao: 31000, dias_restantes: 9, dias_no_mes: 31 },
     ]),
+    previsao: ok([
+      { etapa: 'Em conversa', leads: 10, chance: 0.1, prazo_dias: 40, esperados: 1, ticket_medio: 8000, ticket_origem: 'definido' },
+      { etapa: 'Proposta enviada', leads: 7, chance: 0.3, prazo_dias: 20, esperados: 2.1, ticket_medio: 8000, ticket_origem: 'definido' },
+    ]),
     funil: ok([
       { etapa: 'Novo', entraram: 83, avancaram: 23, perderam: 0, agora: 60 },
       { etapa: 'Em conversa', entraram: 23, avancaram: 4, perderam: 3, agora: 16 },
@@ -71,7 +75,7 @@ describe('Painel inicial /painel', () => {
 
   it('nenhum zero aparece quando todas as consultas falham', async () => {
     d.lerArranjo.mockResolvedValue(ARRANJO_PADRAO);
-    d.carregarPainel.mockResolvedValue({ numeros: fora, fila: fora, etapas: fora, followups: fora, fontes: fora, tempo: fora, funil: fora, contratos: fora, parcelas: fora, metas: fora });
+    d.carregarPainel.mockResolvedValue({ numeros: fora, fila: fora, etapas: fora, followups: fora, fontes: fora, tempo: fora, funil: fora, contratos: fora, parcelas: fora, metas: fora, previsao: fora });
     const h = await html();
     expect(h).toContain('indisponível');
     const soTexto = h.replace(/<[^>]*>/g, ' ');
@@ -226,5 +230,25 @@ describe('Painel inicial /painel', () => {
     const h = await html();
     expect(h).toContain('href="/painel/etapa/Novo"');
     expect(h).toContain('href="/painel/etapa/Em%20conversa"');
+  });
+
+  it('a previsão mostra os três horizontes, as taxas e avisa que é estimativa', async () => {
+    painelOk();
+    const q = (await html()).match(/data-quadro="previsao"[^>]*>([\s\S]*?)<\/section>/)![1];
+    expect(q).toContain('Em 20 dias');
+    expect(q).toContain('Em 60 dias');
+    expect(q).toContain('17 leads ativos');
+    expect(q).toContain('definido por você');
+    expect(q).toContain('Estimativa com as taxas que você definiu');
+    expect(q).toContain('Salvar taxa');
+  });
+
+  it('previsão indisponível mostra "indisponível" e não zeros', async () => {
+    painelOk();
+    const base = await d.carregarPainel({ de: new Date(), ate: new Date() });
+    d.carregarPainel.mockResolvedValue({ ...base, previsao: fora });
+    const q = (await html()).match(/data-quadro="previsao"[^>]*>([\s\S]*?)<\/section>/)![1];
+    expect(q).toContain('indisponível');
+    expect(q).not.toContain('R$');
   });
 });

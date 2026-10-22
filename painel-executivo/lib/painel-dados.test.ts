@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 import type { Consulta } from './sessao';
 import { ARRANJO_PADRAO } from './layout';
 import { IDS_DO_CATALOGO } from './widgets';
-import { carregarPainel, desfazerPagamento, gravarArranjo, gravarMeta, gravarPagamento, lerArranjo, lerLeadsDaEtapa, ETAPAS } from './painel-dados';
+import { carregarPainel, desfazerPagamento, gravarArranjo, gravarMeta, gravarPagamento, gravarPrevisao, gravarTicketMedio, lerArranjo, lerLeadsDaEtapa, ETAPAS } from './painel-dados';
 
 const periodo = { de: new Date('2026-10-19T03:00:00Z'), ate: new Date('2026-10-20T03:00:00Z') };
 
@@ -183,4 +183,25 @@ describe('lerLeadsDaEtapa', () => {
     expect(await lerLeadsDaEtapa('Novo', consulta)).toEqual({ estado: 'indisponivel' });
   });
   it('as sete etapas do funil', () => { expect(ETAPAS).toHaveLength(7); });
+});
+
+describe('gravarPrevisao e gravarTicketMedio', () => {
+  it('grava a taxa com parâmetros', async () => {
+    const consulta = vi.fn().mockResolvedValue({ rows: [] });
+    await gravarPrevisao('Proposta enviada', 0.3, 20, consulta);
+    expect(consulta).toHaveBeenCalledWith('select painel.previsao_definir($1, $2::numeric, $3::integer)', ['Proposta enviada', 0.3, 20]);
+  });
+  it('recusa etapa, chance e prazo inválidos antes do banco', async () => {
+    const consulta = vi.fn();
+    await expect(gravarPrevisao('Contrato', 0.3, 20, consulta)).rejects.toThrow();
+    await expect(gravarPrevisao('Novo', 1.2, 20, consulta)).rejects.toThrow();
+    await expect(gravarPrevisao('Novo', 0.2, 30, consulta)).rejects.toThrow();
+    expect(consulta).not.toHaveBeenCalled();
+  });
+  it('valor médio precisa ser positivo', async () => {
+    const consulta = vi.fn().mockResolvedValue({ rows: [] });
+    await expect(gravarTicketMedio(0, consulta)).rejects.toThrow();
+    await gravarTicketMedio(8000, consulta);
+    expect(consulta).toHaveBeenCalledTimes(1);
+  });
 });

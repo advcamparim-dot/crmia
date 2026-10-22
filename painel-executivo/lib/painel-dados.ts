@@ -2,6 +2,7 @@ import { getPool } from './db';
 import { carregar, type Carregado } from './carregado';
 import { ARRANJO_PADRAO, normalizarArranjo, type Arranjo } from './layout';
 import type { Consulta } from './sessao';
+import type { LinhaPrevisao } from './previsao';
 
 export type FaixaNumeros = { leads_novos: number; em_conversa: number; sem_resposta: number; followups: number; consultas: number; canal: string };
 export type ItemFila = {
@@ -36,6 +37,7 @@ export type DadosDoPainel = {
   contratos: Carregado<ContratosNumeros>;
   parcelas: Carregado<ParcelaAberta[]>;
   metas: Carregado<MetaMes[]>;
+  previsao: Carregado<LinhaPrevisao[]>;
 };
 
 const consultaPadrao: Consulta = (sql, params) => getPool().query(sql, params as unknown[]);
@@ -46,7 +48,7 @@ const nOuNulo = (v: unknown): number | null => (v === null || v === undefined ? 
 
 export async function carregarPainel(periodo: Periodo, consulta: Consulta = consultaPadrao): Promise<DadosDoPainel> {
   const janela = [periodo.de, periodo.ate];
-  const [numeros, fila, etapas, followups, fontes, tempo, funil, contratos, parcelas, metas] = await Promise.all([
+  const [numeros, fila, etapas, followups, fontes, tempo, funil, contratos, parcelas, metas, previsao] = await Promise.all([
     carregar('faixa de numeros', async () => {
       const { rows } = await consulta('select painel.faixa_numeros($1, $2) as f', janela);
       const f = rows[0]?.f as Record<string, unknown> | undefined;
@@ -109,8 +111,15 @@ export async function carregarPainel(periodo: Periodo, consulta: Consulta = cons
         dias_restantes: n(r.dias_restantes), dias_no_mes: n(r.dias_no_mes),
       }));
     }),
+    carregar('previsao de vendas', async () => {
+      const { rows } = await consulta('select * from painel.previsao()', []);
+      return rows.map((r) => ({
+        etapa: String(r.etapa), leads: n(r.leads), chance: n(r.chance), prazo_dias: n(r.prazo_dias),
+        esperados: n(r.esperados), ticket_medio: n(r.ticket_medio), ticket_origem: String(r.ticket_origem),
+      }));
+    }),
   ]);
-  return { numeros, fila, etapas, followups, fontes, tempo, funil, contratos, parcelas, metas };
+  return { numeros, fila, etapas, followups, fontes, tempo, funil, contratos, parcelas, metas, previsao };
 }
 
 // Falha de banco nao pode tirar a tela do ar: sem arranjo salvo ou sem banco, vale o padrao.
@@ -182,4 +191,18 @@ export async function lerLeadsDaEtapa(etapa: string, consulta: Consulta = consul
     console.error('Falha ao ler os leads da etapa', erro);
     return { estado: 'indisponivel' };
   }
+}
+
+const ETAPAS_PREVISAO = ['Novo', 'Em conversa', 'Consulta', 'Com a equipe', 'Proposta enviada'];
+
+export async function gravarPrevisao(etapa: string, chance: number, prazo: number, consulta: Consulta = consultaPadrao): Promise<void> {
+  if (!ETAPAS_PREVISAO.includes(etapa)) throw new Error('etapa invalida');
+  if (!Number.isFinite(chance) || chance < 0 || chance > 1) throw new Error('chance invalida');
+  if (![20, 40, 60].includes(prazo)) throw new Error('prazo invalido');
+  await consulta('select painel.previsao_definir($1, $2::numeric, $3::integer)', [etapa, chance, prazo]);
+}
+
+export async function gravarTicketMedio(valor: number, consulta: Consulta = consultaPadrao): Promise<void> {
+  if (!Number.isFinite(valor) || valor <= 0 || valor > 10_000_000) throw new Error('valor medio invalido');
+  await consulta('select painel.previsao_ticket_definir($1::numeric)', [valor]);
 }

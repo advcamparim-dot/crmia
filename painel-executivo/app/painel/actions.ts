@@ -2,7 +2,7 @@
 
 import { requireSession } from '@/lib/session';
 import { revalidatePath } from 'next/cache';
-import { desfazerPagamento, gravarArranjo, gravarMeta, gravarPagamento } from '@/lib/painel-dados';
+import { desfazerPagamento, gravarArranjo, gravarMeta, gravarPagamento, gravarPrevisao, gravarTicketMedio } from '@/lib/painel-dados';
 import { lerValorBR } from '@/lib/valor';
 
 export async function salvarArranjo(arranjo: unknown): Promise<{ ok: boolean }> {
@@ -45,6 +45,30 @@ export async function definirMetaAction(formData: FormData): Promise<void> {
     await gravarMeta(String(formData.get('tipo') ?? ''), valor);
   } catch (erro) {
     console.error('Falha ao definir a meta do mes', erro);
+  }
+  revalidatePath('/painel');
+}
+
+export async function definirPrevisaoAction(formData: FormData): Promise<void> {
+  await requireSession();
+  try {
+    const pct = lerValorBR(String(formData.get('chance') ?? '').replace('%', ''));
+    if (pct === null) throw new Error('chance ilegivel');
+    await gravarPrevisao(String(formData.get('etapa') ?? ''), pct / 100, Number(formData.get('prazo')));
+  } catch (erro) {
+    console.error('Falha ao definir a taxa da previsao', erro);
+  }
+  revalidatePath('/painel');
+}
+
+export async function definirTicketAction(formData: FormData): Promise<void> {
+  await requireSession();
+  try {
+    const valor = lerValorBR(String(formData.get('valor') ?? ''));
+    if (valor === null) throw new Error('valor ilegivel');
+    await gravarTicketMedio(valor);
+  } catch (erro) {
+    console.error('Falha ao definir o valor medio de contrato', erro);
   }
   revalidatePath('/painel');
 }

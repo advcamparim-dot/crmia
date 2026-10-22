@@ -27,6 +27,7 @@ export const ARRANJO_PADRAO: Arranjo = {
     { id: 'kpi-receita-recebida', x: 7, y: 22, w: 5, h: 2 },
     { id: 'parcelas', x: 0, y: 24, w: 12, h: 8 },
     { id: 'metas', x: 0, y: 32, w: 12, h: 7 },
+    { id: 'previsao', x: 0, y: 39, w: 12, h: 8 },
   ],
 };
 

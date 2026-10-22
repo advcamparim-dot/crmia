@@ -238,3 +238,10 @@ Vigiar a Evolution, curar quedas, avisar fora do WhatsApp e recuperar mensagens 
 - Arquivos: supabase/migrations/0084_painel_leads_da_etapa.sql (+ teste; aplicada) com painel._classe_leads() compartilhada por leads_por_etapa e leads_da_etapa (somente leitura, grant só para painel_leitura); painel-executivo/lib/painel-dados.ts (lerLeadsDaEtapa, só etapas conhecidas), app/painel/etapa/[etapa]/page.tsx, widgets Etapas/AnaliseFunil, styles.css, testes.
 - Testes: vitest 123/123, tsc, build ok; SQL do 0084 conferido no banco (contagens iguais às de antes). Publicado no GitHub; falta redeploy no Coolify.
 - Pendência: conferir a página logado após o deploy. Riscos: lista limitada a 200 leads; telefone completo só aparece para quem tem login.
+
+## Painel: previsão de vendas (22/10)
+- Objetivo: quadro "Vendas em potencial (previsão)" com contratos e receita esperados em 20/40/60 dias.
+- Arquivos: supabase/migrations/0085_painel_previsao.sql (+ teste; aplicada): tabelas painel.previsao_taxas e previsao_config, funções previsao(), previsao_definir(), previsao_ticket_definir(); painel-executivo/lib/{previsao,painel-dados,widgets,layout}.ts, app/painel/{actions.ts,page.tsx,widgets/Previsao.tsx,styles.css} e testes.
+- Método: chance de fechar e prazo (20/40/60 dias) por etapa, definidos pelo dono (iniciais: Novo 2%/60, Em conversa 8%/40, Consulta 25%/40, Com a equipe 15%/40, Proposta enviada 30%/20); valor médio R$ 8.000 (passa à média real a partir de 3 contratos). Cada etapa conta do horizonte do seu prazo em diante.
+- Testes: vitest 133/133, tsc, build ok; SQL conferido no banco com rollback. O quadro avisa que é estimativa com taxas do dono.
+- Pendência: trocar as taxas pelo histórico real quando houver 30 dias e 5 contratos (não implementado, hoje há 0 contratos). Risco: número é estimativa, não dado medido. Nova escrita do painel: taxas e valor médio.
