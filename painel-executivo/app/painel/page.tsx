@@ -12,6 +12,8 @@ import { Fontes } from './widgets/Fontes';
 import { FollowupsDia } from './widgets/FollowupsDia';
 import { TempoResposta } from './widgets/TempoResposta';
 import { AnaliseFunil } from './widgets/AnaliseFunil';
+import { ParcelasLista } from './widgets/ParcelasLista';
+import { formatarReais } from './formatar';
 import './styles.css';
 
 const PRESETS: { chave: Exclude<Preset, 'livre'>; rotulo: string }[] = [
@@ -41,6 +43,10 @@ export default async function PainelPage({ searchParams }: { searchParams: { per
     fontes: <Fontes fontes={dados.fontes} />,
     'tempo-resposta': <TempoResposta tempo={dados.tempo} />,
     'analise-funil': <AnaliseFunil funil={dados.funil} />,
+    'kpi-contratos': <Kpi dados={dados.contratos} valor={(x) => String(x.fechados)} />,
+    'kpi-receita-contratada': <Kpi dados={dados.contratos} valor={(x) => formatarReais(x.receita_contratada)} pequeno />,
+    'kpi-receita-recebida': <Kpi dados={dados.contratos} valor={(x) => formatarReais(x.receita_recebida)} pequeno />,
+    parcelas: <ParcelasLista parcelas={dados.parcelas} resumo={dados.contratos} />,
   };
 
   return (

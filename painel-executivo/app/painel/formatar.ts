@@ -29,3 +29,16 @@ export const ROTULO_TIPO: Record<string, string> = {
   fim_sequencia: 'Fim da sequência',
   canal: 'WhatsApp',
 };
+
+export function formatarReais(valor: number): string {
+  return 'R$ ' + valor.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+
+export function dataBR(iso: string): string {
+  const [a, m, d] = iso.split('-');
+  return `${d}/${m}/${a}`;
+}
+
+export function hojeIso(agora: Date = new Date()): string {
+  return new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Sao_Paulo' }).format(agora);
+}

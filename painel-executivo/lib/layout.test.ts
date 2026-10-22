@@ -64,7 +64,9 @@ describe('ARRANJO_PADRAO', () => {
   });
 
   it('põe a faixa de números no topo e a fila logo abaixo, à esquerda', () => {
-    const topo = ARRANJO_PADRAO.itens.filter((i) => i.id.startsWith('kpi-'));
+    const faixa = ['kpi-leads-novos', 'kpi-em-conversa', 'kpi-sem-resposta', 'kpi-followups', 'kpi-consultas', 'kpi-canal'];
+    const topo = ARRANJO_PADRAO.itens.filter((i) => faixa.includes(i.id));
+    expect(topo).toHaveLength(6);
     expect(topo.every((i) => i.y === 0)).toBe(true);
     const fila = ARRANJO_PADRAO.itens.find((i) => i.id === 'fila')!;
     expect(fila.x).toBe(0);

@@ -5,7 +5,7 @@ import { ARRANJO_PADRAO } from '@/lib/layout';
 
 vi.mock('@/lib/session', () => ({ requireSession: async () => {} }));
 vi.mock('@/app/login/actions', () => ({ logout: async () => {} }));
-vi.mock('./actions', () => ({ salvarArranjo: async () => ({ ok: true }) }));
+vi.mock('./actions', () => ({ salvarArranjo: async () => ({ ok: true }), marcarPagaAction: async () => {}, desfazerPagaAction: async () => {} }));
 // A grade de verdade e do navegador; aqui so interessa o conteudo de cada quadro, na ordem do arranjo.
 vi.mock('./Grade', () => ({
   default: ({ arranjo, quadros }: { arranjo: { itens: { id: string }[] }; quadros: Record<string, ReactNode> }) =>
@@ -32,6 +32,12 @@ function painelOk() {
     followups: ok({ enviados: 34, respostas: 3, falhas: 0 }),
     fontes: ok([{ fonte: 'sem origem', quantidade: 61 }]),
     tempo: ok({ media_segundos: 70, maior_espera_segundos: 7200 }),
+    contratos: ok({ fechados: 2, receita_contratada: 48400, receita_recebida: 6600, a_receber: 30000.5, atrasado: 1600 }),
+    parcelas: ok([
+      { id: 7, contrato_id: 3, lead_nome: 'Cliente Atrasado', telefone_fim: '6001', numero: 1, valor: 1600, vencimento: '2026-10-10', pago_em: null, status: 'atrasada', dias_atraso: 12 },
+      { id: 8, contrato_id: 3, lead_nome: 'Cliente Atrasado', telefone_fim: '6001', numero: 2, valor: 1600, vencimento: '2026-11-20', pago_em: null, status: 'a_receber', dias_atraso: 0 },
+      { id: 9, contrato_id: 4, lead_nome: 'Cliente Pago', telefone_fim: '6002', numero: 0, valor: 5000, vencimento: '2026-10-20', pago_em: '2026-10-20', status: 'paga', dias_atraso: 0 },
+    ]),
     funil: ok([
       { etapa: 'Novo', entraram: 83, avancaram: 23, perderam: 0, agora: 60 },
       { etapa: 'Em conversa', entraram: 23, avancaram: 4, perderam: 3, agora: 16 },
@@ -61,7 +67,7 @@ describe('Painel inicial /painel', () => {
 
   it('nenhum zero aparece quando todas as consultas falham', async () => {
     d.lerArranjo.mockResolvedValue(ARRANJO_PADRAO);
-    d.carregarPainel.mockResolvedValue({ numeros: fora, fila: fora, etapas: fora, followups: fora, fontes: fora, tempo: fora, funil: fora });
+    d.carregarPainel.mockResolvedValue({ numeros: fora, fila: fora, etapas: fora, followups: fora, fontes: fora, tempo: fora, funil: fora, contratos: fora, parcelas: fora });
     const h = await html();
     expect(h).toContain('indisponível');
     const soTexto = h.replace(/<[^>]*>/g, ' ');
@@ -139,5 +145,41 @@ describe('Painel inicial /painel', () => {
     d.carregarPainel.mockResolvedValue({ ...base, funil: fora });
     const h2 = await html();
     expect(h2.match(/data-quadro="analise-funil"[^>]*>([\s\S]*?)<\/section>/)![1]).toContain('indisponível');
+  });
+
+  it('os quadros de contratos mostram contratos fechados e as receitas formatadas em reais', async () => {
+    painelOk();
+    const h = await html();
+    const q = (id: string) => h.match(new RegExp('data-quadro="' + id + '"[^>]*>([\\s\\S]*?)</section>'))![1];
+    expect(q('kpi-contratos')).toContain('2');
+    expect(q('kpi-receita-contratada')).toContain('R$ 48.400,00');
+    expect(q('kpi-receita-recebida')).toContain('R$ 6.600,00');
+  });
+
+  it('a lista de parcelas mostra status, vencimento e os botões certos, e o resumo de a receber e atrasado', async () => {
+    painelOk();
+    const h = await html();
+    const q = h.match(/data-quadro="parcelas"[^>]*>([\s\S]*?)<\/section>/)![1];
+    expect(q).toContain('Cliente Atrasado');
+    expect(q).toContain('atrasada há 12 dias');
+    expect(q).toContain('20/11/2026');
+    expect(q).toContain('R$ 1.600,00');
+    expect(q).toContain('Marcar como paga');
+    expect(q).toContain('Desfazer');
+    expect(q).toContain('A receber R$ 30.000,50');
+    expect(q).toContain('Atrasado R$ 1.600,00');
+    expect(q.match(/Marcar como paga/g)!.length).toBe(2); // so as 2 nao pagas
+    expect(q.match(/Desfazer/g)!.length).toBe(1); // so a paga
+  });
+
+  it('contratos e parcelas indisponíveis mostram "indisponível" e nunca R$ 0,00', async () => {
+    painelOk();
+    const base = await d.carregarPainel({ de: new Date(), ate: new Date() });
+    d.carregarPainel.mockResolvedValue({ ...base, contratos: fora, parcelas: fora });
+    const h = await html();
+    for (const id of ['kpi-contratos', 'kpi-receita-contratada', 'kpi-receita-recebida', 'parcelas']) {
+      expect(h.match(new RegExp('data-quadro="' + id + '"[^>]*>([\\s\\S]*?)</section>'))![1]).toContain('indisponível');
+    }
+    expect(h).not.toContain('R$ 0,00');
   });
 });
