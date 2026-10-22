@@ -201,3 +201,11 @@ Vigiar a Evolution, curar quedas, avisar fora do WhatsApp e recuperar mensagens 
 - **Funil real desde 01/10:** Novo 83 entraram, 23 avançaram, 60 agora; Em conversa 23 entraram, 4 avançaram, 3 perderam, 16 agora.
 - **Pendências:** etapas 3B (contratos e parcelas por WhatsApp, quadros de receita, parcela atrasada na fila, Converted no CRM) e 3C (metas), ainda sem plano; previsão de vendas só a partir de novembro (30 dias de histórico).
 - **Riscos:** datas de consulta, equipe e perda são aproximadas; histórico só desde 06/10.
+
+### Atualização 22/10: etapa 3B (contratos e parcelas) pronta
+- **Plano e execução:** `docs/superpowers/plans/2026-10-22-painel-camparim-etapa3b.md` (tasks 1 a 7 concluídas, task 8 parcial). Migrations `0076` a `0079` com testes SQL verdes; regressões `0030`, `0068` e `0073` verdes.
+- **Comando no WhatsApp (chave `contrato_comando`, agora `ligado`):** frase livre de contrato → o modelo só preenche um formulário fechado → o código calcula dinheiro (centavos), datas e vencimentos e confere a soma → a Central mostra o resumo e só grava no "sim". Soma que não bate nunca grava e informa a diferença (a frase do exemplo dá R$ 200,00). Provado com o modelo real e pelo caminho `executar_central`.
+- **Banco:** `painel.contratos`, `painel.parcelas`, `painel.parcelas_log`; funções de registrar, marcar paga e desfazer; leituras `contratos_numeros` e `parcelas_abertas`; parcela atrasada na fila; contrato leva o lead a `Converted` no CRM e ao funil.
+- **Painel (publicado, `47fea0f`):** quadros de contratos fechados, receita contratada e recebida e lista de parcelas com "Marcar como paga" e "Desfazer" (única escrita de dinheiro, com sessão, validação e auditoria).
+- **Pendências:** teste real pelo WhatsApp do usuário com o lead sintético (final 6999); conferir o painel logado; remover os dados sintéticos depois (o SQL da ferramenta não aceita `delete`, será por workflow temporário); etapa 3C (metas); contratos não têm edição nem cancelamento.
+- **Riscos:** o modelo pode errar a leitura de valores e datas (mitigado pelo resumo completo, pela soma conferida duas vezes e pelo "sim"); a 1ª linha do teste antigo `0030` afirma `central_linguagem_livre = 'false'` e hoje falha por estar ligada de propósito.
