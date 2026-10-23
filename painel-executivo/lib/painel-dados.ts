@@ -16,6 +16,12 @@ export type TempoResposta = { media_segundos: number | null; maior_espera_segund
 
 export type FunilEtapa = { etapa: string; entraram: number; avancaram: number; perderam: number; agora: number };
 
+export type ResumoReativacao = {
+  leads: number; abordados: number; restantes: number; responderam: number; em_conversa: number; com_equipe: number;
+  sem_interesse: number; consultas: number; followups: number; horas_ate_resposta: number | null;
+  primeiro_envio: string | null; ultimo_envio: string | null;
+};
+
 export type ContratosNumeros = { fechados: number; receita_contratada: number; receita_recebida: number; a_receber: number; atrasado: number };
 export type ParcelaAberta = {
   id: number; contrato_id: number; lead_nome: string | null; telefone_fim: string | null; numero: number; valor: number;
@@ -38,6 +44,7 @@ export type DadosDoPainel = {
   parcelas: Carregado<ParcelaAberta[]>;
   metas: Carregado<MetaMes[]>;
   previsao: Carregado<LinhaPrevisao[]>;
+  reativacao: Carregado<ResumoReativacao>;
 };
 
 const consultaPadrao: Consulta = (sql, params) => getPool().query(sql, params as unknown[]);
@@ -48,7 +55,7 @@ const nOuNulo = (v: unknown): number | null => (v === null || v === undefined ? 
 
 export async function carregarPainel(periodo: Periodo, consulta: Consulta = consultaPadrao): Promise<DadosDoPainel> {
   const janela = [periodo.de, periodo.ate];
-  const [numeros, fila, etapas, followups, fontes, tempo, funil, contratos, parcelas, metas, previsao] = await Promise.all([
+  const [numeros, fila, etapas, followups, fontes, tempo, funil, contratos, parcelas, metas, previsao, reativacao] = await Promise.all([
     carregar('faixa de numeros', async () => {
       const { rows } = await consulta('select painel.faixa_numeros($1, $2) as f', janela);
       const f = rows[0]?.f as Record<string, unknown> | undefined;
@@ -118,8 +125,18 @@ export async function carregarPainel(periodo: Periodo, consulta: Consulta = cons
         esperados: n(r.esperados), ticket_medio: n(r.ticket_medio), ticket_origem: String(r.ticket_origem),
       }));
     }),
+    carregar('reativacao em massa', async () => {
+      const { rows } = await consulta("select leads, abordados, restantes, responderam, em_conversa, com_equipe, sem_interesse, consultas, followups, horas_ate_resposta, to_char(primeiro_envio, 'YYYY-MM-DD') as primeiro_envio, to_char(ultimo_envio, 'YYYY-MM-DD') as ultimo_envio from painel.reativacao_resumo()", []);
+      const r = rows[0];
+      if (!r) throw new Error('reativacao_resumo sem resposta');
+      return {
+        leads: n(r.leads), abordados: n(r.abordados), restantes: n(r.restantes), responderam: n(r.responderam), em_conversa: n(r.em_conversa),
+        com_equipe: n(r.com_equipe), sem_interesse: n(r.sem_interesse), consultas: n(r.consultas), followups: n(r.followups),
+        horas_ate_resposta: nOuNulo(r.horas_ate_resposta), primeiro_envio: (r.primeiro_envio as string | null) ?? null, ultimo_envio: (r.ultimo_envio as string | null) ?? null,
+      };
+    }),
   ]);
-  return { numeros, fila, etapas, followups, fontes, tempo, funil, contratos, parcelas, metas, previsao };
+  return { numeros, fila, etapas, followups, fontes, tempo, funil, contratos, parcelas, metas, previsao, reativacao };
 }
 
 // Falha de banco nao pode tirar a tela do ar: sem arranjo salvo ou sem banco, vale o padrao.

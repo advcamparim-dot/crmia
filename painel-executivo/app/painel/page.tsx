@@ -15,6 +15,7 @@ import { AnaliseFunil } from './widgets/AnaliseFunil';
 import { ParcelasLista } from './widgets/ParcelasLista';
 import { Metas } from './widgets/Metas';
 import { Previsao } from './widgets/Previsao';
+import { Reativacao } from './widgets/Reativacao';
 import { formatarReais } from './formatar';
 import './styles.css';
 
@@ -52,6 +53,7 @@ export default async function PainelPage({ searchParams }: { searchParams: { per
     parcelas: <ParcelasLista parcelas={dados.parcelas} resumo={dados.contratos} />,
     metas: <Metas metas={dados.metas} />,
     previsao: <Previsao previsao={dados.previsao} />,
+    reativacao: <Reativacao reativacao={dados.reativacao} />,
   };
 
   return (

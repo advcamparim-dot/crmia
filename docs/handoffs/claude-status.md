@@ -245,3 +245,9 @@ Vigiar a Evolution, curar quedas, avisar fora do WhatsApp e recuperar mensagens 
 - Método: chance de fechar e prazo (20/40/60 dias) por etapa, definidos pelo dono (iniciais: Novo 2%/60, Em conversa 8%/40, Consulta 25%/40, Com a equipe 15%/40, Proposta enviada 30%/20); valor médio R$ 8.000 (passa à média real a partir de 3 contratos). Cada etapa conta do horizonte do seu prazo em diante.
 - Testes: vitest 133/133, tsc, build ok; SQL conferido no banco com rollback. O quadro avisa que é estimativa com taxas do dono.
 - Pendência: trocar as taxas pelo histórico real quando houver 30 dias e 5 contratos (não implementado, hoje há 0 contratos). Risco: número é estimativa, não dado medido. Nova escrita do painel: taxas e valor médio.
+
+## Painel: quadro Reativação de leads frios (22/10)
+- Objetivo: acompanhar a reativação em massa no painel (abordados, taxa de resposta, destino de quem respondeu, consultas, follow-ups).
+- Arquivos: supabase/migrations/0086_painel_reativacao.sql (+ teste; aplicada; função só de leitura painel.reativacao_resumo()); painel-executivo/lib/{painel-dados,widgets,layout}.ts, app/painel/{page.tsx,widgets/Reativacao.tsx}, page.test.ts.
+- Resultado no banco: 58 leads, 35 abordados, 10 responderam (29%, ~4 h), 2 em conversa, 3 com a equipe, 5 sem interesse, 0 consultas, 13 follow-ups, 20 na fila.
+- Testes: vitest 135/135, tsc, build ok. Pendência: conferir o quadro logado após o deploy (push em main do crmia). Risco: "responderam" conta qualquer mensagem do lead após o envio.

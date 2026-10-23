@@ -42,6 +42,7 @@ function painelOk() {
       { tipo: 'consultas', meta: 10, atual: 2, percentual: 20, projecao: 6.2, dias_restantes: 9, dias_no_mes: 31 },
       { tipo: 'receita', meta: 50000, atual: 10000, percentual: 20, projecao: 31000, dias_restantes: 9, dias_no_mes: 31 },
     ]),
+    reativacao: ok({ leads: 58, abordados: 35, restantes: 20, responderam: 10, em_conversa: 2, com_equipe: 3, sem_interesse: 5, consultas: 0, followups: 13, horas_ate_resposta: 4, primeiro_envio: '2026-10-21', ultimo_envio: '2026-10-22' }),
     previsao: ok([
       { etapa: 'Em conversa', leads: 10, chance: 0.1, prazo_dias: 40, esperados: 1, ticket_medio: 8000, ticket_origem: 'definido' },
       { etapa: 'Proposta enviada', leads: 7, chance: 0.3, prazo_dias: 20, esperados: 2.1, ticket_medio: 8000, ticket_origem: 'definido' },
@@ -75,7 +76,7 @@ describe('Painel inicial /painel', () => {
 
   it('nenhum zero aparece quando todas as consultas falham', async () => {
     d.lerArranjo.mockResolvedValue(ARRANJO_PADRAO);
-    d.carregarPainel.mockResolvedValue({ numeros: fora, fila: fora, etapas: fora, followups: fora, fontes: fora, tempo: fora, funil: fora, contratos: fora, parcelas: fora, metas: fora, previsao: fora });
+    d.carregarPainel.mockResolvedValue({ numeros: fora, fila: fora, etapas: fora, followups: fora, fontes: fora, tempo: fora, funil: fora, contratos: fora, parcelas: fora, metas: fora, previsao: fora, reativacao: fora });
     const h = await html();
     expect(h).toContain('indisponível');
     const soTexto = h.replace(/<[^>]*>/g, ' ');
@@ -250,5 +251,24 @@ describe('Painel inicial /painel', () => {
     const q = (await html()).match(/data-quadro="previsao"[^>]*>([\s\S]*?)<\/section>/)![1];
     expect(q).toContain('indisponível');
     expect(q).not.toContain('R$');
+  });
+
+  it('a reativação mostra abordados, taxa de resposta e o destino de quem respondeu', async () => {
+    painelOk();
+    const q = (await html()).match(/data-quadro="reativacao"[^>]*>([\s\S]*?)<\/section>/)![1];
+    expect(q).toContain('35 de 58 leads abordados desde 21/10/2026');
+    expect(q).toContain('20 na fila');
+    expect(q).toContain('29%');
+    expect(q).toContain('Sem interesse');
+    expect(q).toContain('13 follow-ups');
+  });
+
+  it('reativação indisponível mostra "indisponível" e não zeros', async () => {
+    painelOk();
+    const base = await d.carregarPainel({ de: new Date(), ate: new Date() });
+    d.carregarPainel.mockResolvedValue({ ...base, reativacao: fora });
+    const q = (await html()).match(/data-quadro="reativacao"[^>]*>([\s\S]*?)<\/section>/)![1];
+    expect(q).toContain('indisponível');
+    expect(q).not.toContain('%');
   });
 });
