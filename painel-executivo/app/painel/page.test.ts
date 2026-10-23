@@ -5,7 +5,7 @@ import { ARRANJO_PADRAO } from '@/lib/layout';
 
 vi.mock('@/lib/session', () => ({ requireSession: async () => {} }));
 vi.mock('@/app/login/actions', () => ({ logout: async () => {} }));
-vi.mock('./actions', () => ({ salvarArranjo: async () => ({ ok: true }), marcarPagaAction: async () => {}, desfazerPagaAction: async () => {}, definirMetaAction: async () => {}, definirPrevisaoAction: async () => {}, definirTicketAction: async () => {} }));
+vi.mock('./actions', () => ({ salvarArranjo: async () => ({ ok: true }), marcarPagaAction: async () => {}, desfazerPagaAction: async () => {}, definirMetaAction: async () => {}, definirPrevisaoAction: async () => {}, definirTicketAction: async () => {}, dispensarFilaAction: async () => {} }));
 // A grade de verdade e do navegador; aqui so interessa o conteudo de cada quadro, na ordem do arranjo.
 vi.mock('./Grade', () => ({
   default: ({ arranjo, quadros, marca, periodos, sair }: { arranjo: { itens: { id: string }[] }; quadros: Record<string, ReactNode>; marca?: ReactNode; periodos?: ReactNode; sair?: ReactNode }) =>
@@ -270,5 +270,14 @@ describe('Painel inicial /painel', () => {
     const q = (await html()).match(/data-quadro="reativacao"[^>]*>([\s\S]*?)<\/section>/)![1];
     expect(q).toContain('indisponível');
     expect(q).not.toContain('%');
+  });
+
+  it('a fila tem o botão Já assumi só para lead esperando e transferência', async () => {
+    painelOk();
+    const h = await html();
+    const fila = h.match(/data-quadro="fila"[^>]*>([\s\S]*?)<\/section>/)![1];
+    expect(fila).toContain('Já assumi');
+    expect(fila).toContain('name="telefone" value="5511999994321"');
+    expect(fila.match(/Já assumi/g)!.length).toBe(1); // o item do WhatsApp (canal) não tem
   });
 });

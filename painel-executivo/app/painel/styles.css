@@ -115,3 +115,4 @@ a:focus-visible,button:focus-visible,select:focus-visible,input:focus-visible{ou
 .p-barras li:has(a):hover .p-barra-nome{color:var(--brass-bright)}
 .p-etapa-card:hover{background:var(--surface)}
 .p-meta-form+.p-meta-form{margin-top:8px}
+.p-assumi{display:inline}

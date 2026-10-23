@@ -223,3 +223,11 @@ export async function gravarTicketMedio(valor: number, consulta: Consulta = cons
   if (!Number.isFinite(valor) || valor <= 0 || valor > 10_000_000) throw new Error('valor medio invalido');
   await consulta('select painel.previsao_ticket_definir($1::numeric)', [valor]);
 }
+
+// "Ja assumi": tira o lead da fila de atencao ate ele escrever de novo. So aceita numero com digitos suficientes.
+export async function dispensarDaFila(telefone: string, consulta: Consulta = consultaPadrao): Promise<boolean> {
+  const digitos = telefone.replace(/\D/g, '');
+  if (digitos.length < 10 || digitos.length > 15) throw new Error('telefone invalido');
+  const { rows } = await consulta('select painel.fila_dispensar($1, $2) as ok', [`+${digitos}`, 'painel']);
+  return rows[0]?.ok === true;
+}

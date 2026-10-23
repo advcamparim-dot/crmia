@@ -2,7 +2,7 @@
 
 import { requireSession } from '@/lib/session';
 import { revalidatePath } from 'next/cache';
-import { desfazerPagamento, gravarArranjo, gravarMeta, gravarPagamento, gravarPrevisao, gravarTicketMedio } from '@/lib/painel-dados';
+import { desfazerPagamento, gravarArranjo, dispensarDaFila, gravarMeta, gravarPagamento, gravarPrevisao, gravarTicketMedio } from '@/lib/painel-dados';
 import { lerValorBR } from '@/lib/valor';
 
 export async function salvarArranjo(arranjo: unknown): Promise<{ ok: boolean }> {
@@ -69,6 +69,16 @@ export async function definirTicketAction(formData: FormData): Promise<void> {
     await gravarTicketMedio(valor);
   } catch (erro) {
     console.error('Falha ao definir o valor medio de contrato', erro);
+  }
+  revalidatePath('/painel');
+}
+
+export async function dispensarFilaAction(formData: FormData): Promise<void> {
+  await requireSession();
+  try {
+    await dispensarDaFila(String(formData.get('telefone') ?? ''));
+  } catch (erro) {
+    console.error('Falha ao dispensar o lead da fila', erro);
   }
   revalidatePath('/painel');
 }

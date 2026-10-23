@@ -257,3 +257,9 @@ Vigiar a Evolution, curar quedas, avisar fora do WhatsApp e recuperar mensagens 
 - Arquivos: supabase/migrations/0087_painel_fila_dispensa.sql (+ teste; aplicada): tabela painel.fila_dispensas, função painel.fila_dispensar(telefone, quem) e fila_atencao() ignorando lead dispensado (itens "lead esperando" e "transferência"). O item volta sozinho se o lead escrever de novo depois da dispensa.
 - Aplicado: dispensados os finais 3106, 1049 e 6022 (declarados pelo dono). Fila foi de 6 para 3 itens (1304, 1319 e a consulta de 23/10 seguem).
 - Testes: asserts no banco com rollback (item sai da fila; número fora da lista e nulo recusados). Sem mudança no painel web. Pendência: botão "Já assumi" no painel (hoje só pela função).
+
+## Painel: botão "Já assumi" na fila (22/10)
+- Objetivo: o dono dispensar sozinho, pela fila, o lead que já assumiu.
+- Arquivos: painel-executivo/lib/painel-dados.ts (dispensarDaFila: valida o telefone e chama painel.fila_dispensar), app/painel/{actions.ts,widgets/Fila.tsx,styles.css}, testes.
+- O botão aparece só nos itens "Lead esperando" e "Transferência" que têm telefone; o item volta se o lead escrever de novo. Quinta escrita do painel (dispensa na fila), exige sessão.
+- Testes: vitest 139/139, tsc, build ok. Pendência: conferir logado após o deploy.

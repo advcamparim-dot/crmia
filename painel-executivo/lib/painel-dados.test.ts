@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 import type { Consulta } from './sessao';
 import { ARRANJO_PADRAO } from './layout';
 import { IDS_DO_CATALOGO } from './widgets';
-import { carregarPainel, desfazerPagamento, gravarArranjo, gravarMeta, gravarPagamento, gravarPrevisao, gravarTicketMedio, lerArranjo, lerLeadsDaEtapa, ETAPAS } from './painel-dados';
+import { carregarPainel, desfazerPagamento, gravarArranjo, gravarMeta, gravarPagamento, gravarPrevisao, gravarTicketMedio, dispensarDaFila, lerArranjo, lerLeadsDaEtapa, ETAPAS } from './painel-dados';
 
 const periodo = { de: new Date('2026-10-19T03:00:00Z'), ate: new Date('2026-10-20T03:00:00Z') };
 
@@ -203,5 +203,22 @@ describe('gravarPrevisao e gravarTicketMedio', () => {
     await expect(gravarTicketMedio(0, consulta)).rejects.toThrow();
     await gravarTicketMedio(8000, consulta);
     expect(consulta).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('dispensarDaFila', () => {
+  it('chama a função do banco com o telefone em formato internacional', async () => {
+    const consulta = vi.fn().mockResolvedValue({ rows: [{ ok: true }] });
+    expect(await dispensarDaFila('5516992016022', consulta)).toBe(true);
+    expect(consulta).toHaveBeenCalledWith('select painel.fila_dispensar($1, $2) as ok', ['+5516992016022', 'painel']);
+  });
+  it('lead fora da lista devolve falso', async () => {
+    const consulta = vi.fn().mockResolvedValue({ rows: [{ ok: false }] });
+    expect(await dispensarDaFila('5516992016022', consulta)).toBe(false);
+  });
+  it('telefone inválido nem chega ao banco', async () => {
+    const consulta = vi.fn();
+    await expect(dispensarDaFila('123', consulta)).rejects.toThrow();
+    expect(consulta).not.toHaveBeenCalled();
   });
 });

@@ -1,5 +1,6 @@
 import { texto, type Carregado } from '@/lib/carregado';
 import type { ItemFila } from '@/lib/painel-dados';
+import { dispensarFilaAction } from '../actions';
 import { ORIGEM_TIPO, ROTULO_TIPO, haQuanto } from '../formatar';
 
 const CRM = (process.env.CRM_URL || 'https://crm.camparimadvogados.com.br').replace(/\/+$/, '');
@@ -24,6 +25,12 @@ export function Fila({ fila }: { fila: Carregado<ItemFila[]> }) {
             {i.lead_nome && <div className="p-detalhe">{i.detalhe}</div>}
             <div className="p-acoes">
               {digitos && <a href={`https://wa.me/${digitos}`} target="_blank" rel="noopener noreferrer">Abrir no WhatsApp</a>}
+              {digitos && (i.tipo === 'lead_esperando' || i.tipo === 'transferencia') && (
+                <form action={dispensarFilaAction} className="p-assumi">
+                  <input type="hidden" name="telefone" value={digitos} />
+                  <button type="submit" className="p-mini">Já assumi</button>
+                </form>
+              )}
               {i.crm_lead_id && <a href={`${CRM}/#Lead/view/${encodeURIComponent(i.crm_lead_id)}`} target="_blank" rel="noopener noreferrer">Abrir no CRM</a>}
             </div>
           </li>
