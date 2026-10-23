@@ -251,3 +251,9 @@ Vigiar a Evolution, curar quedas, avisar fora do WhatsApp e recuperar mensagens 
 - Arquivos: supabase/migrations/0086_painel_reativacao.sql (+ teste; aplicada; função só de leitura painel.reativacao_resumo()); painel-executivo/lib/{painel-dados,widgets,layout}.ts, app/painel/{page.tsx,widgets/Reativacao.tsx}, page.test.ts.
 - Resultado no banco: 58 leads, 35 abordados, 10 responderam (29%, ~4 h), 2 em conversa, 3 com a equipe, 5 sem interesse, 0 consultas, 13 follow-ups, 20 na fila.
 - Testes: vitest 135/135, tsc, build ok. Pendência: conferir o quadro logado após o deploy (push em main do crmia). Risco: "responderam" conta qualquer mensagem do lead após o envio.
+
+## Fila de atenção: "já assumi" (22/10)
+- Objetivo: tirar da fila "Precisa de você" os leads que o dono já assumiu.
+- Arquivos: supabase/migrations/0087_painel_fila_dispensa.sql (+ teste; aplicada): tabela painel.fila_dispensas, função painel.fila_dispensar(telefone, quem) e fila_atencao() ignorando lead dispensado (itens "lead esperando" e "transferência"). O item volta sozinho se o lead escrever de novo depois da dispensa.
+- Aplicado: dispensados os finais 3106, 1049 e 6022 (declarados pelo dono). Fila foi de 6 para 3 itens (1304, 1319 e a consulta de 23/10 seguem).
+- Testes: asserts no banco com rollback (item sai da fila; número fora da lista e nulo recusados). Sem mudança no painel web. Pendência: botão "Já assumi" no painel (hoje só pela função).
